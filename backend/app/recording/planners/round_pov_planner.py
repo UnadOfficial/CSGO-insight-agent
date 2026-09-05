@@ -7,10 +7,11 @@ from ..platform_utils import platform_slot_offset, compute_voice_listen_mask, co
 logger = logging.getLogger(__name__)
 
 
-# Keep the round-result beat visible in round compilations.  ``round_end_tick`` is
-# the instant CS2 decides the round (often the same tick as the last kill), not the
-# end of the post-round presentation.  This mirrors the 3 s tail used by the round
-# timeline path while still being capped before the next round's freeze phase.
+# Keep the round-result beat visible in round compilations and full-round timeline
+# clips.  ``round_end_tick`` is the instant CS2 decides the round (often the same
+# tick as the last kill), not the end of the post-round presentation.  This
+# mirrors the 3 s tail used by the round timeline path while still being capped
+# before the next round's freeze phase.
 _ROUND_COMPILATION_POST_ROUND_END_SEC = 3.0
 
 
@@ -53,9 +54,19 @@ def plan_round_pov(req: NormalizedRequest) -> tuple[list[RecordingSegment], list
     _ALIVE_END_GUARD_SEC = 0.5
     alive_end_guard_ticks = sec_to_ticks(_ALIVE_END_GUARD_SEC, tick_rate)
 
+    is_timeline_round = req.request_type == RequestType.timeline_round
+    keep_round_result_tail = req.request_type in (
+        RequestType.round_compilation,
+        RequestType.timeline_round,
+    )
+
     for segment_index, round_info in enumerate(req.rounds):
         # --- Compute start_tick ---
-        if round_info.freeze_end_tick is not None:
+        # Full-round timeline clips start at freeze/buy. Round compilations keep
+        # the shorter freeze_end - preroll window so multi-round montages stay tight.
+        if is_timeline_round and round_info.freeze_start_tick is not None:
+            start_tick = round_info.freeze_start_tick
+        elif round_info.freeze_end_tick is not None:
             start_tick = round_info.freeze_end_tick - round_freeze_preroll_ticks
         elif round_info.round_start_tick is not None:
             # Fallback: round_start_tick + estimated freeze duration
@@ -78,7 +89,6 @@ def plan_round_pov(req: NormalizedRequest) -> tuple[list[RecordingSegment], list
             round_info.round_end_tick is not None and round_info.round_end_tick_reliable
         )
         is_final_round = (round_info.round == req.demo.final_round)
-        is_round_compilation = req.request_type == RequestType.round_compilation
         round_end_post_ticks = sec_to_ticks(
             _ROUND_COMPILATION_POST_ROUND_END_SEC, tick_rate
         )
@@ -96,7 +106,7 @@ def plan_round_pov(req: NormalizedRequest) -> tuple[list[RecordingSegment], list
             if reliable_round_end:
                 end_tick = round_info.round_end_tick  # type: ignore[assignment]
                 end_reason = "round_end"
-                if is_round_compilation and not is_final_round:
+                if keep_round_result_tail and not is_final_round:
                     end_tick += round_end_post_ticks
                     end_reason = "round_end_post"
             elif round_info.next_round_start_tick is not None:
@@ -127,7 +137,7 @@ def plan_round_pov(req: NormalizedRequest) -> tuple[list[RecordingSegment], list
             # it away at that instant.  The 3 s post-round ceiling and next-round cap
             # below still prevent footage from spilling into the following round.
             if reliable_round_end and end_tick > round_info.round_end_tick:  # type: ignore[operator]
-                if is_round_compilation:
+                if keep_round_result_tail:
                     post_round_cap = round_info.round_end_tick + round_end_post_ticks  # type: ignore[operator]
                     if end_tick > post_round_cap:
                         end_tick = post_round_cap
@@ -136,12 +146,12 @@ def plan_round_pov(req: NormalizedRequest) -> tuple[list[RecordingSegment], list
                     end_tick = round_info.round_end_tick  # type: ignore[assignment]
                     end_reason = "target_death_post_clamped_to_round_end"
 
-            # Always clamp before next_round_start_tick.  For compilations, keep the
-            # same 0.5 s safety margin as alive rounds so poll/OBS latency cannot leak
-            # a buy-phase frame into the output.
+            # Always clamp before next_round_start_tick.  For full-round / compilation
+            # windows, keep the same 0.5 s safety margin as alive rounds so poll/OBS
+            # latency cannot leak a buy-phase frame into the output.
             if round_info.next_round_start_tick is not None:
                 next_round_cap = round_info.next_round_start_tick
-                if is_round_compilation:
+                if keep_round_result_tail:
                     next_round_cap -= alive_end_guard_ticks
                 if end_tick > next_round_cap:
                     end_tick = next_round_cap

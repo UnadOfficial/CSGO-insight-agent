@@ -7,11 +7,14 @@ from app.env_utils import (
 )
 
 
-def test_default_seeds_five_cvars():
+def test_default_seeds_console_lines():
     cfg = AppConfig()
     assert cfg.record_inject_console_lines == _DEFAULT_RECORD_INJECT_CONSOLE_LINES
     assert "fps_max 0" in cfg.record_inject_console_lines
-    assert "cl_trueview_show_status 0" in cfg.record_inject_console_lines
+    assert "engine_no_focus_sleep 0" in cfg.record_inject_console_lines
+    assert "bind kp_5 demo_pause" in cfg.record_inject_console_lines
+    assert "bind kp_6 demo_resume" in cfg.record_inject_console_lines
+    assert "cl_trueview_show_status 0" not in cfg.record_inject_console_lines
 
 
 def test_legacy_empty_no_flag_gets_seeded():

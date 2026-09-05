@@ -92,6 +92,7 @@ export default function RoundSummaryPanel({
             type="button"
             onClick={onAddRound}
             disabled={!onAddRound || roundQueued}
+            title={t("analysis.btnAddRoundTip")}
             className="w-full rounded-md border border-cs2-border bg-cs2-bg-input/50 py-2 text-[12px] font-semibold text-cs2-text-primary transition-colors hover:border-cs2-accent/50 hover:text-cs2-text-primary disabled:opacity-35"
           >
             {roundQueued ? t("analysis.btnRoundQueued") : t("analysis.btnAddRound")}

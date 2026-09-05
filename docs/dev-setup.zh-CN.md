@@ -80,6 +80,20 @@ pnpm --dir frontend run desktop:check
 `desktop:build:ver`，不要使用 `desktop:build`；前者会把指定版本统一应用到
 前端、Tauri/NSIS 元数据和内置后端。
 
+一键脚本（推荐）会走同一套流程：
+
+```powershell
+# 快速重复构建（已有 python\python.exe，依赖未变）
+.\packaging\windows\build_desktop.ps1 -Version 2.6.0
+
+# 完整可复现构建（首次 / Python 或 demoparser runtime 变更）
+.\packaging\windows\build_desktop.ps1 -Version 2.6.0 -Full
+
+# 或
+.\packaging\windows\build_desktop.bat 2.6.0
+.\packaging\windows\build_desktop.bat 2.6.0 --full
+```
+
 ### 完整可复现构建
 
 首次打包、Python 依赖发生变化或所需的 `demoparser2` runtime 版本发生变化

@@ -47,7 +47,7 @@ export default {
   "app.enqueueTimelineDone": "Added to recording queue (timeline)",
   "app.enqueueWeaponKillsDone": "Added all kills with this weapon to the recording queue",
   "app.enqueueRoundAlreadyIn": "This round is already in the queue.",
-  "app.enqueueRoundDone": "Added round to recording queue",
+  "app.enqueueRoundDone": "Added full round to recording queue",
   "app.enqueueTimelineBatchAllIn": "All selected timeline events are already in the queue.",
   "app.enqueueTimelineBatchDone": "Added {n} {n, plural, one=timeline clip, other=timeline clips} to queue",
   "app.commonParamsSaved": "Recording params saved to config file.",

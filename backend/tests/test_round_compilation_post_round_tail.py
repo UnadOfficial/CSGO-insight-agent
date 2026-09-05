@@ -89,11 +89,11 @@ def test_round_ending_death_keeps_death_post_tail():
     assert plan.segments[0].metadata["end_reason"] == "target_death_post"
 
 
-def test_timeline_round_does_not_add_a_second_result_tail():
+def test_timeline_round_adds_one_result_tail():
     plan = build_plan(_request(RequestType.timeline_round, _round()))
 
-    assert plan.segments[0].end_tick == 30_000
-    assert plan.segments[0].metadata["end_reason"] == "round_end"
+    assert plan.segments[0].end_tick == 30_000 + int(3.0 * TICK_RATE)
+    assert plan.segments[0].metadata["end_reason"] == "round_end_post"
 
 
 def test_tick_watcher_ignores_round_increment_during_result_phase(monkeypatch):

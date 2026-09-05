@@ -2077,6 +2077,7 @@ class DemoAnalyzer:
                 round_target_team_map=round_target_team_map or {},
                 events=timeline_events,
                 round_freeze_end_ticks=round_freeze_end_ticks,
+                round_freeze_start_ticks=round_freeze_start_ticks,
                 round_result_map=round_result_map,
                 round_scores_by_round=round_scores_tbl,
                 round_end_df=re_df_tl,

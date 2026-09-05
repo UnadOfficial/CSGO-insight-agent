@@ -47,7 +47,7 @@ export default {
   "app.enqueueTimelineDone": "已加入录制队列（时间线）",
   "app.enqueueWeaponKillsDone": "已将该枪械的全部击杀加入录制队列",
   "app.enqueueRoundAlreadyIn": "该回合整段已在队列中。",
-  "app.enqueueRoundDone": "已加入本回合到录制队列",
+  "app.enqueueRoundDone": "已将整回合加入录制队列",
   "app.enqueueTimelineBatchAllIn": "所选时间线事件均已在队列中。",
   "app.enqueueTimelineBatchDone": "已加入 {n} 条时间线片段",
   "app.commonParamsSaved": "录制预设参数已保存到配置文件。",

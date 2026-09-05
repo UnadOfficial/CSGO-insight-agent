@@ -125,11 +125,24 @@ export function buildTimelineEventClipData({ event, mapName = "", targetPlayer =
  */
 export function buildTimelineRoundClipData({ roundRow, mapName = "", targetPlayer = "", demoFilename = "", t }) {
   const rn = Number(roundRow?.round_number ?? roundRow?.round);
-  const fe = roundRow?.start_tick ?? roundRow?.round_start_tick;
-  const en =
-    roundRow?.record_end_tick ?? roundRow?.end_tick ?? roundRow?.round_end_tick;
-  const st = fe != null && Number.isFinite(Number(fe)) ? Number(fe) : 0;
-  let et = en != null && Number.isFinite(Number(en)) ? Number(en) : st + 64 * 45;
+  const freezeEndRaw = roundRow?.freeze_end_tick ?? roundRow?.start_tick ?? roundRow?.round_start_tick;
+  const freezeStartRaw = roundRow?.freeze_start_tick;
+  const freezeEnd = freezeEndRaw != null && Number.isFinite(Number(freezeEndRaw)) ? Number(freezeEndRaw) : null;
+  const freezeStart =
+    freezeStartRaw != null && Number.isFinite(Number(freezeStartRaw)) ? Number(freezeStartRaw) : null;
+  const realRoundEndRaw = roundRow?.end_tick ?? roundRow?.round_end_tick;
+  const realRoundEnd =
+    realRoundEndRaw != null && Number.isFinite(Number(realRoundEndRaw)) ? Number(realRoundEndRaw) : null;
+  const recordEndRaw = roundRow?.record_end_tick ?? realRoundEnd;
+  const nextRoundStartRaw = roundRow?.next_round_start_tick;
+  const nextRoundFreezeEndRaw = roundRow?.next_round_freeze_end_tick;
+  const st =
+    freezeStart != null && (freezeEnd == null || freezeStart < freezeEnd)
+      ? freezeStart
+      : freezeEnd != null
+        ? freezeEnd
+        : 0;
+  let et = recordEndRaw != null && Number.isFinite(Number(recordEndRaw)) ? Number(recordEndRaw) : st + 64 * 45;
   if (et <= st) et = st + 64 * 10;
   /** 本回合目标死亡后短留白即结束，避免死亡观战结束镜头切到他人仍长时间录制 */
   const ROUND_DEATH_TAIL_TICKS = Math.round(64 * 2.0);
@@ -137,7 +150,7 @@ export function buildTimelineRoundClipData({ roundRow, mapName = "", targetPlaye
   const deathTicks = events
     .filter((e) => e?.record_type === "death" || e?.type === "death")
     .map((e) => Number(e?.tick))
-    .filter((t) => Number.isFinite(t) && t > 0);
+    .filter((tick) => Number.isFinite(tick) && tick > 0);
   const lastDeathTick = deathTicks.length ? Math.max(...deathTicks) : null;
   if (lastDeathTick != null) {
     const cap = lastDeathTick + ROUND_DEATH_TAIL_TICKS;
@@ -166,9 +179,21 @@ export function buildTimelineRoundClipData({ roundRow, mapName = "", targetPlaye
     queue_summary_line: queueSummaryLine,
     timeline_record_kind: "round",
     fixed_segment_pacing: true,
-    clip_min_tick: st,
+    clip_min_tick: freezeEnd ?? st,
     clip_max_tick: et,
     kill_ticks: [],
+    freeze_start_tick: freezeStart,
+    freeze_end_tick: freezeEnd,
+    round_end_tick: realRoundEnd,
+    next_round_start_tick:
+      nextRoundStartRaw != null && Number.isFinite(Number(nextRoundStartRaw))
+        ? Number(nextRoundStartRaw)
+        : null,
+    next_round_freeze_end_tick:
+      nextRoundFreezeEndRaw != null && Number.isFinite(Number(nextRoundFreezeEndRaw))
+        ? Number(nextRoundFreezeEndRaw)
+        : null,
+    death_tick: lastDeathTick,
     // target player's spec_player slot pre-computed during demo parsing
     target_spec_slot: roundRow?.target_player_spec_slot ?? null,
     timeline_source: "round_timeline_round",

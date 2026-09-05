@@ -318,10 +318,11 @@ check("9b: end = death_tick + post", plan.segments[0].end_tick == exp_end,
       f"got {plan.segments[0].end_tick}, want {exp_end}")
 
 
-# ── Test 10: Timeline round — equivalent to single round_compilation ───────
+# ── Test 10: Timeline round — alive, 3s result tail, same clamp as compilation ─
 # Same normalizer rewrite as test 8: next_round_freeze_start_tick=35_000 rewrites to
 # next_round_freeze_end=35_000; round_end_tick=30_000 is reliable.
-# end = min(round_end_tick=30_000, next_round_start=30_100) = 30_000
+# freeze_start_tick is unset → start stays freeze_end - preroll (old DTO fallback).
+# end = min(30_000 + 192, 30_100 - 32) = 30_068
 print("\nTest 10: Timeline round")
 next_freeze = 35_000
 r = make_round(round_num=5, freeze_end_tick=10_000, round_end_tick=30_000,
@@ -335,9 +336,9 @@ plan = build_plan(req)
 opts = req.options
 exp_start = 10_000 - int(opts.round_freeze_preroll_sec * TICK_RATE)
 check("10a: 1 segment", len(plan.segments) == 1, f"got {len(plan.segments)}")
-check("10b: start = freeze_end - preroll", plan.segments[0].start_tick == exp_start)
-check("10c: end = round_end_tick (reliable, < next_round_start)", plan.segments[0].end_tick == 30_000,
-      f"got {plan.segments[0].end_tick}, want 30_000")
+check("10b: start = freeze_end - preroll without freeze_start_tick", plan.segments[0].start_tick == exp_start)
+check("10c: round-result tail capped before next round", plan.segments[0].end_tick == 30_068,
+      f"got {plan.segments[0].end_tick}, want 30_068")
 
 
 # ── Test 11: Killer + victim POV → 2 separate segments ────────────────────

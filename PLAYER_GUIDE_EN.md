@@ -225,7 +225,8 @@ Each detected moment appears as a card:
 - **🔥 Highlight:** three or more kills in a round, or a special situation such as a one-tap, clutch, knife kill, or jump shot.
 - **💀 Fail:** amusing or unfortunate moments such as a Zeus kill, Deagle headshot, or team kill.
 - **🪦 Meme Death:** special community meme deaths, including the 211 / `o`-series tags.
-- **🎬 Compilation:** cross-round sequences such as favourite victim, nemesis, or all-kills/all-deaths montages.
+- **🎬 Compilation:** cross-round sequences such as favourite victim, nemesis, or all-kills/all-deaths montages. **Round compilation** records from just before freeze ends until death or round end, and can stitch multiple selected rounds.
+- **Record full round** on the round timeline: from that round's freeze time until you die or the round ends.
 
 With AI mode enabled, cards also include an AI score and commentary.
 

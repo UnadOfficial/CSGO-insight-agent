@@ -11,8 +11,8 @@ def test_appconfig_defaults():
     assert cfg.obs_transition_enabled is False
     assert cfg.obs_transition_name == "Fade"
     assert cfg.obs_transition_duration_ms == 100
-    assert cfg.obs_game_scene_name == "CS2 Insight Recording"
-    assert cfg.obs_black_scene_name == "CS2 Insight Black"
+    assert cfg.obs_game_scene_name == "CSGO Insight Recording"
+    assert cfg.obs_black_scene_name == "CSGO Insight Black"
 
 
 def test_recording_options_defaults():
@@ -68,8 +68,8 @@ def test_resolve_requires_explicit_session_opt_in_when_options_are_none():
     assert fc.enabled is False
     assert fc.transition_name == "Swipe"
     assert fc.duration_ms == 500
-    assert fc.game_scene_name == "CS2 Insight Recording"
-    assert fc.black_scene_name == "CS2 Insight Black"
+    assert fc.game_scene_name == "CSGO Insight Recording"
+    assert fc.black_scene_name == "CSGO Insight Black"
 
 
 def test_resolve_options_override_appconfig():

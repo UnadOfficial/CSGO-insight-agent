@@ -435,6 +435,10 @@ export function buildTimelineRoundRecordingRequest(clipData, queueItem, matchMet
   const demo = buildDemoContext(clipData, queueItem, matchMeta);
   const targetSpecSlot = clipData.target_spec_slot ?? null;
   const targetPlayer = buildTargetPlayer(queueItem.targetPlayer, queueItem.targetSteamId, targetSpecSlot);
+  const freezeStart = clipData.freeze_start_tick ?? null;
+  const freezeEnd = clipData.freeze_end_tick ?? clipData.clip_min_tick ?? null;
+  const roundStart = freezeStart ?? (clipData.start_tick || 0);
+  const roundEnd = clipData.round_end_tick ?? (clipData.end_tick || 0);
   return {
     request_id: newRequestId(),
     request_type: "timeline_round",
@@ -445,13 +449,13 @@ export function buildTimelineRoundRecordingRequest(clipData, queueItem, matchMet
     rounds: [
       {
         round: clipData.round,
-        round_start_tick: clipData.start_tick || 0,
-        round_end_tick: clipData.end_tick || 0,
-        freeze_start_tick: null,
-        freeze_end_tick: clipData.clip_min_tick ?? null,
-        next_round_start_tick: null,
-        next_round_freeze_start_tick: null,
-        next_round_freeze_end_tick: null,
+        round_start_tick: roundStart,
+        round_end_tick: roundEnd,
+        freeze_start_tick: freezeStart,
+        freeze_end_tick: freezeEnd,
+        next_round_start_tick: clipData.next_round_start_tick ?? null,
+        next_round_freeze_start_tick: clipData.next_round_start_tick ?? null,
+        next_round_freeze_end_tick: clipData.next_round_freeze_end_tick ?? null,
         target_death_tick: clipData.death_tick ?? null,
       },
     ],

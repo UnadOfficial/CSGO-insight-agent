@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mergeTimelineRequestsForRecording } from "./recordingBatch.js";
 import { buildDtoFromQueueItem } from "../recording/buildDtoFromQueueItem.js";
-import { buildTimelineEventClipData } from "./timelineQueue.js";
+import { buildTimelineEventClipData, buildTimelineRoundClipData } from "./timelineQueue.js";
 
 const MATCH_META = { map_name: "de_mirage", all_players: [] };
 
@@ -137,5 +137,101 @@ describe("mergeTimelineRequestsForRecording", () => {
     const out = mergeTimelineRequestsForRecording([dto, highlight], { thresholdSec: 12 });
     // dto is timeline_kill (single → passthrough), highlight untouched.
     expect(out.some((r) => r.request_type === "highlight")).toBe(true);
+  });
+});
+
+describe("buildTimelineRoundClipData", () => {
+  const roundRow = {
+    round_number: 5,
+    start_tick: 10_000,
+    end_tick: 30_000,
+    record_end_tick: 30_192,
+    freeze_start_tick: 9_000,
+    freeze_end_tick: 10_000,
+    next_round_start_tick: 30_400,
+    next_round_freeze_end_tick: 31_000,
+    target_player_spec_slot: 3,
+    summary: { kills: 2, deaths: 0, assists: 1 },
+    events: [],
+  };
+
+  it("starts at freeze time and keeps the round-end window when alive", () => {
+    const clip = buildTimelineRoundClipData({
+      roundRow,
+      mapName: "de_mirage",
+      targetPlayer: "target",
+      demoFilename: "match.dem",
+      t: (key) => key,
+    });
+    expect(clip.start_tick).toBe(9_000);
+    expect(clip.end_tick).toBe(30_192);
+    expect(clip.freeze_start_tick).toBe(9_000);
+    expect(clip.freeze_end_tick).toBe(10_000);
+    expect(clip.round_end_tick).toBe(30_000);
+    expect(clip.next_round_start_tick).toBe(30_400);
+    expect(clip.death_tick).toBeNull();
+    expect(clip.timeline_source).toBe("round_timeline_round");
+  });
+
+  it("caps the window at death plus 2s", () => {
+    const clip = buildTimelineRoundClipData({
+      roundRow: {
+        ...roundRow,
+        summary: { kills: 0, deaths: 1, assists: 0 },
+        events: [{ type: "death", record_type: "death", tick: 20_000 }],
+      },
+      demoFilename: "match.dem",
+      t: (key) => key,
+    });
+    expect(clip.start_tick).toBe(9_000);
+    expect(clip.death_tick).toBe(20_000);
+    expect(clip.end_tick).toBe(20_000 + 64 * 2);
+    expect(clip.round_end_tick).toBe(30_000);
+  });
+
+  it("DTO keeps freeze start, real round end, and death tick", () => {
+    const clipData = buildTimelineRoundClipData({
+      roundRow: {
+        ...roundRow,
+        summary: { kills: 0, deaths: 1, assists: 0 },
+        events: [{ type: "death", record_type: "death", tick: 20_000 }],
+      },
+      demoFilename: "match.dem",
+      targetPlayer: "target",
+    });
+    const dto = buildDtoFromQueueItem(
+      {
+        id: "q-round",
+        demoPath: "C:/demos/match.dem",
+        demoFilename: "match.dem",
+        targetPlayer: "target",
+        targetSteamId: "7656119",
+        clipId: clipData.clip_id,
+        clientClipUid: clipData.client_clip_uid,
+        clipData,
+      },
+      MATCH_META,
+    );
+    expect(dto.request_type).toBe("timeline_round");
+    expect(dto.rounds[0].freeze_start_tick).toBe(9_000);
+    expect(dto.rounds[0].round_end_tick).toBe(30_000);
+    expect(dto.rounds[0].target_death_tick).toBe(20_000);
+    expect(dto.rounds[0].next_round_start_tick).toBe(30_400);
+  });
+
+  it("falls back to freeze_end when freeze_start is missing", () => {
+    const clip = buildTimelineRoundClipData({
+      roundRow: {
+        round_number: 1,
+        start_tick: 10_000,
+        end_tick: 20_000,
+        record_end_tick: 20_192,
+        events: [],
+      },
+      demoFilename: "match.dem",
+    });
+    expect(clip.start_tick).toBe(10_000);
+    expect(clip.freeze_start_tick).toBeNull();
+    expect(clip.freeze_end_tick).toBe(10_000);
   });
 });

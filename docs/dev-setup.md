@@ -83,6 +83,13 @@ Use `desktop:build:ver` rather than `desktop:build` so the requested version is
 applied consistently to the frontend, Tauri/NSIS metadata, and the bundled
 backend.
 
+One-click wrapper (same flow as the copy-paste blocks below):
+
+```powershell
+.\packaging\windows\build_desktop.ps1 -Version 2.6.0
+.\packaging\windows\build_desktop.ps1 -Version 2.6.0 -Full
+```
+
 ### Full reproducible build
 
 Use this flow for the first package, after Python dependency changes, or after

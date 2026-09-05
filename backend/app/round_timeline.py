@@ -303,6 +303,7 @@ def build_round_timeline(
     round_target_team_map: dict[int, int],
     events: pd.DataFrame,
     round_freeze_end_ticks: dict[int, int],
+    round_freeze_start_ticks: Optional[dict[int, int]] = None,
     round_result_map: dict[int, Any],
     round_scores_by_round: dict[int, dict[int, int]],
     round_end_df: pd.DataFrame,
@@ -325,11 +326,22 @@ def build_round_timeline(
     winners_by_ended = _parse_round_winners_side(round_end_df, match_start_tick)
 
     freeze_sorted = sorted(round_freeze_end_ticks.keys()) if round_freeze_end_ticks else []
+    freeze_starts = round_freeze_start_ticks or {}
 
     def freeze_tick_for_round(rn: int) -> Optional[int]:
         if rn in round_freeze_end_ticks:
             return int(round_freeze_end_ticks[rn])
         return None
+
+    def freeze_start_for_round(rn: int) -> Optional[int]:
+        v = freeze_starts.get(int(rn))
+        if v is None:
+            return None
+        try:
+            i = int(v)
+        except (TypeError, ValueError):
+            return None
+        return i if i > 0 else None
 
     def round_end_tick_for(rn: int) -> Optional[int]:
         v = round_end_tick_map.get(int(rn))
@@ -576,6 +588,9 @@ def build_round_timeline(
         assist_sum += ta
 
         fe = freeze_tick_for_round(rn)
+        fs = freeze_start_for_round(rn)
+        nxt_fs = freeze_start_for_round(rn + 1)
+        nxt_fe = freeze_tick_for_round(rn + 1)
         ret = round_end_tick_for(rn)
         record_end = _timeline_round_record_end_tick(
             rn, ret, float(tick_rate), round_freeze_end_ticks, evs,
@@ -614,6 +629,10 @@ def build_round_timeline(
                 "round_start_tick": int(fe) if fe is not None else None,
                 "round_end_tick": int(ret) if ret is not None else None,
                 "record_end_tick": int(record_end) if record_end is not None else None,
+                "freeze_start_tick": int(fs) if fs is not None else None,
+                "freeze_end_tick": int(fe) if fe is not None else None,
+                "next_round_start_tick": int(nxt_fs) if nxt_fs is not None else None,
+                "next_round_freeze_end_tick": int(nxt_fe) if nxt_fe is not None else None,
                 "winner": winner_tct,
                 "target_won_round": bool(target_won) if isinstance(target_won, bool) else None,
                 "score_t": st_t,
@@ -645,6 +664,10 @@ def build_round_timeline(
                 "start_tick": int(fe) if fe is not None else None,
                 "end_tick": int(ret) if ret is not None else None,
                 "record_end_tick": int(record_end) if record_end is not None else None,
+                "freeze_start_tick": int(fs) if fs is not None else None,
+                "freeze_end_tick": int(fe) if fe is not None else None,
+                "next_round_start_tick": int(nxt_fs) if nxt_fs is not None else None,
+                "next_round_freeze_end_tick": int(nxt_fe) if nxt_fe is not None else None,
                 "focused_player": tp,
                 "target_player_spec_slot": target_player_user_id,
                 "summary": {"kills": tk, "deaths": td, "assists": ta},
@@ -690,6 +713,10 @@ def build_round_timeline_error_fallback(
         "round_start_tick": None,
         "round_end_tick": None,
         "record_end_tick": None,
+        "freeze_start_tick": None,
+        "freeze_end_tick": None,
+        "next_round_start_tick": None,
+        "next_round_freeze_end_tick": None,
         "winner": None,
         "target_won_round": None,
         "score_t": None,
@@ -710,6 +737,10 @@ def build_round_timeline_error_fallback(
             "start_tick": None,
             "end_tick": None,
             "record_end_tick": None,
+            "freeze_start_tick": None,
+            "freeze_end_tick": None,
+            "next_round_start_tick": None,
+            "next_round_freeze_end_tick": None,
             "focused_player": target_player,
             "summary": {"kills": 0, "deaths": 0, "assists": 0},
             "player_stats": {"kills": 0, "deaths": 0, "assists": 0, "headshots": 0},

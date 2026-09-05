@@ -22,5 +22,6 @@ def test_config_backup_router_preserves_public_contract():
 def test_gsi_router_preserves_public_contract():
     assert _route_methods(gsi_router) == {
         "/api/gsi/cs2": {"POST"},
+        "/api/gsi/csgo": {"POST"},
         "/api/gsi/status": {"GET"},
     }

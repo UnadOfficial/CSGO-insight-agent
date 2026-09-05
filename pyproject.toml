@@ -25,6 +25,9 @@ dependencies = [
 dev = [
     "pytest==8.4.2",
 ]
+parser-build = [
+    "maturin==1.14.1",
+]
 [tool.uv]
 package = false
 required-version = ">=0.11.8,<0.13"

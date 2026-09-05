@@ -348,8 +348,24 @@ class DemoParser:
         return encode_replay_binary(frame, sample_ticks, metadata)
 
     @staticmethod
-    def decode_smoke_voxel_journal(*_args: Any, **_kwargs: Any) -> list[dict[str, Any]]:
-        return []
+    def decode_smoke_voxel_journal(
+        data: bytes | bytearray,
+        declared_size: int | None = None,
+        detonation_pos: Sequence[float] | None = None,
+        max_seq: float | None = None,
+        *_args: Any,
+        **_kwargs: Any,
+    ) -> list[dict[str, Any]]:
+        from ..features.demo_analysis.smoke_voxel_decode import (
+            decode_smoke_occupancy_sequence,
+        )
+
+        return decode_smoke_occupancy_sequence(
+            data,
+            declared_size=declared_size,
+            detonation_pos=detonation_pos,
+            max_seq=max_seq,
+        )
 
 
 def _load_replay_store(path: str) -> dict[str, Any]:

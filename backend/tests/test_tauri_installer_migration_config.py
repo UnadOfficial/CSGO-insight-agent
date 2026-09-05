@@ -11,7 +11,7 @@ TAURI_RUNTIME = TAURI_ROOT / "src" / "lib.rs"
 def test_tauri_identifier_and_installer_hook_are_stable():
     config = json.loads((TAURI_ROOT / "tauri.conf.json").read_text(encoding="utf-8"))
 
-    assert config["identifier"] == "com.cs2insightagent.app"
+    assert config["identifier"] == "com.csgoinsightagent.app"
     assert config["build"]["beforeBuildCommand"] == "node node_modules/vite/bin/vite.js build"
     hook = config["bundle"]["windows"]["nsis"]["installerHooks"]
     assert hook == "windows/upgrade-hooks.nsh"
@@ -68,7 +68,7 @@ def test_installer_hook_covers_electron_upgrade_surfaces():
     assert "Call CS2_RemoveBundledDemoparser" in hook
     assert "demoparser2-0.41.4+cs2insight1.dist-info" not in hook
     # The installed parser contract is checked before the app can be launched.
-    assert 'backend\\app\\demoparser_runtime.py' in hook
+    assert "from app.demoparser_runtime import main" in hook
     assert "pyarrow-25.0.0.dist-info" in hook
     assert '!define CS2_TAURI_RELEASE_DIR "${__FILEDIR__}\\..\\target\\release"' in hook
     assert 'File /a "/oname=WebView2Loader.dll"' in hook

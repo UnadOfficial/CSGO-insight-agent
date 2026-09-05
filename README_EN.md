@@ -76,7 +76,7 @@
 A unified match-analysis workspace: loading a demo auto-parses all players; switch the active demo from the top-right, then pick a player on the left to browse clips and data. Main views include:
 
 - **Highlights & Recording** — Batch-parse highlight moments; lock targets by Steam ID / platform ID / nickname; auto-categorize **Highlights** (multi-kills, one-taps, clutches, knife kills, jump shots, defuses), **Fails** (taser, Deagle, team kills, "human magnet", "human tracing", "shoulder-to-shoulder" moments), **Cross-round Compilations** (favorite victim, nemesis, kill/death montage, continuous round recording), and **Meme Rounds** (211/o/i/z series with optional AI round commentary), then queue them for recording. See [Clip Types & Tags](./docs/highlight_tags.md).
-- **Round Timeline / Weapon Kills** — Browse kill/death timelines by round and add a shot, a death, or an entire round to the queue; continuous round recording from round start to death or round end, with multi-round stitching.
+- **Round Timeline / Weapon Kills** — Browse kill/death timelines by round and add a shot, a death, or an entire round to the queue. A full round records from freeze time until you die or the round ends; the Highlights **Round compilation** can still stitch multiple freeze-to-death windows.
 - **2D Replay** — High-speed local 2D replay for movement, fights, and round flow — no need to launch CS2 first.
 - **Heatmaps** — Full-match movement density, combat hotspots, kill/death hotspots; filter by player, side, and map floor to study defaults, rotates, and failing positions.
 - **Overview / Players / Rounds / Economy** — Match overview, roster and personal stats, round-by-round flow, and economy context to grasp the match structure quickly.
