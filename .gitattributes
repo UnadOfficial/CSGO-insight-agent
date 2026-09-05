@@ -1,1 +1,6 @@
 packaging/demoparser-lean/*.patch text eol=lf -whitespace
+
+# Keep Go sources LF so Windows CI gofmt does not fail on CRLF checkouts.
+tools/csgo-demo-extract/**/*.go text eol=lf
+tools/csgo-demo-extract/go.mod text eol=lf
+tools/csgo-demo-extract/go.sum text eol=lf

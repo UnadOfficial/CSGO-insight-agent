@@ -11,19 +11,29 @@ runs:
 
     - name: Vet, test, and build extractor
       shell: pwsh
-      working-directory: tools/csgo-demo-extract
       run: |
-        $gofmt = gofmt -l .
-        if ($gofmt) { throw "gofmt needed:`n$gofmt" }
-        go vet ./...
+        $ErrorActionPreference = "Stop"
+        Set-Location (Join-Path $env:GITHUB_WORKSPACE "tools/csgo-demo-extract")
+        $utf8 = [Text.UTF8Encoding]::new($false)
+        Get-ChildItem -Recurse -File -Filter *.go | ForEach-Object {
+          $text = [IO.File]::ReadAllText($_.FullName)
+          $normalized = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+          if ($normalized -ne $text) {
+            [IO.File]::WriteAllText($_.FullName, $normalized, $utf8)
+          }
+        }
+        $gofmt = & go fmt ./...
+        if ($LASTEXITCODE -ne 0) { throw "go fmt failed: $LASTEXITCODE" }
+        if ($gofmt) { throw "gofmt needed:`n$($gofmt -join "`n")" }
+        & go vet ./...
         if ($LASTEXITCODE -ne 0) { throw "go vet failed: $LASTEXITCODE" }
-        go test ./...
+        & go test ./...
         if ($LASTEXITCODE -ne 0) { throw "go test failed: $LASTEXITCODE" }
-        go build -trimpath -ldflags="-s -w" -o csgo-demo-extract.exe .
+        & go @("build", "-trimpath", "-ldflags=-s -w", "-o", "csgo-demo-extract.exe", ".")
         if ($LASTEXITCODE -ne 0) { throw "go build failed: $LASTEXITCODE" }
         if (-not (Test-Path -LiteralPath "csgo-demo-extract.exe")) {
           throw "go build did not produce csgo-demo-extract.exe"
         }
-        $ver = (.\csgo-demo-extract.exe --version | Select-Object -First 1).Trim()
+        $ver = (& .\csgo-demo-extract.exe --version | Select-Object -First 1).Trim()
         if ($ver -ne "csgo-extract-1") { throw "extractor version mismatch: $ver" }
         Write-Host "csgo-demo-extract $ver"

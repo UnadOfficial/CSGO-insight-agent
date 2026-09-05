@@ -72,7 +72,7 @@ describe("CommonParamsModal recording preset layout", () => {
     expect(cameraSection).not.toBe(experimentalSection);
     expect(experimentalSection.className).toContain("bg-cs2-amber-surface");
     expect(experimentalSection.className).not.toContain("bg-cs2-bg-card");
-    expect(within(experimentalSection).getByText(/^POV 是实验性功能，仅用于本地 Demo 回放录制/))
+    expect(within(experimentalSection).getByText(/mirv_pov 是 HLAE 的实验性功能，仅用于本地 GOTV Demo 录制/))
       .toBeTruthy();
     expect(within(experimentalSection).queryByTestId("experimental-pov-disclaimer")).toBeNull();
     expect(screen.queryByText(/恢复数值类节奏为后端内置默认/)).toBeNull();
