@@ -1,14 +1,23 @@
-"""Validate the patched Rust demoparser runtime required by replay playback."""
+"""Validate the CS:GO demo extractor required by analysis and 2D replay."""
 
 from __future__ import annotations
 
 import json
-from importlib import metadata
 from typing import Any
 
-REQUIRED_DEMOPARSER_VERSION = "0.41.4+cs2insight9"
+from .csgo_demo_parser.parser import (
+    EXTRACTOR_VERSION,
+    DemoParser,
+    extractor_version_output,
+    resolve_extractor_path,
+)
+
+REQUIRED_DEMOPARSER_VERSION = EXTRACTOR_VERSION
 REQUIRED_DEMOPARSER_METHODS = (
-    "decode_smoke_voxel_journal",
+    "parse_header",
+    "parse_event",
+    "parse_events",
+    "parse_ticks",
     "write_replay_parquet",
     "read_replay_parquet_round",
     "read_replay_parquet_round_binary",
@@ -17,36 +26,30 @@ REQUIRED_DEMOPARSER_METHODS = (
 
 def inspect_demoparser_runtime() -> dict[str, Any]:
     """Return a stable capability report without raising import errors."""
-    installed_version: str | None = None
-    import_error: str | None = None
-    missing_methods = list(REQUIRED_DEMOPARSER_METHODS)
-    try:
-        installed_version = metadata.version("demoparser2")
-        from demoparser2 import DemoParser
-
-        missing_methods = [
-            method
-            for method in REQUIRED_DEMOPARSER_METHODS
-            if not callable(getattr(DemoParser, method, None))
-        ]
-    except Exception as exc:  # noqa: BLE001 - report the exact broken runtime
-        import_error = f"{type(exc).__name__}: {exc}"
-
+    extractor = resolve_extractor_path()
+    installed_version = extractor_version_output(extractor)
+    missing_methods = [
+        method
+        for method in REQUIRED_DEMOPARSER_METHODS
+        if not callable(getattr(DemoParser, method, None))
+    ]
+    ready = (
+        extractor is not None
+        and installed_version == REQUIRED_DEMOPARSER_VERSION
+        and not missing_methods
+    )
     return {
-        "ready": (
-            import_error is None
-            and installed_version == REQUIRED_DEMOPARSER_VERSION
-            and not missing_methods
-        ),
+        "ready": ready,
         "installed_version": installed_version,
         "required_version": REQUIRED_DEMOPARSER_VERSION,
         "missing_methods": missing_methods,
-        "import_error": import_error,
+        "import_error": None if extractor is not None else "csgo-demo-extract not found",
+        "extractor_path": str(extractor) if extractor is not None else None,
     }
 
 
 def require_demoparser_runtime() -> dict[str, Any]:
-    """Fail startup instead of silently degrading the Rust replay pipeline."""
+    """Fail startup instead of silently degrading the replay pipeline."""
     report = inspect_demoparser_runtime()
     if report["ready"]:
         return report
@@ -54,10 +57,10 @@ def require_demoparser_runtime() -> dict[str, Any]:
     missing = ", ".join(report["missing_methods"]) or "none"
     detail = f"; import error: {report['import_error']}" if report["import_error"] else ""
     raise RuntimeError(
-        "Incompatible demoparser2 runtime. "
+        "CS:GO demo extractor is not ready. "
         f"Required {REQUIRED_DEMOPARSER_VERSION}, installed {installed}; "
-        f"missing Rust methods: {missing}{detail}. "
-        "Run packaging/demoparser-lean/setup-backend-dev.ps1 from the repository root."
+        f"missing methods: {missing}{detail}. "
+        "Build tools/csgo-demo-extract with Go, or set CSGO_INSIGHT_DEMO_EXTRACT."
     )
 
 

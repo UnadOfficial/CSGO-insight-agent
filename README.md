@@ -2,7 +2,7 @@
   <br>
   <a href="https://github.com/DrEAmSs59/CS2-insight-agent/"><img src="https://raw.githubusercontent.com/DrEAmSs59/CS2-insight-agent/main/frontend/public/cs2-insight-logo.png" alt="CS2-Insight-Agent" width="140"></a>
   <br>
-  CS2-Insight-Agent
+  CSGO-Insight-Agent
   <br>
 </h1>
 
@@ -10,8 +10,8 @@
   <img src="./asset/icon-cn.svg" alt="" width="20" height="20" style="vertical-align: middle;"> 简体中文 | <a href="./README_EN.md"><img src="./asset/icon-en.svg" alt="" width="20" height="20" style="vertical-align: middle;"> English</a>
 </p>
 
-<h3 align="center"><b>CS2 洞察智能体：一站式 CS2 创作套件</b> </h3>
-<h4 align="center">Demo 分析 · 饰品换肤 · OBS 自动录制 · LiteCut 精剪 · LLM 锐评<br>0 注入 · 0 Hook · 0 逆向游戏进程 · 本地回放低风险</h4>
+<h3 align="center"><b>CSGO 洞察智能体：一站式 CS:GO 创作套件</b> </h3>
+<h4 align="center">本仓库是 CS2-insight-agent 的 CS:GO（Source 1 / HL2DEMO）fork<br>Demo 分析 · OBS 自动录制 · LiteCut 精剪 · LLM 锐评<br>不解析 CS2 Demo · 换肤 / POV VPK / 天空盒等 Source 2 能力已下线</h4>
 
 <p align="center">
   <a href="https://github.com/DrEAmSs59/CS2-insight-agent/releases">
@@ -77,7 +77,7 @@
 
 - **高光与录制** — 批量解析高光时刻；按 Steam ID / 平台 ID / 昵称锁定目标玩家；自动分出 **高光**（多杀、颗秒、残局、刀杀、跳杀、拆包等）、**下饭**（电击枪、沙鹰、队友误伤及「人肉吸铁石」「人体描边」「肩并肩」等名场面）、**跨回合合集**（亲儿子喂饭、本命苦主、全场击杀/死亡串烧、按回合连续录制），以及 **梗局**（211 / o / i / z 系列研发标签，可配 AI 整局总评），并可直接加入录制队列。标签说明见 [片段类型与标签](./docs/highlight_tags.md)。
 - **回合时间线 / 枪械击杀** — 按回合浏览击杀与死亡时间线，把某一枪、某一死或整回合加入队列；支持回合连续录制（开局录到死亡或回合结束，可多回合拼成长片）。
-- **2D 回放** — 在本地高速 2D 回放中复盘走位、交火与回合进程，无需先开 CS2。
+- **2D 回放** — 在本地高速 2D 回放中复盘走位、交火与回合进程，无需先开 CS:GO。
 - **热力图** — 整场走位密度、交战热点、击杀 / 死亡热点；可按玩家、阵营、地图楼层筛选，用于观察站位、转点与失守区域。
 - **概览 / 玩家 / 回合 / 经济** — 比赛概览、阵容与个人数据、逐回合走势，以及经济相关信息，方便快速摸清本场结构。
 - **饰品与自定义换肤** — 在「饰品」页查看本场 Demo 中实际出现过的武器、刀具、手套、探员等；支持 3D / 游戏内检视。可进入「自定义饰品」，为可换项挑选皮肤（磨损、模板等），保存为自定义皮肤方案，供后续回放与成片使用。  

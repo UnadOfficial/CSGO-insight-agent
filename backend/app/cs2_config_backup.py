@@ -30,21 +30,14 @@ MANIFEST_VERSION = 4
 # successfully restored local snapshot on the next launch.
 USER_CONFIG_FILENAMES: tuple[str, ...] = (
     "config.cfg",
-    "cs2_user.cfg",
-    "cs2_machine_convars.vcfg",
+    "autoexec.cfg",
     "video.txt",
-    "cs2_video.txt",
-    "user_convars_0_slot0.vcfg",
-    "cs2_user_convars_0_slot0.vcfg",
-    "cs2_user_keys.vcfg",
-    "cs2_user_convars.vcfg",
-    "localconfig.vdf",
+    "videodefaults.txt",
+    "config_default.cfg",
 )
 USER_CONFIG_GLOB_PATTERNS: tuple[str, ...] = (
-    "user_convars_0_slot*.vcfg",
-    "cs2_user_convars_0_slot*.vcfg",
-    "cs2_user_keys*.vcfg",
-    "*.vcfg_lastclouded",
+    "config.cfg",
+    "video.txt",
 )
 
 RECOVERY_README_TEXT = """这是 CS2 Insight Agent 在录制前自动保存的玩家原始配置。
@@ -173,24 +166,24 @@ def write_manifest(manifest: dict[str, Any]) -> None:
 
 
 def is_cs2_running() -> bool:
-    """Return True when CS2 has either a visible window or a live cs2.exe process."""
+    """Return True when CS:GO has either a visible window or a live csgo.exe process."""
     if sys.platform != "win32":
         return bool(find_cs2_hwnd())
     if find_cs2_hwnd():
         return True
     try:
         cp = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq cs2.exe", "/NH"],
+            ["tasklist", "/FI", "IMAGENAME eq csgo.exe", "/NH"],
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             timeout=5,
         )
-        if "cs2.exe" in (cp.stdout or "").lower():
+        if "csgo.exe" in (cp.stdout or "").lower():
             return True
     except Exception as e:  # noqa: BLE001
-        logger.debug("Could not query cs2.exe via tasklist: %s", e)
+        logger.debug("Could not query csgo.exe via tasklist: %s", e)
 
     try:
         cp = subprocess.run(
@@ -200,7 +193,7 @@ def is_cs2_running() -> bool:
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                "if (Get-Process -Name cs2 -ErrorAction SilentlyContinue) { 'cs2' }",
+                "if (Get-Process -Name csgo -ErrorAction SilentlyContinue) { 'csgo' }",
             ],
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             stdout=subprocess.PIPE,
@@ -208,9 +201,9 @@ def is_cs2_running() -> bool:
             text=True,
             timeout=5,
         )
-        return "cs2" in (cp.stdout or "").lower()
+        return "csgo" in (cp.stdout or "").lower()
     except Exception as e:  # noqa: BLE001
-        logger.debug("Could not query cs2.exe via PowerShell: %s", e)
+        logger.debug("Could not query csgo.exe via PowerShell: %s", e)
         return False
 
 
@@ -236,23 +229,25 @@ def candidate_user_config_dirs(cs2_path: str | Path) -> list[Path]:
     except (TypeError, ValueError):
         return dirs
 
-    # game/bin/win64/cs2.exe -> game/csgo/cfg
+    # csgo.exe lives at the install root; cfg is install/csgo/cfg.
     try:
-        add(cs2.parents[2] / "csgo" / "cfg")
+        if cs2.name.lower() == "csgo.exe":
+            add(cs2.parent / "csgo" / "cfg")
+        else:
+            add(cs2.parents[2] / "csgo" / "cfg")
     except IndexError:
         pass
-    # Compatibility with installations that expose a cfg directory one level
-    # above game/. This was part of the original recording-only discovery.
     try:
         add(cs2.parents[3] / "csgo" / "cfg")
     except IndexError:
         pass
 
     steam_roots: list[Path] = []
-    try:
-        steam_roots.append(cs2.parents[6])
-    except IndexError:
-        pass
+    for index in range(1, 8):
+        try:
+            steam_roots.append(cs2.parents[index])
+        except IndexError:
+            break
     steam_roots.extend(_candidate_steam_roots())
 
     steam_seen: set[str] = set()

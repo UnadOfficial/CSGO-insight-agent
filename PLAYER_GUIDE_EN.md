@@ -364,13 +364,15 @@ C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\ga
 
 In the prompt, select **Go to Player Configuration**. This opens **Settings** → **General Settings** → **Player Game Configuration**. Close CS2 first, then choose **One-click Restore Player Configuration**. The same screen can open the backup folder for manual recovery.
 
-**What is the experimental POV HUD feature?**
+**What is the experimental POV HUD / mirv_pov feature?**
 
-POV HUD makes local demo footage look closer to a player's in-game view. Enable **POV** under **Settings** → **Recording Presets** → **Experimental Features**. During local demo recording, the app temporarily installs `pov.vpk` and adjusts the `SearchPaths` in CS2's `game/csgo/gameinfo.gi`; it restores the changes after recording.
+CS:GO first-person HUD uses HLAE `mirv_pov`: it turns a GOTV demo into a fake in-eye view of the target player, including the viewmodel and full player HUD.
+Enable **HLAE mirv_pov** under **Settings** → **Recording Presets** → **Experimental Features**, and set `HLAE.exe` under **Settings** → **Paths**. Recording then launches CS:GO through HLAE and injects `mirv_pov <entity index>` **before** `playdemo`.
 
-- Some HUD/radar warm-up options are hidden or fixed while POV is enabled.
-- Never use this mode to connect to VAC-secured or official matchmaking servers.
-- If a crash prevents restoration, close CS2 and choose **Restore POV Changes** on the same settings page.
+- Install [HLAE](https://github.com/advancedfx/advancedfx) yourself; the Agent does not bundle it
+- HLAE injects the game. Local demos only — **do not join VAC servers**
+- One demo session is locked to one player; victim/killer counterpart clips are skipped
+- The entity index comes from demo parsing, not the `spec_player` slot
 
 **OBS records a black screen, or CS2 is not visible.**
 

@@ -18,10 +18,11 @@ _last_payload_at = 0.0
 _last_ready_at = 0.0
 _last_summary_log_at = 0.0
 
-_GSI_CONFIG_NAME = "gamestate_integration_cs2_insight_agent.cfg"
+_GSI_CONFIG_NAME = "gamestate_integration_csgo_insight_agent.cfg"
 _LEGACY_GSI_CONFIG_GLOBS = (
     "gamestate_integration__insight_*.cfg",
     "gamestate_integration_cs2_insight_agent.cfg",
+    "gamestate_integration_csgo_insight_agent.cfg",
 )
 
 
@@ -38,7 +39,11 @@ class GSIEndpointAccessFilter(logging.Filter):
             status = int(args[4])
         except (TypeError, ValueError):
             return True
-        return not (method == "POST" and path == "/api/gsi/cs2" and status < 400)
+        return not (
+            method == "POST"
+            and path in {"/api/gsi/cs2", "/api/gsi/csgo"}
+            and status < 400
+        )
 
 
 def install_gsi_access_log_filter() -> None:
@@ -53,9 +58,12 @@ def cleanup_stale_gsi_configs(cs2_path: str | Path | None) -> list[Path]:
         return []
     try:
         exe = Path(cs2_path).resolve()
-        if exe.name.lower() != "cs2.exe":
+        if exe.name.lower() not in {"csgo.exe", "cs2.exe"}:
             return []
-        cfg_dir = exe.parents[2] / "csgo" / "cfg"
+        if exe.name.lower() == "csgo.exe":
+            cfg_dir = exe.parent / "csgo" / "cfg"
+        else:
+            cfg_dir = exe.parents[2] / "csgo" / "cfg"
     except (IndexError, OSError):
         return []
     removed: list[Path] = []

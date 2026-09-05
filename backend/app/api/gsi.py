@@ -13,7 +13,14 @@ router = APIRouter(prefix="/api/gsi", tags=["gsi"])
 
 @router.post("/cs2")
 async def cs2_gsi(payload: Optional[dict] = Body(default=None)):
-    """Receive the CS2 GSI heartbeat used by the recording startup gate."""
+    """Receive the CS:GO GSI heartbeat used by the recording startup gate."""
+    ready = notify_gsi_payload(payload or {})
+    return {"ok": True, "ready": ready}
+
+
+@router.post("/csgo")
+async def csgo_gsi(payload: Optional[dict] = Body(default=None)):
+    """Canonical CS:GO GSI sink; identical to /api/gsi/cs2."""
     ready = notify_gsi_payload(payload or {})
     return {"ok": True, "ready": ready}
 

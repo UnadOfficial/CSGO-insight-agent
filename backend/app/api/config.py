@@ -47,6 +47,7 @@ class ConfigPayload(BaseModel):
     montage_encoder: Optional[str] = None
     montage_export_dir: Optional[str] = None
     cs2_path: Optional[str] = None
+    hlae_path: Optional[str] = None
     demo_directory: Optional[str] = None
     demo_cache_directory: Optional[str] = None
     demo_watch_paths: Optional[list[str]] = None
@@ -133,12 +134,25 @@ def detect_cs2_save():
     if not path:
         raise HTTPException(
             404,
-            "未找到 CS2（cs2.exe）。请确认已安装游戏，或在侧栏手动填写 cs2.exe 的完整路径。",
+            "未找到 CS:GO（csgo.exe）。请安装 Steam 的 csgo_legacy 分支或国服客户端，或在设置中手动填写 csgo.exe 的完整路径。",
         )
     cfg = load_config()
     cfg.cs2_path = path
     save_config(cfg)
     return {"cs2_path": path}
+
+
+@router.post("/api/config/detect-hlae")
+def detect_hlae_save():
+    from ..mirv_pov import HLAE_MISSING_MSG, detect_hlae_path, is_hlae_exe
+
+    path = detect_hlae_path()
+    if not path or not is_hlae_exe(path):
+        raise HTTPException(404, HLAE_MISSING_MSG)
+    cfg = load_config()
+    cfg.hlae_path = path
+    save_config(cfg)
+    return {"hlae_path": path}
 
 
 @router.post("/api/config/detect-ffmpeg")
@@ -349,6 +363,8 @@ async def update_config(payload: ConfigPayload):
                 cfg.llm.base_url = payload.llm.base_url
     if payload.cs2_path is not None:
         cfg.cs2_path = payload.cs2_path
+    if payload.hlae_path is not None:
+        cfg.hlae_path = str(payload.hlae_path or "").strip()
     if payload.demo_directory is not None:
         cfg.demo_directory = str(payload.demo_directory or "").strip()
     if payload.demo_cache_directory is not None:

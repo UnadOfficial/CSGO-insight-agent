@@ -481,6 +481,7 @@ export default function SettingsPage() {
       const llm = config.llm ?? {};
 
       payload.cs2_path = config.cs2_path ?? "";
+      payload.hlae_path = config.hlae_path ?? "";
       payload.ffmpeg_path = config.ffmpeg_path ?? "";
       payload.montage_encoder = config.montage_encoder ?? "auto";
       payload.ai_mode = !!config.ai_mode;
@@ -882,7 +883,7 @@ export default function SettingsPage() {
 
               {/* Paths (CS2 + application and LiteCut data directories) */}
               {activeTab === "paths" && (
-              <SectionCard title={t("settings.sectionPaths")} hint={t("settings.sectionPathsHint")} search={search && !matches(t("settings.sectionPaths") + " " + t("settings.labelCs2Path") + " " + t("settings.labelLiteCutStorage") + " " + t("settings.labelDemoCachePath") + " " + t("settings.labelDataDirectory") + " " + t("settings.labelLogDirectory"))}>
+              <SectionCard title={t("settings.sectionPaths")} hint={t("settings.sectionPathsHint")} search={search && !matches(t("settings.sectionPaths") + " " + t("settings.labelCs2Path") + " " + t("settings.labelHlaePath") + " " + t("settings.labelLiteCutStorage") + " " + t("settings.labelDemoCachePath") + " " + t("settings.labelDataDirectory") + " " + t("settings.labelLogDirectory"))}>
                 <FieldRow label={t("settings.labelCs2Path")} hint={t("settings.hintCs2Path")} search={search && !matches(t("settings.labelCs2Path") + " " + (config.cs2_path ?? ""))}>
                   <PathPicker
                     value={config.cs2_path ?? ""}
@@ -891,6 +892,17 @@ export default function SettingsPage() {
                     exeName="cs2.exe"
                     detectApi="config/detect-cs2"
                     detectField="cs2_path"
+                    t={t}
+                  />
+                </FieldRow>
+                <FieldRow label={t("settings.labelHlaePath")} hint={t("settings.hintHlaePath")} search={search && !matches(t("settings.labelHlaePath") + " HLAE mirv_pov " + (config.hlae_path ?? ""))}>
+                  <PathPicker
+                    value={config.hlae_path ?? ""}
+                    onChange={(v) => set("hlae_path", v)}
+                    placeholder="HLAE.exe"
+                    exeName="HLAE.exe"
+                    detectApi="config/detect-hlae"
+                    detectField="hlae_path"
                     t={t}
                   />
                 </FieldRow>

@@ -18,7 +18,7 @@ from .weapons import (
     _is_knife_highlight_weapon, DEAGLE_VARIANTS,
 )
 from .tag_constants import (
-    TICK_RATE, BUFFER_SECONDS_BEFORE, BUFFER_SECONDS_AFTER,
+    TICK_RATE, BUFFER_SECONDS_BEFORE, BUFFER_SECONDS_AFTER, set_tick_rate,
     _dedup_context_tags, _EXTRA_EVENT_FIELDS, _PLAYER_DEATH_GAME_KEYS,
     _backstab_aim_sample_offsets_sec,
     _ZOMBIE_STEP_PRE_TICKS, _STROLL_PRE_TICKS,
@@ -421,10 +421,18 @@ class DemoAnalyzer:
     """Parse a .dem file and extract highlight / fail clips for a target player."""
 
     def __init__(self, dem_path: str | Path):
+        from ...csgo_demo_format import require_csgo_demo
+
         self.dem_path = Path(dem_path)
+        require_csgo_demo(self.dem_path)
         self.parser = DemoParser(str(self.dem_path))
         self.analysis_workspace: dict[str, Any] = {}
         self.has_player_keyboard_input: bool | None = None
+        try:
+            header = self.parser.parse_header()
+            set_tick_rate(header.get("tick_rate") or header.get("tickrate") or 64)
+        except Exception:
+            set_tick_rate(64)
 
     def _detect_map(self) -> str:
         try:
@@ -2275,7 +2283,10 @@ def get_demo_match_summary(
 
 def inspect_demo(dem_path: str | Path) -> dict[str, object]:
     """Return upload/library metadata from one parser and one shared event scan."""
+    from ...csgo_demo_format import require_csgo_demo
+
     path = Path(dem_path)
+    require_csgo_demo(path)
     parser = DemoParser(str(path))
 
     try:

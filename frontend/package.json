@@ -1,5 +1,5 @@
 {
-  "name": "cs2-insight-agent",
+  "name": "csgo-insight-agent",
   "private": true,
   "version": "2.6.0",
   "packageManager": "pnpm@11.9.0",

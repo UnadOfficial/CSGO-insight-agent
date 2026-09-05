@@ -176,6 +176,28 @@ const bundledDataFiles = new Set([
 ]);
 copyFiltered("data", (rel) => bundledDataFiles.has(rel.toLowerCase()));
 
+function buildAndStageCsgoExtractor() {
+  const sourceDir = join(repoRoot, "tools", "csgo-demo-extract");
+  const filename = process.platform === "win32" ? "csgo-demo-extract.exe" : "csgo-demo-extract";
+  const result = spawnSync(
+    "go",
+    ["build", "-trimpath", "-ldflags=-s -w", "-o", filename, "."],
+    { cwd: sourceDir, env: process.env, stdio: "inherit", shell: false },
+  );
+  if (result.status !== 0) {
+    console.error("[desktop] failed to build csgo-demo-extract");
+    process.exit(result.status ?? 1);
+  }
+  const source = join(sourceDir, filename);
+  if (!existsSync(source)) throw new Error(`CS:GO extractor build produced no binary: ${source}`);
+  const toolsDir = join(destination, "tools", "csgo-demo-extract");
+  mkdirSync(toolsDir, { recursive: true });
+  cpSync(source, join(toolsDir, filename));
+  console.log(`[desktop] staged CS:GO demo extractor from ${source}`);
+}
+
+buildAndStageCsgoExtractor();
+
 /** Open-source DEM truth-source and names-only rewrite sidecars. */
 function buildAndStageDemoTools() {
   const manifest = join(repoRoot, "tools", "demo-cosmetic-rewriter", "Cargo.toml");
@@ -234,10 +256,15 @@ maybeStageSkinCore();
 // copied bundle, not merely against the repo-root staging source. This keeps a
 // stale or incomplete resource directory from becoming an uninstallable setup.
 const bundledPython = join(destination, "python", "python.exe");
-const bundledParserGate = join(destination, "backend", "app", "demoparser_runtime.py");
+const bundledBackend = join(destination, "backend");
 const parserVerification = spawnSync(
   bundledPython,
-  ["-I", bundledParserGate],
+  [
+    "-I",
+    "-c",
+    "import sys; sys.path.insert(0, sys.argv[1]); from app.demoparser_runtime import main; raise SystemExit(main())",
+    bundledBackend,
+  ],
   { cwd: destination, env: process.env, stdio: "inherit", shell: false },
 );
 if (parserVerification.status !== 0) {

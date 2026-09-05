@@ -21,6 +21,7 @@ export const API_ERROR_I18N_KEYS = {
   DEMO_PREPARE_FAILED: "api.err.demoPrepareFailed",
   DEMO_INSPECTION_TIMEOUT: "api.err.demoInspectionTimeout",
   DEMO_INSPECTION_FAILED: "api.err.demoInspectionFailed",
+  DEMO_CS2_NOT_SUPPORTED: "api.err.demoCs2NotSupported",
   DEMO_ANALYSIS_TIMEOUT: "api.err.demoAnalysisTimeout",
   DEMO_ANALYSIS_FAILED: "api.err.demoAnalysisFailed",
   DEMO_ANALYSIS_EMPTY: "api.err.demoAnalysisEmpty",

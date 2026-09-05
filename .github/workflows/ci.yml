@@ -5,10 +5,18 @@ on:
     branches:
       - main
       - develop
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "asset/**"
   pull_request:
     branches:
       - main
       - develop
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "asset/**"
   workflow_dispatch:
 
 permissions:
@@ -18,12 +26,42 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  PYTHONNOUSERSITE: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
 jobs:
+  extractor:
+    name: CS:GO extractor
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/build-csgo-extractor
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: csgo-demo-extract-windows
+          path: tools/csgo-demo-extract/csgo-demo-extract.exe
+          if-no-files-found: error
+          retention-days: 1
+
   backend:
     name: Backend tests
     runs-on: windows-latest
+    timeout-minutes: 45
+    needs: extractor
+    env:
+      PYTHONPATH: backend
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: csgo-demo-extract-windows
+          path: tools/csgo-demo-extract
 
       - uses: actions/setup-python@v5
         with:
@@ -37,19 +75,16 @@ jobs:
       - name: Install backend dependencies
         run: uv sync --frozen
 
-      - name: Verify patched demoparser runtime
-        env:
-          PYTHONPATH: backend
+      - name: Verify CS:GO demo extractor runtime
         run: uv run --frozen python -m app.demoparser_runtime
 
       - name: Run backend tests
-        env:
-          PYTHONPATH: backend
         run: uv run --frozen python -m pytest backend/tests -q
 
   frontend:
     name: Frontend tests
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: frontend
@@ -70,12 +105,19 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check i18n catalogs
+        run: pnpm run check:i18n
+
       - name: Run frontend tests
         run: pnpm test
+
+      - name: Build frontend
+        run: pnpm run build
 
   rust:
     name: Rust checks
     runs-on: windows-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: frontend/src-tauri
@@ -83,6 +125,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
         with:

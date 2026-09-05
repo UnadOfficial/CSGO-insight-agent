@@ -2,7 +2,7 @@
   <br>
   <a href="https://github.com/DrEAmSs59/CS2-insight-agent/"><img src="https://raw.githubusercontent.com/DrEAmSs59/CS2-insight-agent/main/frontend/public/cs2-insight-logo.png" alt="CS2-Insight-Agent" width="140"></a>
   <br>
-  CS2-Insight-Agent
+  CSGO-Insight-Agent
   <br>
 </h1>
 
@@ -10,8 +10,8 @@
   <a href="./README.md"><img src="./asset/icon-cn.svg" alt="" width="20" height="20" style="vertical-align: middle;"> 简体中文</a> | <img src="./asset/icon-en.svg" alt="" width="20" height="20" style="vertical-align: middle;"> English
 </p>
 
-<h3 align="center"><b>CS2 Insight Agent: All-in-one CS2 Creation Suite</b> </h3>
-<h4 align="center">Demo Analysis · Custom Skins · OBS Auto-Recording · LiteCut · LLM Commentary<br>Zero Injection · Zero Hooks · Zero Game Reverse-Engineering · Low-Risk Local Replay</h4>
+<h3 align="center"><b>CSGO Insight Agent: All-in-one CS:GO Creation Suite</b> </h3>
+<h4 align="center">Fork of CS2-insight-agent for Source 1 CS:GO (HL2DEMO)<br>Demo Analysis · OBS Auto-Recording · LiteCut · LLM Commentary<br>CS2 demos are rejected · Source 2 POV/skins/skyboxes are disabled</h4>
 
 <p align="center">
   <a href="https://github.com/DrEAmSs59/CS2-insight-agent/releases">

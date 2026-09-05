@@ -104,6 +104,10 @@ frontend/public/__litecut_visual_tmp/
 frontend/dist_electron*/
 frontend/build/
 
+# Built CS:GO extractor binary (CI and desktop staging rebuild it)
+tools/csgo-demo-extract/*.exe
+tools/csgo-demo-extract/csgo-demo-extract
+
 # Tauri build output and staged runtime resources
 frontend/src-tauri/target/
 frontend/src-tauri/gen/schemas/

@@ -67,7 +67,7 @@ fn read_legacy_ui_state() -> Result<Option<String>, String> {
             .map(PathBuf::from)
             .ok_or_else(|| "Windows APPDATA 环境变量不存在".to_string())?;
         let state_file = app_data
-            .join("CS2 Insight Agent")
+            .join("CSGO Insight Agent")
             .join("data")
             .join("desktop-ui-state-v1.json");
         if !state_file.is_file() {
@@ -388,7 +388,7 @@ fn writable_data_root(_app: &AppHandle, root: &Path, python: &Path) -> Result<Pa
             });
         }
 
-        let data_root = app_data.join("CS2 Insight Agent").join("data");
+        let data_root = app_data.join("CSGO Insight Agent").join("data");
         fs::create_dir_all(data_root.join("logs"))
             .map_err(|error| format!("无法创建应用数据目录 {}：{error}", data_root.display()))?;
         Ok(data_root)
@@ -492,22 +492,31 @@ fn start_backend(app: &AppHandle) -> Result<(), String> {
     command
         .arg(&run_server)
         .current_dir(&backend_dir)
+        .env("CSGO_INSIGHT_PORT", "19871")
         .env("CS2_INSIGHT_PORT", "19871")
+        .env("CSGO_INSIGHT_INSTANCE_ID", &instance_id)
         .env("CS2_INSIGHT_INSTANCE_ID", &instance_id)
         .env("PYTHONNOUSERSITE", "1")
         .env("PYTHONDONTWRITEBYTECODE", "1")
         .env("PYTHONUNBUFFERED", "1")
         .env("PYTHONFAULTHANDLER", "1")
         .env(
-            "CS2_INSIGHT_CONFIG",
-            data_root.join("cs2-insight.config.json"),
+            "CSGO_INSIGHT_CONFIG",
+            data_root.join("csgo-insight.config.json"),
         )
+        .env(
+            "CS2_INSIGHT_CONFIG",
+            data_root.join("csgo-insight.config.json"),
+        )
+        .env("CSGO_INSIGHT_LOG_DIR", &logs_dir)
         .env("CS2_INSIGHT_LOG_DIR", &logs_dir)
+        .env("CSGO_INSIGHT_DATA_DIR", &data_root)
         .env("CS2_INSIGHT_DATA_DIR", &data_root)
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
     if bundle_data_dir.is_dir() {
+        command.env("CSGO_INSIGHT_BUNDLE_DATA_DIR", &bundle_data_dir);
         command.env("CS2_INSIGHT_BUNDLE_DATA_DIR", bundle_data_dir);
     }
     #[cfg(windows)]
@@ -653,7 +662,7 @@ pub fn run() {
                         .message(format!(
                             "{error}\n\n请重新安装完整安装包，或查看应用数据目录中的日志。"
                         ))
-                        .title("CS2 Insight Agent — 后端启动失败")
+                        .title("CSGO Insight Agent — 后端启动失败")
                         .kind(MessageDialogKind::Error)
                         .blocking_show();
                     handle.exit(1);
@@ -662,7 +671,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("failed to build CS2 Insight Agent desktop shell");
+        .expect("failed to build CSGO Insight Agent desktop shell");
 
     app.run(|handle, event| match event {
         RunEvent::WindowEvent {

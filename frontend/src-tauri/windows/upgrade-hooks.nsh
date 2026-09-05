@@ -435,15 +435,15 @@ FunctionEnd
   ; file copy at install time instead of surfacing as a backend startup dialog.
   ; nsExec captures the console process instead of letting Windows create a
   ; terminal window over the installer for this short-lived validation.
-  nsExec::ExecToStack '"$INSTDIR\python\python.exe" -I "$INSTDIR\backend\app\demoparser_runtime.py"'
+  nsExec::ExecToStack '"$INSTDIR\python\python.exe" -I -c "import sys; sys.path.insert(0, sys.argv[1]); from app.demoparser_runtime import main; raise SystemExit(main())" "$INSTDIR\backend"'
   Pop $R0
   Pop $R1
   ${If} $R0 == "error"
-    StrCpy $R7 "Tauri 已安装，但无法执行内置 Rust Demo 解析器校验。安装已停止，请重新运行完整安装包。"
+    StrCpy $R7 "Tauri 已安装，但无法执行内置 CS:GO Demo 解析器校验。安装已停止，请重新运行完整安装包。"
     Call CS2_AbortMigrationInstall
   ${EndIf}
   ${If} $R0 != 0
-    StrCpy $R7 "内置 Rust Demo 解析器版本校验失败（退出码 $R0）。安装已停止，请重新下载完整安装包。"
+    StrCpy $R7 "内置 CS:GO Demo 解析器版本校验失败（退出码 $R0）。安装已停止，请重新下载完整安装包。"
     Call CS2_AbortMigrationInstall
   ${EndIf}
 

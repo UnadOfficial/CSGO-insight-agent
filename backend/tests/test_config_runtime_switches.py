@@ -30,6 +30,13 @@ def test_recording_skybox_is_independent_and_defaults_to_original():
 
     assert cfg.recording_skybox == "default"
     assert cfg.experimental.pov_enabled is False
+    assert cfg.hlae_path == ""
+
+
+def test_hlae_path_survives_the_round_trip(monkeypatch):
+    payload = config_api.ConfigPayload(hlae_path=r"C:\HLAE\HLAE.exe")
+
+    assert _round_trip(monkeypatch, payload).hlae_path == r"C:\HLAE\HLAE.exe"
 
 
 def test_recording_skybox_survives_the_round_trip(monkeypatch):

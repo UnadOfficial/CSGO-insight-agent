@@ -44,9 +44,15 @@ def lookup_map_data(map_key: str) -> dict:
         raise KeyError(f"bundled MAP_DATA empty or missing: {meta}")
 
     key = map_key.strip()
+    aliases = {
+        "de_cobblestone": "de_cbble",
+        "de_cbble": "de_cbble",
+        "de_shortnuke": "de_nuke",
+    }
+    lk = key.lower()
+    lk = aliases.get(lk, lk)
     if key in data:
         return dict(data[key])
-    lk = key.lower()
     if lk in data:
         return dict(data[lk])
     for k, v in data.items():

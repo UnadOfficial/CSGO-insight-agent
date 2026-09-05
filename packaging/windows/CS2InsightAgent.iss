@@ -1,17 +1,17 @@
-#define MyAppName "CS2 Insight Agent"
-#define MyAppPublisher "CS2 Insight Agent"
+#define MyAppName "CSGO Insight Agent"
+#define MyAppPublisher "CSGO Insight Agent"
 #define MyAppURL "https://github.com/DrEAmSs59/CS2-insight-agent"
 #ifndef MyAppVersion
   #define MyAppVersion "0.0.0"
 #endif
 
 [Setup]
-AppId={{A8C9E0F1-2B3D-4E5F-6A7B-8C9D0E1F2A3B}}
+AppId={{B7D1F2A3-4C5E-6789-ABCD-EF0123456789}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
-DefaultDirName={localappdata}\CS2InsightAgent
+DefaultDirName={localappdata}\CSGOInsightAgent
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputBaseFilename=CS2InsightAgent-{#MyAppVersion}-Setup

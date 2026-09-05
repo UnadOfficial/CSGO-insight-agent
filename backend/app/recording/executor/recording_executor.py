@@ -15,7 +15,7 @@ from .demo_controller import (
     DemoSeekError, inject_console_sequence,
 )
 from .kill_markers import KillMarkerTimeline
-from .spec_controller import spec_by_slot, spec_player
+from .spec_controller import spec_by_accountid, spec_by_slot, spec_player
 from .gsi_verifier import verify_spec_target
 
 logger = logging.getLogger(__name__)
@@ -376,6 +376,18 @@ async def _spec_by_slot_with_retry(
         None  — GSI inconclusive (proceed with warning)
         False — all offsets exhausted, still wrong player
     """
+    if target_steamid64:
+        logger.info(
+            "[RecordingV3] spec_player_by_accountid for %r steamid=%s",
+            player_name, target_steamid64,
+        )
+        if await spec_by_accountid(target_steamid64):
+            verified = await verify_spec_target(target_steamid64)
+            if verified is True:
+                return True
+            if verified is None:
+                return None
+
     if base_slot is None:
         if (player_name or "").strip():
             logger.info(
@@ -443,12 +455,15 @@ class RecordingExecutor:
         abort_event: Optional[asyncio.Event] = None,
         fade_controller: Optional[OBSFadeController] = None,
         post_spec_console_lines: Optional[list[str]] = None,
+        skip_spec: bool = False,
     ):
         self._obs = obs_client
         self._abort_event = abort_event
         self._fade: Optional[OBSFadeController] = fade_controller
         # 本次实际 warmup 命令中需在每片段 spec_player 锁定后补注入的白名单子集。
         self._post_spec_console_lines: list[str] = list(post_spec_console_lines or [])
+        # HLAE mirv_pov already locked the local player before playdemo.
+        self._skip_spec = bool(skip_spec)
         # Controller is created per-execute call so it always holds the current client.
         self._ctrl: Optional[OBSRecordingController] = None
         # Tracks whether OBS program output is currently on the black scene.
@@ -630,7 +645,17 @@ class RecordingExecutor:
                 prepare_t0 = time.monotonic()
                 spec_elapsed = 0.0
                 spec_ok = None
-                if segment.target_steamid64 or segment.target_player_name:
+                did_spec_phase = False
+                if self._skip_spec:
+                    did_spec_phase = True
+                    logger.info(
+                        "[RecordingV3] skip spec_player for %r — HLAE mirv_pov already locked POV",
+                        segment.target_player_name,
+                    )
+                    if segment.target_steamid64:
+                        spec_ok = await verify_spec_target(segment.target_steamid64)
+                elif segment.target_steamid64 or segment.target_player_name:
+                    did_spec_phase = True
                     spec_t0 = time.monotonic()
                     spec_ok = await _spec_by_slot_with_retry(
                         base_slot=segment.target_spec_slot,
@@ -641,6 +666,7 @@ class RecordingExecutor:
                     )
                     spec_elapsed = time.monotonic() - spec_t0
 
+                if did_spec_phase:
                     if spec_ok is not False and self._post_spec_console_lines:
                         try:
                             await asyncio.to_thread(

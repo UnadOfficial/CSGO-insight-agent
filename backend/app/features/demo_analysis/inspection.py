@@ -107,6 +107,8 @@ def demo_failure_code(error: BaseException, phase: str) -> str:
     text = str(error).casefold()
     if "not a .dem file" in text or "only .dem" in text:
         return "DEMO_INVALID_EXTENSION"
+    if "pbdems2" in text or "cs2 (" in text or "only parses source 1" in text:
+        return "DEMO_CS2_NOT_SUPPORTED"
     if any(marker in text for marker in ("not found", "no such file", "找不到", "不存在")):
         return "DEMO_FILE_NOT_FOUND"
     if "timeout" in text or "timed out" in text or "超时" in text:

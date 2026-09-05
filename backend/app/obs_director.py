@@ -64,6 +64,19 @@ from .pov_constants import (
     normalize_pov_voice_mode,
     pov_tail_commands,
 )
+from .mirv_pov import (
+    HLAE_ENTITY_MISSING_MSG,
+    HLAE_MISSING_MSG,
+    HLAE_TARGET_MISSING_MSG,
+    MirvPovError,
+    build_hlae_launch_argv,
+    detect_hlae_path,
+    is_hlae_exe,
+    lock_plan_to_mirv_pov_player,
+    majority_target_steamid,
+    mirv_pov_cfg_lines,
+    resolve_mirv_pov_entity_index,
+)
 from .win_cs2_console import ensure_cs2_foreground, find_cs2_hwnd, inject_console_sequence, send_cs2_space_taps
 
 logger = logging.getLogger(__name__)
@@ -2325,16 +2338,16 @@ class OBSDirector:
     @staticmethod
     def _game_root_from_cs2_exe(cs2: Path) -> Optional[Path]:
         """
-        从 .../game/bin/win64/cs2.exe 解析出 game 目录（内含 csgo/）。
-        CS2 对 +playdemo 放在 Temp 等目录外的路径支持很差，应把 .dem 放进 game/csgo/ 再播。
+        从 csgo.exe 解析出安装根目录（内含 csgo/）。
+        Source 对 Temp 等目录外的绝对路径 +playdemo 支持很差，应把 .dem 放进 csgo/ 再播。
         """
         try:
             c = cs2.resolve()
-            if c.name.lower() != "cs2.exe":
+            if c.name.lower() != "csgo.exe":
                 return None
-            game = c.parents[2]
-            if (game / "csgo").is_dir() and (game / "bin" / "win64" / "cs2.exe").is_file():
-                return game
+            root = c.parent
+            if (root / "csgo").is_dir() and (root / "csgo.exe").is_file():
+                return root
         except (IndexError, OSError):
             return None
         return None
@@ -2360,16 +2373,18 @@ class OBSDirector:
         warmup: Optional[RecordingWarmupExtras] = None,
         *,
         chroma_demo_map_name: Optional[str] = None,
+        mirv_pov_entity_index: Optional[int] = None,
+        hlae_path: Optional[str] = None,
     ) -> None:
         """
-        将 Demo 复制到 CS2 的 game/csgo/ 下再以 +playdemo 启动。
-        Source 2 对 Temp 等目录的绝对路径 +playdemo 常无效；工作目录需为 game/。
+        将 Demo 复制到 CS:GO 的 csgo/ 下再以 +playdemo 启动。
+        Source 对 Temp 等目录的绝对路径 +playdemo 常无效；工作目录需为安装根目录。
         """
         if not demo_abs.is_file():
             raise FileNotFoundError(f"Demo file not found: {demo_abs}")
         cs2 = Path(self.cs2_path)
         if not cs2.exists():
-            raise FileNotFoundError(f"cs2.exe not found at {self.cs2_path}")
+            raise FileNotFoundError(f"csgo.exe not found at {self.cs2_path}")
 
         if is_cs2_running():
             logger.warning("Recording blocked because CS2 is already running")
@@ -2378,7 +2393,7 @@ class OBSDirector:
         game_root = self._game_root_from_cs2_exe(cs2)
         if not game_root:
             raise FileNotFoundError(
-                "无法从 cs2.exe 推断 game 目录（应为 .../game/bin/win64/cs2.exe）。请检查侧栏中的 CS2 路径是否指向正版安装。",
+                "无法从 csgo.exe 推断安装目录（应为 .../Counter-Strike Global Offensive/csgo.exe）。请检查设置中的 CS:GO 路径。",
             )
 
         # 启动 CS2 前先对用户配置做快照；CS2 运行期的 archive cvar 写入在
@@ -2436,8 +2451,10 @@ class OBSDirector:
             "con_enable 1",
             *console_bind_lines,
             "unbind alt",
-            f'playdemo "{stem}.dem"',
         ]
+        if mirv_pov_entity_index:
+            cfg_lines.extend(mirv_pov_cfg_lines(int(mirv_pov_entity_index)))
+        cfg_lines.append(f'playdemo "{stem}.dem"')
         cfg_path.write_text("\n".join(cfg_lines) + "\n", encoding="ascii")
         self._copied_cfg = cfg_path
 
@@ -2446,7 +2463,7 @@ class OBSDirector:
         gsi_path = gsi_config_path(cfg_dir)
         logger.info("GSI HTTP sink (gamestate cfg): %s -> %s", gsi_url, gsi_path)
         gsi_lines = [
-            '"CS2 Insight Agent"',
+            '"CSGO Insight Agent"',
             "{",
             f'  "uri" "{gsi_url}"',
             '  "timeout" "1.0"',
@@ -2480,25 +2497,35 @@ class OBSDirector:
         # 默认继承玩家当前的视频模式，不强制切到独占全屏；否则会把原本的
         # 「全屏窗口 / 窗口化」录制会话硬改成 fullscreen，并可能被 CS2 持久化。
         # 若调用方确实想强制独占全屏，可经 cs2_extra_launch_args 显式追加。
-        argv: List[str] = [
-            str(cs2),
-            "-console", "-novid", "-insecure", "-worldwide", "-allow_third_party_software",
+        launch_bits: List[str] = [
+            "-steam", "-console", "-novid", "-insecure",
         ]
 
         if warmup is not None:
             w, h = warmup.resolution_width, warmup.resolution_height
             if w is not None and h is not None and int(w) > 0 and int(h) > 0:
-                argv.extend(["-w", str(int(w)), "-h", str(int(h))])
+                launch_bits.extend(["-w", str(int(w)), "-h", str(int(h))])
                 arm = warmup.aspect_ratio
                 mode = _ASPECT_RATIO_VIDEOCFG_MODE.get(arm) if arm else None
                 if mode is not None:
-                    argv.extend(["+setting.aspectratiomode", str(mode)])
+                    launch_bits.extend(["+setting.aspectratiomode", str(mode)])
 
         if self._extra_launch_argv:
-            argv.extend(self._extra_launch_argv)
+            launch_bits.extend(self._extra_launch_argv)
 
-        argv.extend(["+exec", stem])
-        logger.info("Launch CS2 cwd=%s cmd=%s", cwd, " ".join(argv))
+        if mirv_pov_entity_index:
+            launch_bits.extend(["-game", "csgo", "+mirv_pov", str(int(mirv_pov_entity_index))])
+        launch_bits.extend(["+exec", stem])
+
+        if mirv_pov_entity_index:
+            resolved_hlae = (hlae_path or "").strip() or (detect_hlae_path() or "")
+            if not is_hlae_exe(resolved_hlae):
+                raise MirvPovError(HLAE_MISSING_MSG)
+            argv = build_hlae_launch_argv(resolved_hlae, cs2, launch_bits)
+            logger.info("Launch CS:GO via HLAE mirv_pov=%s cwd=%s cmd=%s", mirv_pov_entity_index, cwd, " ".join(argv))
+        else:
+            argv = [str(cs2), *launch_bits]
+            logger.info("Launch CS2 cwd=%s cmd=%s", cwd, " ".join(argv))
         creationflags = 0
         stdin = stdout = stderr = None
         if sys.platform == "win32":
@@ -3256,13 +3283,13 @@ class OBSDirector:
                     logger.info("Cleaning recorder-owned CS2 residual process before next launch")
                     try:
                         subprocess.run(
-                            ["taskkill", "/F", "/IM", "cs2.exe"],
+                            ["taskkill", "/F", "/IM", "csgo.exe"],
                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             timeout=10,
                         )
                     except Exception as e:  # noqa: BLE001
-                        logger.warning("taskkill /IM cs2.exe 兜底失败: %s", e)
+                        logger.warning("taskkill /IM csgo.exe 兜底失败: %s", e)
                     deadline2 = time.monotonic() + 4.0
                     while time.monotonic() < deadline2 and is_cs2_running():
                         time.sleep(0.15)
@@ -3545,9 +3572,9 @@ class OBSDirector:
         lines: list[str] = []
         lines.extend(_RECORDING_KEYBIND_RESET_LINES)
         if w.cl_draw_only_deathnotices:
-            lines.append("cl_draw_only_deathnotices true")
+            lines.append("cl_draw_only_deathnotices 1")
         else:
-            lines.append("cl_draw_only_deathnotices false")
+            lines.append("cl_draw_only_deathnotices 0")
         if w.hud_showtargetid_hide:
             lines.append("hud_showtargetid 0")
         else:
@@ -3558,7 +3585,6 @@ class OBSDirector:
             lines.append("tv_nochat 0")
         if w.hide_demo_playback_ui:
             lines.append("sv_cheats 1")
-            lines.append("demoui false")
         x = 1 if int(w.spec_show_xray) != 0 else 0
         lines.append(f"spec_show_xray {x}")
         if w.fov_cs_debug is not None:
@@ -3579,19 +3605,10 @@ class OBSDirector:
                     "c_thirdpersonshoulderoffset 20",
                 )
             )
-        _fb = getattr(w, "spectator_flashbang_opacity", None)
-        if _fb is not None and not getattr(w, "pov_hud_enabled", False):
-            try:
-                _fb_f = float(_fb)
-            except (TypeError, ValueError):
-                _fb_f = 0.6
-            _fb_f = max(0.2, min(1.0, _fb_f))
-            lines.append(f"r_spectator_flashbang_opacity {_fb_f:g}")
         if w.hide_grenade_trajectory_pip:
+            lines.append("sv_cheats 1")
             lines.append("sv_grenade_trajectory 0")
-            lines.append("sv_grenade_trajectory_prac_pipreview 0")
             lines.append("cl_grenadepreview 0")
-            lines.append("sv_grenade_trajectory_time_spectator 0")
         lines = self._append_config_warmup_console_lines(lines)
         return _apply_recording_voice_policy(
             lines,
@@ -3700,6 +3717,11 @@ class OBSDirector:
         )
         weather_on_v3 = weather_effect_id_v3 != DEFAULT_WEATHER_EFFECT_ID
         visual_layer_on_v3 = skybox_on_v3 or map_material_on_v3 or weather_on_v3
+        hlae_mirv_pov_requested = bool(pov_on_v3)
+        if hlae_mirv_pov_requested:
+            # CS:GO uses HLAE mirv_pov instead of the Source 2 POV VPK.
+            recording_hud_on_v3 = False
+            self._pov_enabled = False
         recording_vpk_on_v3 = recording_hud_on_v3 or visual_layer_on_v3
         pov_install_attempted = False
         pov_expected_gameinfo_sha256: Optional[str] = None
@@ -3738,8 +3760,69 @@ class OBSDirector:
             for job_idx, (demo_key, demo_requests) in enumerate(demo_groups.items()):
                 demo_abs = demo_abs_map[demo_key]
                 demo_name = demo_abs.name
+                demo_map_name = str(getattr(demo_requests[0].demo, "map_name", "") or "").strip()
                 logger.info("[RecordingV3] Job %d/%d: %s (%d requests)",
                             job_idx + 1, len(demo_groups), demo_name, len(demo_requests))
+                mirv_pov_entity_index: Optional[int] = None
+                mirv_pov_steamid = ""
+                mirv_pov_name = ""
+                hlae_exe_path = ""
+                if hlae_mirv_pov_requested:
+                    try:
+                        from .env_utils import load_config as _load_cfg_hlae
+                        hlae_exe_path = (
+                            str(getattr(_load_cfg_hlae(), "hlae_path", "") or "").strip()
+                            or (detect_hlae_path() or "")
+                        )
+                        if not is_hlae_exe(hlae_exe_path):
+                            raise MirvPovError(HLAE_MISSING_MSG)
+                        mirv_pov_steamid = majority_target_steamid(demo_requests) or ""
+                        if not mirv_pov_steamid:
+                            raise MirvPovError(HLAE_TARGET_MISSING_MSG)
+                        first_tick = None
+                        first_plan = _plan_cache.get(demo_requests[0].request_id)
+                        if first_plan is not None:
+                            for segment in first_plan.segments:
+                                first_tick = int(segment.start_tick)
+                                break
+                        mirv_pov_entity_index = resolve_mirv_pov_entity_index(
+                            demo_abs,
+                            mirv_pov_steamid,
+                            tick=first_tick,
+                        )
+                        if not mirv_pov_entity_index:
+                            raise MirvPovError(HLAE_ENTITY_MISSING_MSG)
+                        for dto in demo_requests:
+                            target = getattr(dto, "target_player", None)
+                            if target is None:
+                                continue
+                            if str(getattr(target, "steamid64", "") or "").strip() == mirv_pov_steamid:
+                                mirv_pov_name = str(getattr(target, "name", "") or "")
+                                break
+                        logger.info(
+                            "[RecordingV3][mirv_pov] demo=%s steamid=%s entity=%s name=%r",
+                            demo_name,
+                            mirv_pov_steamid,
+                            mirv_pov_entity_index,
+                            mirv_pov_name,
+                        )
+                        for dto in demo_requests:
+                            plan = _plan_cache.get(dto.request_id)
+                            if plan is not None:
+                                lock_plan_to_mirv_pov_player(
+                                    plan, mirv_pov_steamid, mirv_pov_name
+                                )
+                    except MirvPovError as _mirv_e:
+                        logger.error("[RecordingV3][mirv_pov] %s", _mirv_e)
+                        for dto in demo_requests:
+                            all_results.append({
+                                "request_id": dto.request_id,
+                                "success": False,
+                                "error": str(_mirv_e),
+                                "segment_results": [],
+                                "warnings": [],
+                            })
+                        continue
 
                 # The speaking schedule is demo-specific. CS2 is stopped between
                 # groups, so restore/reinstall the package with this demo's data.
@@ -3800,7 +3883,7 @@ class OBSDirector:
                             raise PovHudError(
                                 "POV HUD install manifest does not contain the original gameinfo.gi hash."
                             )
-                        self._pov_enabled = pov_on_v3
+                        self._pov_enabled = bool(pov_on_v3) and not hlae_mirv_pov_requested
                     except PovHudError as _pov_e:
                         if visual_layer_on_v3:
                             logger.error(
@@ -3821,18 +3904,27 @@ class OBSDirector:
 
                 # ── CS2 launch ────────────────────────────────────────────────
                 try:
+                    launch_kwargs: dict[str, Any] = {
+                        "mirv_pov_entity_index": mirv_pov_entity_index,
+                        "hlae_path": hlae_exe_path,
+                    }
                     if skybox_id_v3 in CHROMA_SKYBOX_IDS:
-                        self._launch_cs2(
-                            demo_abs,
-                            warmup,
-                            chroma_demo_map_name=demo_map_name,
-                        )
-                    else:
-                        self._launch_cs2(demo_abs, warmup)
+                        launch_kwargs["chroma_demo_map_name"] = demo_map_name
+                    self._launch_cs2(demo_abs, warmup, **launch_kwargs)
                 except CS2AlreadyRunningError:
                     raise
                 except CS2NotReadyError:
                     raise
+                except MirvPovError as e:
+                    logger.error("[RecordingV3] HLAE mirv_pov launch failed for %s: %s", demo_name, e)
+                    for dto in demo_requests:
+                        all_results.append({
+                            "request_id": dto.request_id, "success": False,
+                            "error": str(e), "segment_results": [], "warnings": [],
+                        })
+                    await self._run_cleanup_step("CS2 shutdown after mirv_pov launch failure", self._kill_cs2, timeout=30.0)
+                    await self._run_cleanup_step("CS2 artifact cleanup", self._cleanup_cs2_artifacts, timeout=8.0)
+                    continue
                 except Exception as e:
                     logger.error("[RecordingV3] CS2 launch failed for %s: %s", demo_name, e)
                     for dto in demo_requests:
@@ -3997,6 +4089,7 @@ class OBSDirector:
                     abort_event=self._abort_event,
                     fade_controller=fade_controller,
                     post_spec_console_lines=post_spec_lines,
+                    skip_spec=bool(mirv_pov_entity_index),
                 )
                 for dto in demo_requests:
                     self._check_abort()

@@ -1,4 +1,4 @@
-"""FastAPI 主入口 — CS2 Insight Agent 后端 API"""
+"""FastAPI 主入口 — CSGO Insight Agent 后端 API"""
 
 from __future__ import annotations
 

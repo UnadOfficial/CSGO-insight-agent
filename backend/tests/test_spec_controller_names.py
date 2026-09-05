@@ -13,6 +13,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.recording.executor import spec_controller as spec
 
 
+def test_spec_by_accountid_uses_steam32(monkeypatch):
+    inject = Mock()
+    monkeypatch.setattr(spec, "inject_console_sequence", inject)
+    monkeypatch.setattr(spec.asyncio, "sleep", AsyncMock())
+    assert asyncio.run(spec.spec_by_accountid("76561198000000001")) is True
+    inject.assert_called_once_with(["spec_mode 5", "spec_player_by_accountid 39734273"])
+
+
 def test_name_fallback_quotes_unicode_and_spaces(monkeypatch):
     inject = Mock()
     monkeypatch.setattr(spec, "inject_console_sequence", inject)

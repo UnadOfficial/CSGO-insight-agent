@@ -240,12 +240,12 @@ else:
             buf = ctypes.create_unicode_buffer(length)
             user32.GetWindowTextW(hwnd, buf, length)
             title = buf.value or ""
-            if "Counter-Strike" not in title:
+            if "Counter-Strike" not in title and "反恐精英" not in title and "CS:GO" not in title.upper() and "CSGO" not in title.upper():
                 return True
             low = title.lower()
             if any(x in low for x in ("obs ", "obs studio", "streamlabs")):
                 return True
-            if _window_process_exe_basename(hwnd) != "cs2.exe":
+            if _window_process_exe_basename(hwnd) not in {"csgo.exe", "cs2.exe"}:
                 return True
             found = hwnd
             return False

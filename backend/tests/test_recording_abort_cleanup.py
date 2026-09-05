@@ -390,6 +390,13 @@ def test_recording_hud_uses_shared_exit_restore_and_reports_evidence(
     results = asyncio.run(run())
 
     call_names = [entry[0] for entry in calls]
+    if pov_enabled:
+        assert results[0]["success"] is False
+        assert "HLAE" in str(results[0].get("error") or "")
+        assert "manager" not in call_names
+        assert "install" not in call_names
+        return
+
     assert call_names[:2] == ["manager", "install"]
     assert calls[1][1] == tmp_path / "pov.dem"
     assert calls[1][2] == "team"

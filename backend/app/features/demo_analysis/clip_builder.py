@@ -65,15 +65,43 @@ def _defuser_name_from_row(row: pd.Series) -> str:
     return ""
 
 
+def infer_regulation_maxrounds(
+    completed_rounds: int = 0,
+    final_scoreline: Optional[tuple[int, int]] = None,
+    header_maxrounds: Optional[int] = None,
+) -> int:
+    """Return 15 (MR15) or 12 (MR12). Prefer header, else infer from scores."""
+    if header_maxrounds in (24, 12):
+        return 12
+    if header_maxrounds in (30, 15):
+        return 15
+    if final_scoreline is not None:
+        hi = max(final_scoreline)
+        if hi >= 16:
+            return 15
+        if hi == 13 and min(final_scoreline) <= 11:
+            return 12
+    if completed_rounds >= 30:
+        return 15
+    if 24 <= completed_rounds < 30:
+        return 12
+    return 15
+
+
 def is_mr12_regulation_decided_score(
     score_own: Optional[int],
     score_opp: Optional[int],
+    *,
+    maxrounds: Optional[int] = None,
 ) -> bool:
-    """MR12 正规时间已定局：一方胜场 ≥13 且另一方仍 ≤11。"""
+    """Regulation is decided. CS:GO used MR15 until late 2021, then MR12."""
     if score_own is None or score_opp is None:
         return False
     lo, hi = min(score_own, score_opp), max(score_own, score_opp)
-    return hi >= 13 and lo <= 11
+    regulation = 12 if maxrounds in (12, 24) else 15
+    if regulation == 12:
+        return hi >= 13 and lo <= 11
+    return hi >= 16 and lo <= 14
 
 
 def match_metrics_from_round_scores(
@@ -105,7 +133,14 @@ def is_post_match_round(
     """是否应视为正赛已结束后的无意义回合。"""
     if completed_rounds > 0 and round_num > completed_rounds:
         return True
-    if is_mr12_regulation_decided_score(score_own, score_opp):
+    if is_mr12_regulation_decided_score(
+        score_own,
+        score_opp,
+        maxrounds=infer_regulation_maxrounds(
+            completed_rounds=completed_rounds,
+            final_scoreline=final_scoreline,
+        ),
+    ):
         return True
     if (
         score_own is not None

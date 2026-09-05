@@ -1,5 +1,5 @@
-import { existsSync, readdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { runtimeManifestStatus } from "./runtime-fingerprint.mjs";
@@ -22,21 +22,6 @@ if (process.platform !== "win32") {
   process.exit(0);
 }
 
-function resolveLeanWheel() {
-  const configured = process.env.CS2_INSIGHT_DEMOPARSER_WHEEL?.trim();
-  if (configured) {
-    const fullPath = resolve(repoRoot, configured);
-    if (!existsSync(fullPath)) throw new Error(`Configured lean wheel does not exist: ${fullPath}`);
-    return fullPath;
-  }
-  const wheelDir = join(repoRoot, "dist", "wheels");
-  if (!existsSync(wheelDir)) return null;
-  const candidates = readdirSync(wheelDir)
-    .filter((name) => /^demoparser2-.*-cp312-.*\.whl$/i.test(name))
-    .sort();
-  return candidates.length ? join(wheelDir, candidates.at(-1)) : null;
-}
-
 const customPython = process.env.CS2_INSIGHT_PORTABLE_PYTHON_DIR?.trim();
 if (!existsSync(portablePs1)) {
   console.error(`[desktop] missing Python staging script: ${portablePs1}`);
@@ -48,7 +33,7 @@ if (existsSync(pythonExe) && process.env.CS2_INSIGHT_REFRESH_PYTHON !== "1") {
   if (!manifest.valid) {
     console.error(
       `[desktop] existing Python runtime is stale (${manifest.reason}); rebuild with ` +
-      "CS2_INSIGHT_REFRESH_PYTHON=1 and CS2_INSIGHT_DEMOPARSER_WHEEL.",
+      "CS2_INSIGHT_REFRESH_PYTHON=1.",
     );
     process.exit(1);
   }
@@ -74,9 +59,8 @@ if (existsSync(pythonExe) && process.env.CS2_INSIGHT_REFRESH_PYTHON !== "1") {
   );
   if (verification.status !== 0) {
     console.error(
-      "[desktop] existing Python runtime is incompatible; run " +
-      "packaging/demoparser-lean/setup-backend-dev.ps1 or rebuild with " +
-      "CS2_INSIGHT_REFRESH_PYTHON=1 and CS2_INSIGHT_DEMOPARSER_WHEEL.",
+      "[desktop] existing Python runtime is incompatible; rebuild with " +
+      "CS2_INSIGHT_REFRESH_PYTHON=1 after building tools/csgo-demo-extract.",
     );
     process.exit(verification.status ?? 1);
   }
@@ -95,16 +79,6 @@ const args = [
 if (customPython) {
   args.push("-PortablePythonDir", customPython);
 }
-const leanWheel = resolveLeanWheel();
-if (!leanWheel) {
-  console.error(
-    "[desktop] patched demoparser wheel is required. Run " +
-    "packaging/demoparser-lean/setup-backend-dev.ps1 -BuildFromSource or set " +
-    "CS2_INSIGHT_DEMOPARSER_WHEEL.",
-  );
-  process.exit(1);
-}
-args.push("-DemoparserWheel", leanWheel);
 
 const result = spawnSync("powershell.exe", args, {
   cwd: repoRoot,

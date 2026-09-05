@@ -66,40 +66,35 @@ def test_restore_keeps_recovery_required_when_post_write_verification_fails(
 
 def test_config_discovery_and_snapshot_include_steam_remote_files(monkeypatch, tmp_path: Path):
     steam_root = tmp_path / "Steam"
-    cs2 = (
+    csgo = (
         steam_root
         / "steamapps"
         / "common"
         / "Counter-Strike Global Offensive"
-        / "game"
-        / "bin"
-        / "win64"
-        / "cs2.exe"
+        / "csgo.exe"
     )
-    cs2.parent.mkdir(parents=True)
-    cs2.write_bytes(b"exe")
+    csgo.parent.mkdir(parents=True)
+    csgo.write_bytes(b"exe")
+    (csgo.parent / "csgo" / "cfg").mkdir(parents=True)
 
     account = steam_root / "userdata" / "123" / "730"
     local_cfg = account / "local" / "cfg"
     remote = account / "remote"
     local_cfg.mkdir(parents=True)
     remote.mkdir(parents=True)
-    local_keys = local_cfg / "cs2_user_keys_0_slot0.vcfg"
-    remote_keys = remote / "cs2_user_keys.vcfg"
-    remote_convars = remote / "cs2_user_convars.vcfg"
-    local_keys.write_bytes(b'local: "ALT" "toggleradarscale"')
-    remote_keys.write_bytes(b'remote: "ALT" "toggleradarscale"')
-    remote_convars.write_bytes(b'"cl_hud_color" "8"')
+    local_keys = local_cfg / "config.cfg"
+    remote_keys = remote / "config.cfg"
+    local_keys.write_bytes(b'bind "ALT" "toggleradarscale"')
+    remote_keys.write_bytes(b'bind "ALT" "toggleradarscale"')
     monkeypatch.setattr(backup, "_candidate_steam_roots", lambda: [])
 
-    directories = backup.candidate_user_config_dirs(cs2)
-    snapshot = backup.snapshot_user_configs(cs2)
+    directories = backup.candidate_user_config_dirs(csgo)
+    snapshot = backup.snapshot_user_configs(csgo)
 
     assert local_cfg in directories
     assert remote in directories
-    assert snapshot[local_keys] == b'local: "ALT" "toggleradarscale"'
-    assert snapshot[remote_keys] == b'remote: "ALT" "toggleradarscale"'
-    assert snapshot[remote_convars] == b'"cl_hud_color" "8"'
+    assert snapshot[local_keys] == b'bind "ALT" "toggleradarscale"'
+    assert snapshot[remote_keys] == b'bind "ALT" "toggleradarscale"'
 
 
 def test_memory_snapshot_restores_local_and_remote_player_settings(monkeypatch, tmp_path: Path):

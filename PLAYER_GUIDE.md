@@ -72,7 +72,7 @@
 | 项目 | 是否必需 | 说明 |
 | --- | --- | --- |
 | Windows 10/11 电脑 | ✅ 必需 | 目前仅支持 Windows |
-| 已安装 CS2 (Steam) | ✅ 必需 | 需要通过 Steam 安装正版 CS2 |
+| 已安装 CS:GO Legacy | 🎬 录制时必需 | Steam 中打开 CS2 → 属性 → Beta `csgo_legacy`，确认存在 `csgo.exe`。只解析 Demo 不需要启动游戏。 |
 | OBS Studio | 🎬 录制时必需 | 用于自动录制高光片段，免费下载 |
 | FFmpeg | 🎬 生成合集时必须 | 用于合集工作台合成视频，免费下载 |
 | AI 大模型 API Key | 💡 可选 | 用于开启 AI 锐评模式（推荐 DeepSeek，价格便宜） |
@@ -438,14 +438,15 @@ D:\steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe
 
 在拦截弹窗中点击 **「前往玩家配置」**，会进入 **「设置」→「通用设置」**中的「玩家游戏配置」区域。先关闭 CS2，再点击 **「一键恢复玩家配置」**；恢复完成后再重新开始录制。该页也可以打开备份目录，供你手动处理。
 
-**Q：实验性功能 POV HUD 是什么？**
+**Q：实验性功能 POV HUD / mirv_pov 是什么？**
 
-POV HUD 能够让 Demo 的画面看起来更接近实际个人游戏。
-在「设置」→「录制预设」→「实验性功能」中可勾选 **POV**。开启后，本地 Demo 回放录制时会临时安装项目自带的 `pov.vpk`，并增量修改 CS2 `game/csgo/gameinfo.gi` 的搜索路径；**录制结束后程序会自动恢复**。
+CS:GO 的第一人称 HUD 走 HLAE 的 `mirv_pov`：把 GOTV Demo 伪装成目标玩家在打，带持枪和完整玩家 HUD。
+在「设置」→「录制预设」→「实验性功能」中勾选 **HLAE mirv_pov**，并在「设置」→「程序路径」填写 `HLAE.exe`。开启后，录制会通过 HLAE 启动 CS:GO，并在 `playdemo` **之前**注入 `mirv_pov <实体编号>`。
 
-- 开启 POV 后，部分与 HUD / 雷达相关的预热选项会被隐藏并由程序强制设定
-- 不要用于连接官方匹配服务器
-- 若异常退出导致修改未恢复，可在同一页面点击「恢复 POV 修改」（需先关闭 CS2）
+- 必须自行安装 [HLAE](https://github.com/advancedfx/advancedfx)；Agent 不会捆绑
+- HLAE 会注入游戏，仅用于本地 Demo，**不要连接 VAC 服务器**
+- 一场 Demo 锁定一名玩家；受害者 / 击杀者等其他视角片段会被跳过
+- 实体编号从 Demo 解析得到，不使用 `spec_player` 槽位
 
 **Q：OBS/websocket连不上？**
 

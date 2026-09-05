@@ -3007,6 +3007,20 @@ def repair_demo_in_place(
     source = Path(source_path)
     if not source.is_file():
         raise FileNotFoundError(f"Demo file not found: {source}")
+    magic = source.read_bytes()[:8]
+    if magic.startswith(b"HL2DEMO"):
+        return PlaybackDemoReport(
+            schema_version=1,
+            outcome="clean",
+            patch_id="csgo-hl2demo-noop",
+            patch_revision=PATCH_REVISION,
+            removed_messages=0,
+            changed_frames=0,
+            first_tick=None,
+            last_tick=None,
+            max_per_frame=0,
+            remaining_selected_messages=0,
+        )
     source_before = _stat_fingerprint(source.stat())
     recovered_plan: Optional[_UnfinalizedDemoRecoveryPlan] = None
 

@@ -1,0 +1,29 @@
+name: Build CS:GO demo extractor
+description: Vet, test, and build tools/csgo-demo-extract for Windows.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: tools/csgo-demo-extract/go.mod
+        cache-dependency-path: tools/csgo-demo-extract/go.sum
+
+    - name: Vet, test, and build extractor
+      shell: pwsh
+      working-directory: tools/csgo-demo-extract
+      run: |
+        $gofmt = gofmt -l .
+        if ($gofmt) { throw "gofmt needed:`n$gofmt" }
+        go vet ./...
+        if ($LASTEXITCODE -ne 0) { throw "go vet failed: $LASTEXITCODE" }
+        go test ./...
+        if ($LASTEXITCODE -ne 0) { throw "go test failed: $LASTEXITCODE" }
+        go build -trimpath -ldflags="-s -w" -o csgo-demo-extract.exe .
+        if ($LASTEXITCODE -ne 0) { throw "go build failed: $LASTEXITCODE" }
+        if (-not (Test-Path -LiteralPath "csgo-demo-extract.exe")) {
+          throw "go build did not produce csgo-demo-extract.exe"
+        }
+        $ver = (.\csgo-demo-extract.exe --version | Select-Object -First 1).Trim()
+        if ($ver -ne "csgo-extract-1") { throw "extractor version mismatch: $ver" }
+        Write-Host "csgo-demo-extract $ver"

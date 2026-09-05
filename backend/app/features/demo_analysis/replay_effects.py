@@ -740,6 +740,98 @@ def _build_full_demo_tracks(
     return effects, capabilities, warnings
 
 
+def _circle_cells(x: float, y: float, z: float, radius: float = 144.0, step: float = 24.0) -> list[list[float]]:
+    cells: list[list[float]] = []
+    limit = int(radius / step)
+    r2 = radius * radius
+    for ix in range(-limit, limit + 1):
+        for iy in range(-limit, limit + 1):
+            dx = ix * step
+            dy = iy * step
+            if dx * dx + dy * dy <= r2:
+                cells.append([round(x + dx, 2), round(y + dy, 2), round(z, 2), 1.0])
+    return cells
+
+
+def _event_xyz(row: dict[str, Any]) -> tuple[float, float, float] | None:
+    for keys in (("x", "y", "z"), ("user_X", "user_Y", "user_Z"), ("X", "Y", "Z")):
+        try:
+            x = float(row.get(keys[0]))
+            y = float(row.get(keys[1]))
+            z = float(row.get(keys[2]))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(x) and math.isfinite(y) and math.isfinite(z):
+            return x, y, z
+    return None
+
+
+def _build_csgo_event_effect_tracks(
+    parser: Any,
+    *,
+    tick_rate: float,
+    end_hint: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[str]]:
+    """Approximate CS:GO smokes/molotovs as cell disks from detonate events."""
+    from .parse_utils import _safe_parse_event, _to_pandas_df
+
+    warnings: list[str] = []
+    effects: list[dict[str, Any]] = []
+    smoke_life = int(SMOKE_EFFECT_DURATION_SEC * tick_rate)
+    inferno_life = int(INFERNO_EFFECT_DURATION_SEC * tick_rate)
+    try:
+        smoke_df = _to_pandas_df(_safe_parse_event(parser, "smokegrenade_detonate"))
+        smoke_iter = smoke_df.iterrows() if smoke_df is not None and not smoke_df.empty else []
+        for _, row in smoke_iter:
+            xyz = _event_xyz(dict(row))
+            if xyz is None:
+                continue
+            tick = int(row.get("tick") or 0)
+            effects.append(
+                {
+                    "id": f"smoke:event:{tick}",
+                    "type": "smoke",
+                    "entity_id": tick,
+                    "start_tick": tick,
+                    "end_tick": tick + smoke_life,
+                    "source": "smokegrenade_detonate",
+                    "samples": [{"tick": tick, "cells": _circle_cells(*xyz), "cell_size": 24.0}],
+                    "thrower_name": str(row.get("user_name") or ""),
+                    "thrower_steamid64": str(row.get("user_steamid") or ""),
+                }
+            )
+        inferno_df = _to_pandas_df(_safe_parse_event(parser, "inferno_startburn"))
+        molotov_df = _to_pandas_df(_safe_parse_event(parser, "molotov_detonate"))
+        for frame in (inferno_df, molotov_df):
+            if frame is None or frame.empty:
+                continue
+            for _, row in frame.iterrows():
+                xyz = _event_xyz(dict(row))
+                if xyz is None:
+                    continue
+                tick = int(row.get("tick") or 0)
+                effects.append(
+                    {
+                        "id": f"inferno:event:{tick}",
+                        "type": "inferno",
+                        "entity_id": tick,
+                        "start_tick": tick,
+                        "end_tick": tick + inferno_life,
+                        "source": "inferno_event",
+                        "samples": [{"tick": tick, "cells": _circle_cells(*xyz, radius=80.0, step=20.0)}],
+                    }
+                )
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"csgo event effects failed: {type(exc).__name__}: {exc}")
+    capabilities = {
+        "inferno_cells": any(item.get("type") == "inferno" for item in effects),
+        "smoke_voxels": False,
+        "smoke_mode": "legacy_circle",
+    }
+    del end_hint
+    return effects, capabilities, warnings
+
+
 def extract_dynamic_effect_tracks(
     parser: Any,
     *,
@@ -798,6 +890,14 @@ def extract_dynamic_effect_tracks(
             end_hint=max(int(end_tick), 1),
         )
         warnings.extend(build_warnings)
+        if not full_tracks:
+            event_tracks, event_caps, event_warnings = _build_csgo_event_effect_tracks(
+                parser, tick_rate=tick_rate, end_hint=max(int(end_tick), 1)
+            )
+            warnings.extend(event_warnings)
+            if event_tracks:
+                full_tracks = event_tracks
+                capabilities = event_caps
         if path and full_tracks:
             try:
                 from .replay_effects_cache import save_tracks

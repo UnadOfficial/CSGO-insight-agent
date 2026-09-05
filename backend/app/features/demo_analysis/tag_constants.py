@@ -8,7 +8,85 @@ from .weapons import (
     PRIMARY_WEAPONS,
 )
 
-TICK_RATE = 64
+class _TickRate:
+    """Numeric stand-in so parse workers can adopt a demo's real tick rate."""
+
+    __slots__ = ("_value",)
+
+    def __init__(self, value: float = 64.0) -> None:
+        self._value = float(value)
+
+    def set(self, value: float) -> None:
+        parsed = float(value)
+        if parsed < 16 or parsed > 256:
+            parsed = 64.0
+        self._value = parsed
+
+    def __float__(self) -> float:
+        return self._value
+
+    def __int__(self) -> int:
+        return int(self._value)
+
+    def __index__(self) -> int:
+        return int(self._value)
+
+    def __mul__(self, other):
+        return self._value * other
+
+    def __rmul__(self, other):
+        return other * self._value
+
+    def __truediv__(self, other):
+        return self._value / other
+
+    def __rtruediv__(self, other):
+        return other / self._value
+
+    def __add__(self, other):
+        return self._value + other
+
+    def __radd__(self, other):
+        return other + self._value
+
+    def __sub__(self, other):
+        return self._value - other
+
+    def __rsub__(self, other):
+        return other - self._value
+
+    def __eq__(self, other: object) -> bool:
+        try:
+            return self._value == float(other)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return NotImplemented
+
+    def __lt__(self, other: object) -> bool:
+        return self._value < float(other)  # type: ignore[arg-type]
+
+    def __le__(self, other: object) -> bool:
+        return self._value <= float(other)  # type: ignore[arg-type]
+
+    def __gt__(self, other: object) -> bool:
+        return self._value > float(other)  # type: ignore[arg-type]
+
+    def __ge__(self, other: object) -> bool:
+        return self._value >= float(other)  # type: ignore[arg-type]
+
+    def __repr__(self) -> str:
+        return str(self._value)
+
+
+TICK_RATE = _TickRate(64.0)
+
+
+def set_tick_rate(value: object) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        parsed = 64.0
+    TICK_RATE.set(parsed)
+    return float(TICK_RATE)
 
 # 「冻结结束前 → 死亡后固定留白」合辑
 _FREEZE_TO_DEATH_PRE_FREEZE_SEC = float(

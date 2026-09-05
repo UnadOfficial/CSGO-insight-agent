@@ -92,11 +92,17 @@ if (process.platform === "win32") {
   const loader = join(releaseRoot, "WebView2Loader.dll");
   const hook = join(tauriRoot, "windows", "upgrade-hooks.nsh");
   const generatedInstaller = join(releaseRoot, "nsis", "x64", "installer.nsi");
+  const productName = JSON.parse(
+    readFileSync(join(tauriRoot, "tauri.conf.json"), "utf8"),
+  ).productName;
+  if (!productName) {
+    throw new Error("tauri.conf.json is missing productName");
+  }
   const artifact = join(
     releaseRoot,
     "bundle",
     "nsis",
-    `CS2 Insight Agent_${version}_x64-setup.exe`,
+    `${productName}_${version}_x64-setup.exe`,
   );
   const updaterSignature = `${artifact}.sig`;
   if (!hasUpdaterSigningKey && existsSync(updaterSignature)) {

@@ -1,9 +1,9 @@
-"""系统与环境管家 - 配置管理与 CS2 路径探测
+"""系统与环境管家 - 配置管理与 CS:GO 路径探测
 
-配置为单文件 JSON：默认路径为仓库根下 data/cs2-insight.config.json；
-首次启动且无配置文件时，从同目录的 cs2-insight.config.example.json 复制默认值并生成正式配置。
-环境变量 CS2_INSIGHT_CONFIG 可指向其它绝对路径。
-若仅有旧版 backend/config.json，首次加载时会迁移到新文件。
+配置为单文件 JSON：默认路径为仓库根下 data/csgo-insight.config.json；
+首次启动且无配置文件时，从同目录的 csgo-insight.config.example.json 复制默认值并生成正式配置。
+环境变量 CSGO_INSIGHT_CONFIG（兼容 CS2_INSIGHT_CONFIG）可指向其它绝对路径。
+若仅有旧版 backend/config.json 或 cs2-insight.config.json，首次加载时会迁移到新文件。
 旧版本将配置 / 数据库 / 备份放在仓库根目录时，启动时会一次性迁入 data/。
 """
 
@@ -28,22 +28,39 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
-# 轻量 JSON 配置：默认在 <repo>/data/cs2-insight.config.json（可用环境变量 CS2_INSIGHT_CONFIG 覆盖绝对路径）
+
+def _mirror_insight_env() -> None:
+    """Accept CSGO_INSIGHT_* and CS2_INSIGHT_* as aliases of each other."""
+    for key, value in list(os.environ.items()):
+        if not value:
+            continue
+        if key.startswith("CSGO_INSIGHT_"):
+            os.environ.setdefault("CS2_INSIGHT_" + key[len("CSGO_INSIGHT_"):], value)
+        elif key.startswith("CS2_INSIGHT_"):
+            os.environ.setdefault("CSGO_INSIGHT_" + key[len("CS2_INSIGHT_"):], value)
+
+
+_mirror_insight_env()
+
+# 轻量 JSON 配置：默认在 <repo>/data/csgo-insight.config.json
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
 _REPO_ROOT = _BACKEND_DIR.parent
 _LEGACY_CONFIG_PATH = _BACKEND_DIR / "config.json"
-_DEFAULT_CONFIG_FILENAME = "cs2-insight.config.json"
-_DEFAULT_EXAMPLE_FILENAME = "cs2-insight.config.example.json"
+_DEFAULT_CONFIG_FILENAME = "csgo-insight.config.json"
+_LEGACY_DEFAULT_CONFIG_FILENAME = "cs2-insight.config.json"
+_DEFAULT_EXAMPLE_FILENAME = "csgo-insight.config.example.json"
+_LEGACY_EXAMPLE_FILENAME = "cs2-insight.config.example.json"
 _DATA_SUBDIR = "data"
-_BACKUP_DIR_NAME = ".cs2_config_backup"
-_DB_BASENAME = "cs2-insight.db"
+_BACKUP_DIR_NAME = ".csgo_config_backup"
+_LEGACY_BACKUP_DIR_NAME = ".cs2_config_backup"
+_DB_BASENAME = "csgo-insight.db"
+_LEGACY_DB_BASENAME = "cs2-insight.db"
 _DEFAULT_CS2_EXTRA_LAUNCH_ARGS = "-fullscreen"
 _DEFAULT_RECORD_INJECT_CONSOLE_LINES = "\n".join((
-    "cl_hud_telemetry_frametime_show 0",
     "engine_no_focus_sleep 0",
-    "cl_demo_predict 0",
     "fps_max 0",
-    "cl_trueview_show_status 0",
+    "bind kp_5 demo_pause",
+    "bind kp_6 demo_resume",
 ))
 
 
@@ -53,7 +70,11 @@ def get_data_dir() -> Path:
     默认：仓库根下 ``data/``。Electron 安装版通过 ``CS2_INSIGHT_DATA_DIR`` 指向
     ``%APPDATA%/<应用>/data``（与配置文件、SQLite、logs 同级），避免写入 ``Program Files`` 下的 ``resources``。
     """
-    override = os.environ.get("CS2_INSIGHT_DATA_DIR", "").strip()
+    override = (
+        os.environ.get("CSGO_INSIGHT_DATA_DIR")
+        or os.environ.get("CS2_INSIGHT_DATA_DIR")
+        or ""
+    ).strip()
     if override:
         return Path(override).expanduser().resolve()
     return (_REPO_ROOT / _DATA_SUBDIR).resolve()
@@ -65,15 +86,25 @@ def get_bundle_data_dir() -> Path:
     开发/便携包：与 ``get_data_dir()`` 相同。Electron 安装版由 ``CS2_INSIGHT_BUNDLE_DATA_DIR``
     指向 ``resources/data``（安装目录下只读副本）。
     """
-    override = os.environ.get("CS2_INSIGHT_BUNDLE_DATA_DIR", "").strip()
+    override = (
+        os.environ.get("CSGO_INSIGHT_BUNDLE_DATA_DIR")
+        or os.environ.get("CS2_INSIGHT_BUNDLE_DATA_DIR")
+        or ""
+    ).strip()
     if override:
         return Path(override).expanduser().resolve()
     return get_data_dir()
 
 
 def resolve_example_config_path() -> Path:
-    """随应用提供的示例配置（默认 ``data/cs2-insight.config.example.json``）。"""
-    return get_bundle_data_dir() / _DEFAULT_EXAMPLE_FILENAME
+    """随应用提供的示例配置。"""
+    current = get_bundle_data_dir() / _DEFAULT_EXAMPLE_FILENAME
+    if current.is_file():
+        return current
+    legacy = get_bundle_data_dir() / _LEGACY_EXAMPLE_FILENAME
+    if legacy.is_file():
+        return legacy
+    return current
 
 
 def migrate_legacy_app_data() -> None:
@@ -81,7 +112,7 @@ def migrate_legacy_app_data() -> None:
     将旧版散落在仓库根目录的数据迁入 ``data/``（仅默认配置路径、且无 CS2_INSIGHT_CONFIG 时执行）。
     若目标已存在则跳过对应项，避免覆盖。任一步失败（例如日志目录被占用）仅记录警告，不阻塞启动。
     """
-    if os.environ.get("CS2_INSIGHT_CONFIG", "").strip():
+    if (os.environ.get("CSGO_INSIGHT_CONFIG") or os.environ.get("CS2_INSIGHT_CONFIG") or "").strip():
         return
 
     data_dir = get_data_dir()
@@ -127,9 +158,14 @@ def migrate_legacy_app_data() -> None:
             except OSError as e:
                 logger.warning("Could not migrate example config to data dir: %s", e)
 
-    # SQLite 主库及 WAL/SHM
-    legacy_db = _REPO_ROOT / _DB_BASENAME
-    new_db = data_dir / _DB_BASENAME
+    # SQLite 主库及 WAL/SHM（含 CS2 版文件名）
+    for db_name in (_DB_BASENAME, _LEGACY_DB_BASENAME):
+        legacy_db = _REPO_ROOT / db_name
+        new_db = data_dir / _DB_BASENAME
+        if not legacy_db.is_file():
+            continue
+        if new_db.is_file():
+            break
     if legacy_db.is_file():
         if new_db.is_file():
             logger.warning(
@@ -198,22 +234,36 @@ migrate_legacy_app_data()
 
 
 def resolve_config_path() -> Path:
-    override = os.environ.get("CS2_INSIGHT_CONFIG", "").strip()
+    override = (
+        os.environ.get("CSGO_INSIGHT_CONFIG")
+        or os.environ.get("CS2_INSIGHT_CONFIG")
+        or ""
+    ).strip()
     if override:
         p = Path(override).expanduser()
         if p.is_file():
             return p
-        # 旧启动脚本可能仍指向仓库根下的配置；已迁移到 data/ 时回退，避免“文件不存在”。
         try:
-            legacy = (_REPO_ROOT / _DEFAULT_CONFIG_FILENAME).resolve()
-            if p.resolve() == legacy:
-                migrated = get_data_dir() / _DEFAULT_CONFIG_FILENAME
-                if migrated.is_file():
-                    return migrated
+            for name in (_DEFAULT_CONFIG_FILENAME, _LEGACY_DEFAULT_CONFIG_FILENAME):
+                legacy = (_REPO_ROOT / name).resolve()
+                if p.resolve() == legacy:
+                    migrated = get_data_dir() / _DEFAULT_CONFIG_FILENAME
+                    if migrated.is_file():
+                        return migrated
+                    old = get_data_dir() / _LEGACY_DEFAULT_CONFIG_FILENAME
+                    if old.is_file():
+                        return old
         except OSError:
             pass
         return p
-    return get_data_dir() / _DEFAULT_CONFIG_FILENAME
+    data_dir = get_data_dir()
+    current = data_dir / _DEFAULT_CONFIG_FILENAME
+    if current.is_file():
+        return current
+    legacy = data_dir / _LEGACY_DEFAULT_CONFIG_FILENAME
+    if legacy.is_file():
+        return legacy
+    return current
 
 DEFAULT_STEAM_PATHS = [
     Path(r"C:\Program Files (x86)\Steam"),
@@ -224,7 +274,15 @@ DEFAULT_STEAM_PATHS = [
     Path(r"F:\Steam"),
 ]
 
-CS2_RELATIVE = Path("steamapps") / "common" / "Counter-Strike Global Offensive" / "game" / "bin" / "win64" / "cs2.exe"
+CSGO_RELATIVE = Path("steamapps") / "common" / "Counter-Strike Global Offensive" / "csgo.exe"
+CS2_RELATIVE = CSGO_RELATIVE  # backward-compatible alias
+_CSGO_INSTALL_DIR = Path("steamapps") / "common" / "Counter-Strike Global Offensive"
+_PERFECT_WORLD_CANDIDATES = (
+    Path(r"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\csgo.exe"),
+    Path(r"D:\Perfect World\Counter-Strike Global Offensive\csgo.exe"),
+    Path(r"C:\Perfect World\Counter-Strike Global Offensive\csgo.exe"),
+    Path(r"D:\Program Files\Steam\steamapps\common\Counter-Strike Global Offensive\csgo.exe"),
+)
 
 
 def _steam_install_from_registry() -> Optional[Path]:
@@ -394,6 +452,8 @@ class AppConfig(BaseModel):
     # 修改后由代理管理中心重新生成已存在的代理。
     lite_cut_proxy_resolution: int = 720
     cs2_path: str = ""
+    # HLAE.exe for experimental mirv_pov recording. Empty = auto-detect on use.
+    hlae_path: str = ""
     demo_directory: str = ""
     # Demo 工作副本缓存根目录；留空则使用 data/demo-cache。入库/上传后复制到此，解析播放录制走缓存。
     demo_cache_directory: str = ""
@@ -434,8 +494,8 @@ class AppConfig(BaseModel):
     obs_transition_enabled: bool = False
     obs_transition_name: str = "Fade"
     obs_transition_duration_ms: int = 100
-    obs_game_scene_name: str = "CS2 Insight Recording"
-    obs_black_scene_name: str = "CS2 Insight Black"
+    obs_game_scene_name: str = "CSGO Insight Recording"
+    obs_black_scene_name: str = "CSGO Insight Black"
     # 官匹战绩
     steam_api_key: str = ""
     steam_id64: str = ""
@@ -605,12 +665,43 @@ def save_config(cfg: AppConfig) -> None:
     _write_text_atomically(path, cfg.model_dump_json(indent=2))
 
 
+def _is_csgo_exe(path: Path) -> bool:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    if resolved.name.lower() != "csgo.exe" or not resolved.is_file():
+        return False
+    return (resolved.parent / "csgo").is_dir() or (resolved.parent / "csgo" / "cfg").exists()
+
+
 def detect_cs2_path() -> Optional[str]:
-    """在 Steam 主库、libraryfolders.vdf 及常见盘符下查找 cs2.exe。"""
+    """在 Steam 主库、libraryfolders.vdf、国服常见路径下查找 csgo.exe。"""
     for base in _candidate_steam_roots():
-        candidate = base / CS2_RELATIVE
-        if candidate.is_file():
+        candidate = base / CSGO_RELATIVE
+        if _is_csgo_exe(candidate):
             return str(candidate)
+        nested = base / _CSGO_INSTALL_DIR / "csgo.exe"
+        if _is_csgo_exe(nested):
+            return str(nested)
+    for candidate in _PERFECT_WORLD_CANDIDATES:
+        if _is_csgo_exe(candidate):
+            return str(candidate)
+    return None
+
+
+def reject_cs2_client_path(path: str | Path | None) -> Optional[str]:
+    """Return an error message when the configured exe is CS2 rather than CS:GO."""
+    if not path:
+        return None
+    try:
+        name = Path(path).name.lower()
+    except (TypeError, ValueError):
+        return None
+    if name == "cs2.exe":
+        return (
+            "当前路径指向 CS2（cs2.exe）。本版本需要 Steam csgo_legacy / 国服的 csgo.exe。"
+        )
     return None
 
 
@@ -925,7 +1016,9 @@ def minimize_obs_window() -> None:
 
 
 def ensure_cs2_path(cfg: AppConfig) -> AppConfig:
-    """If cs2_path is empty, try auto-detection and persist."""
+    """If cs2_path is empty, try auto-detection and persist. Reject cs2.exe."""
+    if cfg.cs2_path and reject_cs2_client_path(cfg.cs2_path):
+        cfg.cs2_path = ""
     if not cfg.cs2_path:
         detected = detect_cs2_path()
         if detected:

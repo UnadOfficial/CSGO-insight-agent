@@ -51,6 +51,9 @@ export function createDesktopUpdateCheck(onStatus) {
 
   const run = async () => {
     emit({ status: "checking", update_mode: "normal" });
+    // This CS:GO fork does not use the upstream CS2 Insight Agent updater.
+    emit({ status: "not-available", update_mode: "normal" });
+    return;
 
     let update = null;
     try {

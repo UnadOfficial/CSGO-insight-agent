@@ -77,6 +77,24 @@
     "content_height": 1016,
     "transform_version": 3
   },
+  "de_cbble": {
+    "pos_x": -3840,
+    "pos_y": 3072,
+    "scale": 6.0,
+    "rotate": 0,
+    "zoom": 0.0,
+    "lower_level_max_units": -1000000.0,
+    "transform_version": 3
+  },
+  "de_cobblestone": {
+    "pos_x": -3840,
+    "pos_y": 3072,
+    "scale": 6.0,
+    "rotate": 0,
+    "zoom": 0.0,
+    "lower_level_max_units": -1000000.0,
+    "transform_version": 3
+  },
   "de_cache": {
     "pos_x": -2000,
     "pos_y": 3250,

@@ -34,9 +34,8 @@ def test_access_filter_hides_only_successful_gsi_posts():
 
 
 def test_cleanup_removes_only_agent_owned_gsi_configs(tmp_path):
-    exe = tmp_path / "game" / "bin" / "win64" / "cs2.exe"
-    cfg_dir = tmp_path / "game" / "csgo" / "cfg"
-    exe.parent.mkdir(parents=True)
+    exe = tmp_path / "csgo.exe"
+    cfg_dir = tmp_path / "csgo" / "cfg"
     cfg_dir.mkdir(parents=True)
     exe.touch()
     legacy = cfg_dir / "gamestate_integration__insight_deadbeef.cfg"
