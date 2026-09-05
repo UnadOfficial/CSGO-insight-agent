@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import cramjam
-import lz4.block
 
 from .skybox_resources import SkyboxResourceError, _resource_blocks
 
@@ -266,17 +265,17 @@ def _read_value(ctx: _Ctx, datatype: int) -> Any:
 def _decompress_kv3(method: int, payload: bytes, uncompressed: int) -> bytes:
     try:
         if method == 1:
-            return lz4.block.decompress(payload, uncompressed_size=uncompressed)
+            return bytes(cramjam.lz4.decompress_block(payload, output_len=uncompressed))
         if method == 2:
             return bytes(cramjam.zstd.decompress(payload, output_len=uncompressed))
-    except (ValueError, lz4.block.LZ4BlockError, cramjam.DecompressionError) as exc:
+    except (ValueError, cramjam.DecompressionError) as exc:
         raise EntityLumpKv3Error("compiled entity lump KV3 buffers are corrupt") from exc
     raise EntityLumpKv3Error(f"unsupported KV3 compression method: {method}")
 
 
 def _compress_kv3(method: int, payload: bytes) -> bytes:
     if method == 1:
-        return lz4.block.compress(payload, store_size=False)
+        return bytes(cramjam.lz4.compress_block(payload, store_size=False))
     if method == 2:
         return bytes(cramjam.zstd.compress(payload))
     raise EntityLumpKv3Error(f"unsupported KV3 compression method: {method}")
