@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Optional
 
 from ... import native_table as pd
@@ -126,6 +127,46 @@ def _int(val, default: int = 0) -> int:
         return int(val)
     except (ValueError, TypeError):
         return default
+
+
+def _freeze_end_ticks_desc(
+    round_freeze_end_ticks: Optional[Mapping[int, int]] = None,
+) -> list[tuple[int, int]]:
+    """``(freeze_end_tick, round_number)`` pairs, latest freeze first."""
+    if not round_freeze_end_ticks:
+        return []
+    out: list[tuple[int, int]] = []
+    for rn, tick in round_freeze_end_ticks.items():
+        rn_i = _int(rn)
+        tick_i = _int(tick)
+        if rn_i > 0 and tick_i > 0:
+            out.append((tick_i, rn_i))
+    out.sort(reverse=True)
+    return out
+
+
+def _round_number_from_freeze_ticks(
+    tick: int,
+    freeze_ticks_desc: list[tuple[int, int]],
+    event_rounds_played: object = None,
+) -> int:
+    """1-indexed round for an in-round event (player_death, hurt, defuse, …).
+
+    Prefer ``round_freeze_end`` tick windows. CS:GO dumps and some CS2 demos
+    omit ``total_rounds_played`` on player_death; ``_int(None) + 1`` would
+    otherwise label every kill as round 1.
+    """
+    tick_i = _int(tick)
+    if tick_i > 0 and freeze_ticks_desc:
+        for freeze_tick, rn in freeze_ticks_desc:
+            if tick_i >= freeze_tick:
+                return rn
+        return freeze_ticks_desc[-1][1]
+    if event_rounds_played is not None and not pd.isna(event_rounds_played):
+        rn = _int(event_rounds_played) + 1
+        if rn > 0:
+            return rn
+    return 1 if tick_i > 0 else 0
 
 
 def _round_end_winner_team_num(val) -> Optional[int]:

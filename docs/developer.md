@@ -145,10 +145,9 @@ pnpm run desktop:check
 ```
 
 前端跑在 `http://localhost:5173`，Vite 已配置代理把 `/api/*` 转发到后端 `http://localhost:8000`。
-日常桌面联调使用 `desktop:dev`：Vite 会热更新 React/CSS，Tauri 直接运行 debug
-桌面壳，不会暂存发布 runtime 或生成安装包。仓库根目录也可直接执行
-`.\packaging\windows\dev_desktop.bat`。只有验证安装、升级、卸载、资源嵌入或
-正式发布时才需要 NSIS。
+日常桌面联调使用仓库根目录的 `.\dev.bat`（或 `pnpm run desktop:dev`）：Vite
+会热更新 React/CSS，Tauri 直接运行 debug 桌面壳，不会暂存发布 runtime 或
+生成安装包。只有验证安装、升级、卸载、资源嵌入或正式发布时才需要 NSIS。
 
 #### 3. 打包
 

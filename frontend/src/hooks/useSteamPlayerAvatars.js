@@ -2,8 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import API from "../api/api";
 import { steamIdForPlayer } from "../utils/playerAppearance.js";
 
-function requestAvatars(requestKey) {
-  return API.get("/steam/player-avatars", { params: { steam_ids: requestKey } })
+export const STEAM_AVATAR_REQUEST_TIMEOUT_MS = 8_000;
+
+function requestAvatars(requestKey, signal) {
+  return API.get("/steam/player-avatars", {
+    params: { steam_ids: requestKey },
+    timeout: STEAM_AVATAR_REQUEST_TIMEOUT_MS,
+    signal,
+  })
     .then((response) => ({
       avatars: response?.data?.avatars || {},
       onlineAssetsEnabled: response?.data?.enabled === true,
@@ -25,10 +31,14 @@ export function useSteamPlayerAvatars(players) {
       return undefined;
     }
     let cancelled = false;
-    requestAvatars(requestKey).then((next) => {
+    const controller = new AbortController();
+    requestAvatars(requestKey, controller.signal).then((next) => {
       if (!cancelled) setResult(next);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [requestKey]);
 
   return result;

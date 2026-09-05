@@ -68,21 +68,6 @@ def _pick_assister_column(df: pd.DataFrame) -> Optional[str]:
     return None
 
 
-def _adjust_round_for_pre_freeze(
-    round_num: int,
-    tick: int,
-    round_freeze_end_ticks: dict[int, int],
-) -> int:
-    rn = int(round_num)
-    t = int(tick)
-    while rn > 1 and rn in round_freeze_end_ticks:
-        ft = int(round_freeze_end_ticks.get(rn) or 0)
-        if ft <= 0 or t >= ft:
-            break
-        rn -= 1
-    return rn
-
-
 # 整回合时间线录制结束 tick：固定缓冲（与 demo_parser 默认策略一致），不读环境变量。
 _TIMELINE_ROUND_POST_ROUND_END_SEC = 3.0
 _TIMELINE_LAST_ROUND_KILL_TAIL_SEC = 2.5
@@ -315,6 +300,10 @@ def build_round_timeline(
     spec_slots: "dict[str, int] | None" = None,
 ) -> dict[str, Any]:
     from . import demo_parser as dp
+    from .features.demo_analysis.parse_utils import (
+        _freeze_end_ticks_desc,
+        _round_number_from_freeze_ticks,
+    )
 
     _int = dp._int
     _bool = dp._bool
@@ -327,6 +316,7 @@ def build_round_timeline(
 
     freeze_sorted = sorted(round_freeze_end_ticks.keys()) if round_freeze_end_ticks else []
     freeze_starts = round_freeze_start_ticks or {}
+    freeze_ticks_desc = _freeze_end_ticks_desc(round_freeze_end_ticks)
 
     def freeze_tick_for_round(rn: int) -> Optional[int]:
         if rn in round_freeze_end_ticks:
@@ -379,7 +369,6 @@ def build_round_timeline(
                 if assister.lower() in ("nan", "nat", "none"):
                     assister = ""
             tick = _int(row.get("tick"))
-            base_rn = _int(row.get("total_rounds_played")) + 1
             weapon = _normalize_item(row.get("weapon", ""))
             weapon_name = _weapon_label(weapon)
             headshot = _bool(row.get("headshot"))
@@ -404,7 +393,11 @@ def build_round_timeline(
             else:
                 typ = "unknown"
 
-            eff_rn = _adjust_round_for_pre_freeze(base_rn, tick, round_freeze_end_ticks)
+            eff_rn = _round_number_from_freeze_ticks(
+                tick,
+                freeze_ticks_desc,
+                row.get("total_rounds_played"),
+            )
 
             fe_tick = freeze_tick_for_round(eff_rn)
             round_time_sec: Optional[float] = None

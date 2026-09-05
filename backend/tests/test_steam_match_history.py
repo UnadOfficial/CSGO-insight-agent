@@ -140,6 +140,66 @@ def test_player_avatar_route_filters_ids_and_non_steam_urls(monkeypatch):
     public_lookup.assert_awaited_once_with([steam_id])
 
 
+def test_public_player_summary_keeps_finished_lookups_when_deadline_expires(monkeypatch):
+    fast_id = "76561198000000001"
+    slow_id = "76561198000000002"
+    static = "https://avatars.fastly.steamstatic.com/static_full.jpg"
+
+    class FakeResponse:
+        def __init__(self, *, payload=None, text=""):
+            self._payload = payload
+            self.text = text
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, _exc_type, _exc, _traceback):
+            return None
+
+        async def get(self, url, **_kwargs):
+            if "/miniprofile/39734274/" in url or f"/profiles/{slow_id}/" in url:
+                await asyncio.sleep(5)
+                raise AssertionError("slow Steam lookup should have been cancelled")
+            if "/miniprofile/" in url:
+                return FakeResponse(payload={"persona_name": "Fast", "avatar_url": static})
+            return FakeResponse(text="")
+
+    monkeypatch.setattr("app.steam_match_history.httpx.AsyncClient", lambda **_kwargs: FakeClient())
+    monkeypatch.setattr("app.steam_match_history._STEAM_PUBLIC_LOOKUP_DEADLINE_SECS", 0.25)
+    _steam_public_profile_cache.clear()
+
+    result = asyncio.run(fetch_public_player_summaries([fast_id, slow_id]))
+
+    assert result == [{"steamid": fast_id, "personaname": "Fast", "avatarfull": static}]
+
+
+def test_player_avatar_route_returns_empty_when_public_lookup_hangs(monkeypatch):
+    async def hang(_ids):
+        await asyncio.sleep(30)
+        raise AssertionError("avatar route deadline must cancel the lookup")
+
+    monkeypatch.setattr(
+        match_history_api,
+        "load_config",
+        lambda: AppConfig(steam_cdn_assets_enabled=True, steam_api_key=""),
+    )
+    monkeypatch.setattr(match_history_api, "fetch_public_player_summaries", hang)
+    monkeypatch.setattr(match_history_api, "_STEAM_AVATAR_ROUTE_DEADLINE_SECS", 0.2)
+
+    started = time.monotonic()
+    result = asyncio.run(match_history_api.get_steam_player_avatars("76561198000000001"))
+
+    assert result == {"enabled": True, "avatars": {}}
+    assert time.monotonic() - started < 2.0
+
+
 def test_decompress_bz2_publishes_complete_demo_atomically(tmp_path: Path):
     compressed = tmp_path / "match.dem.bz2"
     compressed.write_bytes(bz2.compress(b"complete-demo"))

@@ -55,15 +55,26 @@ repository `.venv`. This is the default desktop development loop: React and CSS
 edits use Vite HMR, and the command neither stages release runtimes nor creates
 an NSIS installer.
 
+Use the one-click script at the repository root for daily work. Do not rebuild
+the NSIS installer just to try a code change:
+
+```powershell
+.\dev.bat
+```
+
+Double-clicking `dev.bat` does the same thing. Missing `.venv` or frontend
+dependencies are installed automatically, then Tauri starts with Vite HMR and
+no installer. Browser-only (no desktop window):
+
+```powershell
+.\dev.bat -Browser
+```
+
+Or start it by hand from `frontend`:
+
 ```powershell
 Set-Location frontend
 pnpm run desktop:dev
-```
-
-Or launch the same workflow directly from the repository root:
-
-```powershell
-.\packaging\windows\dev_desktop.bat
 ```
 
 To check the production frontend and Rust shell before committing, without

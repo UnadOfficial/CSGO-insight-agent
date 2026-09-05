@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
+_REPLAY_ATTACH_MARGIN_SECS = 5.0
+_REPLAY_ATTACH_MIN_SECS = 20.0
 
 
 class IsolatedParseError(RuntimeError):
@@ -29,11 +35,22 @@ def _timeout_seconds(action: str) -> float:
         return float(default)
 
 
-def run_parse_worker(action: str, **payload: Any) -> Any:
-    req = {"action": action, **payload}
-    timeout = _timeout_seconds(action)
-    tmp_dir = Path(tempfile.gettempdir()) / "cs2_insight_parse_workers"
+def _parse_worker_dir() -> Path:
+    """Keep worker scratch files on the app data volume, not %TEMP% on C:."""
+    try:
+        from .env_utils import get_data_dir
+
+        tmp_dir = get_data_dir() / "tmp" / "parse-workers"
+    except Exception:
+        tmp_dir = Path(tempfile.gettempdir()) / "cs2_insight_parse_workers"
     tmp_dir.mkdir(parents=True, exist_ok=True)
+    return tmp_dir
+
+
+def run_parse_worker(action: str, *, timeout: float | None = None, **payload: Any) -> Any:
+    req = {"action": action, **payload}
+    worker_timeout = _timeout_seconds(action) if timeout is None else max(10.0, float(timeout))
+    tmp_dir = _parse_worker_dir()
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", dir=tmp_dir, delete=False) as rf:
         json.dump(req, rf, ensure_ascii=False)
         req_path = Path(rf.name)
@@ -43,6 +60,8 @@ def run_parse_worker(action: str, **payload: Any) -> Any:
     env.setdefault("PYTHONIOENCODING", "utf-8")
     worker_path = Path(__file__).with_name("parse_worker.py")
     cmd = [sys.executable, str(worker_path), str(req_path), str(out_path)]
+    started = time.monotonic()
+    logger.info("Parse worker starting action=%s timeout=%.0fs", action, worker_timeout)
     try:
         with err_path.open("w", encoding="utf-8", errors="replace") as err_file:
             cp = subprocess.run(
@@ -51,17 +70,24 @@ def run_parse_worker(action: str, **payload: Any) -> Any:
                 stdout=subprocess.DEVNULL,
                 stderr=err_file,
                 text=False,
-                timeout=timeout,
+                timeout=worker_timeout,
                 env=env,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
+        logger.info(
+            "Parse worker finished action=%s elapsed=%.1fs returncode=%s",
+            action,
+            time.monotonic() - started,
+            cp.returncode,
+        )
     except subprocess.TimeoutExpired as e:
+        logger.warning("Parse worker timed out action=%s after %.0fs", action, worker_timeout)
         for stale_path in (err_path, out_path):
             try:
                 stale_path.unlink(missing_ok=True)
             except OSError:
                 pass
-        raise IsolatedParseError(f"解析超时（>{timeout:.0f}s），worker 已被终止") from e
+        raise IsolatedParseError(f"解析超时（>{worker_timeout:.0f}s），worker 已被终止") from e
     finally:
         try:
             req_path.unlink()
@@ -158,16 +184,66 @@ def materialize_match_replay_parquet_isolated(
     workspace: dict[str, Any],
     *,
     fps: float = 32.0,
+    timeout: float | None = None,
 ) -> dict[str, Any]:
     """Build the whole-match Rust Parquet cache without risking the API process."""
     result = run_parse_worker(
         "materialize_replay",
+        timeout=timeout,
         dem_path=demo_path,
         workspace=workspace,
         fps=float(fps),
     )
     if not isinstance(result, dict):
         raise IsolatedParseError("回放 Parquet worker 返回了无效结果")
+    return result
+
+
+def _attach_replay_cache(
+    dem_path: str,
+    result: dict[str, Any],
+    *,
+    started_at: float | None = None,
+) -> dict[str, Any]:
+    """Rebuild replay Parquet in a fresh worker after analysis RSS is gone.
+
+    Windows does not reliably return a 4–6GB working set after ``gc.collect()``.
+    The analysis ``python.exe`` must exit first, then this second process maps
+    the demo again for 32 Hz replay + utility effects.
+    """
+    workspace = result.get("__analysis_workspace__")
+    if not isinstance(workspace, dict) or not workspace.get("rounds"):
+        return result
+    workspace = dict(workspace)
+    budget = _timeout_seconds("analyze_batch")
+    elapsed = (time.monotonic() - started_at) if started_at is not None else 0.0
+    remaining = budget - elapsed - _REPLAY_ATTACH_MARGIN_SECS
+    if remaining < _REPLAY_ATTACH_MIN_SECS:
+        logger.info(
+            "Skipping replay materialize after analysis elapsed=%.1fs remaining=%.1fs",
+            elapsed,
+            remaining,
+        )
+        workspace["replay_cache"] = {
+            "status": "skipped",
+            "error": "analysis used the worker budget; replay cache will build on demand",
+        }
+        result = dict(result)
+        result["__analysis_workspace__"] = workspace
+        return result
+    try:
+        workspace["replay_cache"] = materialize_match_replay_parquet_isolated(
+            dem_path,
+            workspace,
+            timeout=remaining,
+        )
+    except IsolatedParseError as exc:
+        workspace["replay_cache"] = {
+            "status": "error",
+            "error": str(exc),
+        }
+    result = dict(result)
+    result["__analysis_workspace__"] = workspace
     return result
 
 
@@ -181,6 +257,7 @@ def analyze_multi_isolated(
     Returns {player_name: ParseResult.to_dict()} for all players.
     ~10x fewer demo file scans vs calling analyze_demo_isolated per player.
     """
+    started_at = time.monotonic()
     result = run_parse_worker(
         "analyze_batch",
         dem_path=dem_path,
@@ -189,4 +266,4 @@ def analyze_multi_isolated(
     )
     if not isinstance(result, dict):
         raise IsolatedParseError("多玩家解析 worker 返回了无效结果")
-    return result
+    return _attach_replay_cache(dem_path, result, started_at=started_at)

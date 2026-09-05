@@ -62,6 +62,20 @@ class _SmokeWithStationaryTailParser:
         ])
 
 
+class _ColumnDictParser:
+    def parse_grenades(self):
+        return {
+            "grenade_type": ["CSmokeGrenadeProjectile", "CSmokeGrenadeProjectile", "CSmokeGrenadeProjectile"],
+            "grenade_entity_id": [7, 7, 7],
+            "tick": [160, 170, 179],
+            "x": [100.0, 150.0, 210.0],
+            "y": [200.0, 250.0, 310.0],
+            "z": [20.0, 30.0, 10.0],
+            "steamid": ["1", "1", "1"],
+            "name": ["Alpha", "Alpha", "Alpha"],
+        }
+
+
 def test_smoke_trajectory_discards_stationary_effect_tail():
     trajectories = _extract_grenade_trajectories(_SmokeWithStationaryTailParser(), 64)
 
@@ -127,6 +141,15 @@ def test_grenade_trajectory_starts_at_weapon_fire_release_position():
         "z": 20.0,
     }
     assert grenade["trajectory"][1]["tick"] == 160
+
+
+def test_grenade_trajectory_compacts_native_column_dicts():
+    trajectories = _extract_grenade_trajectories(_ColumnDictParser(), 64)
+
+    assert len(trajectories) == 1
+    assert trajectories[0]["throw_tick"] == 160
+    assert trajectories[0]["end_tick"] == 179
+    assert [point["tick"] for point in trajectories[0]["points"]] == [160, 170, 179]
 
 
 def test_grenade_trajectory_ignores_a_stale_freeze_time_release_candidate():

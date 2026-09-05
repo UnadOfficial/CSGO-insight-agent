@@ -137,3 +137,52 @@ def test_round_timeline_emits_freeze_start_and_next_round_start():
     assert row["next_round_freeze_end_tick"] == 5000
     last = bundle["round_timeline"][1]
     assert last["next_round_start_tick"] is None
+
+
+def test_round_timeline_assigns_kills_from_freeze_windows_without_event_counter():
+    empty = pd.DataFrame()
+    events = pd.DataFrame(
+        [
+            {
+                "tick": 1500,
+                "attacker_name": "P",
+                "user_name": "enemy-one",
+                "weapon": "ak47",
+                "headshot": 0,
+            },
+            {
+                "tick": 6000,
+                "total_rounds_played": 0,
+                "attacker_name": "P",
+                "user_name": "enemy-two",
+                "weapon": "ak47",
+                "headshot": 0,
+            },
+        ]
+    )
+    bundle = build_round_timeline(
+        demo_path="x.dem",
+        map_name="de_dust2",
+        target_player="P",
+        target_player_user_id=1,
+        target_steam_id="1",
+        target_team_num=2,
+        round_target_team_map={1: 2, 2: 2},
+        events=events,
+        round_freeze_end_ticks={1: 1000, 2: 5000},
+        round_freeze_start_ticks={1: 100, 2: 4000},
+        round_result_map={1: True, 2: True},
+        round_scores_by_round={1: {2: 0, 3: 0}, 2: {2: 1, 3: 0}},
+        round_end_df=empty,
+        round_end_tick_map={1: 3000, 2: 8000},
+        clips=[],
+        total_rounds=2,
+        match_start_tick=0,
+        tick_rate=64.0,
+    )
+    round_one = bundle["round_timeline"][0]["events"]
+    round_two = bundle["round_timeline"][1]["events"]
+    assert [event["victim_name"] for event in round_one] == ["enemy-one"]
+    assert [event["round"] for event in round_one] == [1]
+    assert [event["victim_name"] for event in round_two] == ["enemy-two"]
+    assert [event["round"] for event in round_two] == [2]

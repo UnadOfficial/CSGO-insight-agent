@@ -23,6 +23,7 @@ from app.features.demo_analysis.round_economy import (
     build_round_economy_shared,
     extract_player_team_maps,
     extract_target_team_map,
+    _freeze_end_rounds_played_usable,
 )
 from app.features.demo_analysis.spatial_analysis import parse_spatial_snapshots
 from app.features.demo_analysis.spatial_analysis import (
@@ -107,6 +108,30 @@ def test_round_economy_recovers_all_players_without_an_extra_parse():
     )
     assert economy == {1: {2: 1000, 3: 2000}, 2: {2: 4000, 3: 3000}}
     assert extract_target_team_map(ticks_df, tick_to_round, "alpha") == {1: 2, 2: 3}
+
+
+def test_freeze_end_all_zero_rounds_played_is_not_usable():
+    assert _freeze_end_rounds_played_usable([0, 0, 0], 3) is False
+    assert _freeze_end_rounds_played_usable([0, 1], 2) is True
+    assert _freeze_end_rounds_played_usable([0], 1) is True
+    assert _freeze_end_rounds_played_usable([None, float("nan")], 2) is False
+
+
+def test_freeze_end_all_zero_counter_falls_back_to_tick_order():
+    class Parser:
+        def parse_ticks(self, *_args, **_kwargs):
+            raise RuntimeError("no economy ticks")
+
+    freeze_end = pd.DataFrame(
+        {"tick": [100, 400, 900], "total_rounds_played": [0, 0, 0]}
+    )
+    _, round_freeze_end_ticks, _, tick_to_round, _ = build_round_economy_shared(
+        Parser(),
+        freeze_end_df=freeze_end,
+        round_start_df=pd.DataFrame({"tick": [80, 350, 850]}),
+    )
+    assert round_freeze_end_ticks == {1: 100, 2: 400, 3: 900}
+    assert tick_to_round == {100: 1, 400: 2, 900: 3}
 
 
 def test_player_team_maps_build_all_targets_with_alive_preference():

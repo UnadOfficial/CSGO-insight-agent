@@ -39,6 +39,28 @@ def _round_end_frame_usable(
     return bool(winners) and all(winner in (2, 3) for winner in winners)
 
 
+def _freeze_end_rounds_played_usable(values, event_count: int) -> bool:
+    """Whether ``total_rounds_played`` on freeze_end actually distinguishes rounds.
+
+    CS:GO dumps and some Perfect World demos stamp every freeze_end with 0 (or
+    leave the column empty). Treating that as a real counter collapses every
+    kill onto round 1.
+    """
+    seen: set[int] = set()
+    for value in values:
+        if value is None or pd.isna(value):
+            continue
+        try:
+            seen.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    if not seen:
+        return False
+    if len(seen) > 1:
+        return True
+    return int(event_count) <= 1
+
+
 def build_round_economy_shared(
     parser: DemoParser,
     match_start_tick: int = 0,
@@ -71,7 +93,7 @@ def build_round_economy_shared(
 
     round_freeze_end_ticks: dict[int, int] = {}
     tick_to_round: dict[int, int] = {}
-    if trc is not None:
+    if trc is not None and _freeze_end_rounds_played_usable(fr[trc], fr.shape[0]):
         for _, row in fr.sort_values("tick", kind="mergesort").iterrows():
             tick = _int(row.get("tick"))
             if tick <= 0:
@@ -81,8 +103,8 @@ def build_round_economy_shared(
             if rn_here not in round_freeze_end_ticks or tick < round_freeze_end_ticks[rn_here]:
                 round_freeze_end_ticks[rn_here] = tick
     else:
-        # 部分国服 demo 的 round_freeze_end 不带 total_rounds_played（甚至没有 round 列），
-        # 此时按 tick 先后顺序顺序编号回合（已按 match_start_tick 过滤掉热身/拼刀）。
+        # 部分国服 / CS:GO demo 的 round_freeze_end 不带 total_rounds_played
+        # （列缺失，或整列都是 0），按 tick 先后顺序编号回合。
         seq = 0
         seen_ticks: set[int] = set()
         for _, row in fr.sort_values("tick", kind="mergesort").iterrows():

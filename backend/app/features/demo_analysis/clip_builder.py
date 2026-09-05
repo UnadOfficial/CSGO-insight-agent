@@ -8,7 +8,13 @@ from typing import Any, Optional
 from ... import native_table as pd
 
 from .models import Clip
-from .parse_utils import _int, _bool, _cell_str
+from .parse_utils import (
+    _int,
+    _bool,
+    _cell_str,
+    _freeze_end_ticks_desc,
+    _round_number_from_freeze_ticks,
+)
 from .tag_constants import (
     TICK_RATE,
     BUFFER_SECONDS_BEFORE,
@@ -299,6 +305,7 @@ def analyze_bomb_defuse_highlights(
     if not plant_ticks:
         return out
     trc = "total_rounds_played" if "total_rounds_played" in dd_df.columns else None
+    freeze_ticks_desc = _freeze_end_ticks_desc(round_freeze_end_ticks)
 
     for _, row in dd_df.sort_values("tick", kind="mergesort").iterrows():
         d_tick = _int(row.get("tick"))
@@ -314,16 +321,11 @@ def analyze_bomb_defuse_highlights(
                 break
         if plant_tick is None:
             continue
-        rnd = 0
-        if trc is not None:
-            rnd = _int(row.get(trc)) + 1
-        elif "round" in row:
-            rnd = _int(row.get("round"))
-        if rnd <= 0 and round_freeze_end_ticks:
-            for rn, ft_tick in sorted(round_freeze_end_ticks.items(), reverse=True):
-                if ft_tick <= d_tick:
-                    rnd = rn
-                    break
+        rnd = _round_number_from_freeze_ticks(
+            d_tick,
+            freeze_ticks_desc,
+            row.get(trc) if trc is not None else None,
+        )
         if rnd <= 0:
             continue
 

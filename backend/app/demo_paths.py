@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
 
-UPLOAD_DIR = Path(tempfile.gettempdir()) / "cs2_insight_demos"
-UPLOAD_DIR.mkdir(exist_ok=True)
+from .env_utils import get_data_dir
+
+UPLOAD_DIR = get_data_dir() / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def resolve_demo_path(path: str, *, upload_dir: Path = UPLOAD_DIR) -> Path:

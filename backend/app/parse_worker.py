@@ -58,9 +58,12 @@ def _run(payload: dict) -> object:
                     raise ValueError(f"freeze_to_death_rounds must be integers: {x!r}") from e
             ftd_list = out_ftd
         analyzer = DemoAnalyzer(dem_path)
-        result = analyzer.analyze(target, freeze_to_death_rounds=ftd_list).to_dict()
-        result["has_player_keyboard_input"] = analyzer.has_player_keyboard_input
-        return result
+        try:
+            result = analyzer.analyze(target, freeze_to_death_rounds=ftd_list).to_dict()
+            result["has_player_keyboard_input"] = analyzer.has_player_keyboard_input
+            return result
+        finally:
+            analyzer.release_native_parser()
     if action == "analyze_batch":
         raw_players = payload.get("target_players") or []
         if not isinstance(raw_players, list) or not raw_players:
@@ -75,29 +78,19 @@ def _run(payload: dict) -> object:
                 raise ValueError("freeze_to_death_rounds must be a list of integers or null")
             ftd_list = [int(x) for x in ftd_raw]
         analyzer = DemoAnalyzer(dem_path)
-        results = analyzer.analyze_multi_players(
-            target_players, freeze_to_death_rounds=ftd_list
-        )
-        analysis_workspace = analyzer.analysis_workspace
-        if isinstance(analysis_workspace, dict) and analysis_workspace.get("rounds"):
-            analysis_workspace = dict(analysis_workspace)
-            try:
-                from app.features.demo_analysis.replay_match_cache import materialize_match_replay_parquet_impl
-
-                analysis_workspace["replay_cache"] = materialize_match_replay_parquet_impl(
-                    demo_path=dem_path,
-                    workspace=analysis_workspace,
-                )
-            except Exception as exc:  # noqa: BLE001 - analysis result remains usable
-                analysis_workspace["replay_cache"] = {
-                    "status": "error",
-                    "error": f"{type(exc).__name__}: {exc}",
-                }
-        return {
-            "__analysis_workspace__": analysis_workspace,
-            "__has_player_keyboard_input__": analyzer.has_player_keyboard_input,
-            **{player: result.to_dict() for player, result in results.items()},
-        }
+        try:
+            results = analyzer.analyze_multi_players(
+                target_players, freeze_to_death_rounds=ftd_list
+            )
+            analysis_workspace = analyzer.analysis_workspace
+            has_player_keyboard_input = analyzer.has_player_keyboard_input
+            return {
+                "__analysis_workspace__": analysis_workspace,
+                "__has_player_keyboard_input__": has_player_keyboard_input,
+                **{player: result.to_dict() for player, result in results.items()},
+            }
+        finally:
+            analyzer.release_native_parser()
     if action == "players":
         return get_player_list(dem_path)
     if action == "summary":

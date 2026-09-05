@@ -31,7 +31,7 @@ from .parse_utils import (
     _DEMOPARSER_RE_RAISE, _bool, _int, _max_demo_tick,
     _duration_mins_from_tick_span, _get_match_start_tick,
     _count_team_wins_from_round_end_df, _infer_total_rounds_from_round_end,
-    _pick_assister_column,
+    _pick_assister_column, _freeze_end_ticks_desc, _round_number_from_freeze_ticks,
 )
 from .round_economy import (
     build_round_economy, build_round_economy_shared, extract_player_team_maps,
@@ -68,6 +68,20 @@ from .spatial_analysis import count_shots_before
 from .input_track import detect_player_keyboard_input
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_read_demo_end_tick(dem_path: str | Path) -> int:
+    """Read the PBDEMS2 EOF tick without treating a cancelled parse as corruption.
+
+    This is a sequential header/frame scan and must run before ``DemoParser``
+    maps the demo.  Interrupting the process while the file is open raises
+    ``OSError``; log that as a warning rather than a full traceback.
+    """
+    try:
+        return int(read_demo_end_tick(dem_path) or 0)
+    except (OSError, ValueError) as exc:
+        logger.warning("Could not read PBDEMS2 end tick (%s): %s", dem_path, exc)
+        return 0
 
 
 def _is_explicit_team_kill(attacker_team: Any, victim_team: Any) -> bool:
@@ -212,10 +226,7 @@ def _build_shared_player_indexes(
             if optional_column and optional_column not in columns:
                 columns.append(optional_column)
         positions = {name: index for index, name in enumerate(columns)}
-        freeze_ticks_desc = sorted(
-            ((int(tick), int(round_number)) for round_number, tick in round_freeze_end_ticks.items()),
-            reverse=True,
-        )
+        freeze_ticks_desc = _freeze_end_ticks_desc(round_freeze_end_ticks)
         has_team_columns = "attacker_team" in positions and "user_team" in positions
         for values in hurt_df[columns].itertuples(index=False, name=None):
             attacker_raw = values[positions["attacker_name"]]
@@ -238,15 +249,17 @@ def _build_shared_player_indexes(
                     (tick, victim, _int(values[positions["dmg_health"]]))
                 )
 
-            event_round_number = 0
-            if "total_rounds_played" in positions:
-                event_round_number = _int(values[positions["total_rounds_played"]]) + 1
-            round_number = event_round_number
-            if round_number <= 0 and tick > 0:
-                round_number = next(
-                    (rn for freeze_tick, rn in freeze_ticks_desc if tick >= freeze_tick),
-                    0,
-                )
+            event_rounds_played = (
+                values[positions["total_rounds_played"]]
+                if "total_rounds_played" in positions
+                else None
+            )
+            event_round_number = (
+                _int(event_rounds_played) + 1 if event_rounds_played is not None else 0
+            )
+            round_number = _round_number_from_freeze_ticks(
+                tick, freeze_ticks_desc, event_rounds_played,
+            )
             if victim and round_number > 0:
                 round_hurt_by_victim.setdefault(victim, {}).setdefault(
                     round_number,
@@ -425,6 +438,10 @@ class DemoAnalyzer:
 
         self.dem_path = Path(dem_path)
         require_csgo_demo(self.dem_path)
+        # Scan the outer-frame EOF before mmap'ing the demo so a later cancel
+        # cannot be misreported as a PBDEMS2 framing error, and so the scan
+        # does not run on top of the native parser working set.
+        self.demo_end_tick = _safe_read_demo_end_tick(self.dem_path)
         self.parser = DemoParser(str(self.dem_path))
         self.analysis_workspace: dict[str, Any] = {}
         self.has_player_keyboard_input: bool | None = None
@@ -433,6 +450,17 @@ class DemoAnalyzer:
             set_tick_rate(header.get("tick_rate") or header.get("tickrate") or 64)
         except Exception:
             set_tick_rate(64)
+
+    def release_native_parser(self) -> None:
+        """Drop the mmap'd demoparser so a later replay pass does not double it."""
+        parser = getattr(self, "parser", None)
+        self.parser = None
+        if parser is None:
+            return
+        inner = getattr(parser, "_parser", None)
+        del parser
+        if inner is not None:
+            del inner
 
     def _detect_map(self) -> str:
         try:
@@ -725,11 +753,10 @@ class DemoAnalyzer:
             match_start_tick,
             death_df=events,
         )
-        try:
-            file_end_tick = read_demo_end_tick(self.dem_path)
-        except (OSError, ValueError):
-            logger.exception("Could not read PBDEMS2 end tick: %s", self.dem_path)
-            file_end_tick = 0
+        file_end_tick = getattr(self, "demo_end_tick", None)
+        if file_end_tick is None:
+            file_end_tick = _safe_read_demo_end_tick(self.dem_path)
+            self.demo_end_tick = file_end_tick
         demo_end_tick = int(file_end_tick) if int(file_end_tick) > 0 else int(event_max_tick)
         demo_max_tick = max(int(event_max_tick), demo_end_tick)
         logger.info(
@@ -1055,12 +1082,15 @@ class DemoAnalyzer:
             except (TypeError, ValueError):
                 return None
 
+        _freeze_desc = _freeze_end_ticks_desc(round_freeze_end_ticks_shared)
         for _, _brow in events.iterrows():
-            _rn   = _int(_brow.get("total_rounds_played")) + 1
+            _tick = _int(_brow.get("tick"))
+            _rn = _round_number_from_freeze_ticks(
+                _tick, _freeze_desc, _brow.get("total_rounds_played"),
+            )
             _atk  = str(_brow.get("attacker_name", "") or "").strip()
             _vic  = str(_brow.get("user_name", "") or "").strip()
             _wpn  = _normalize_item(_brow.get("weapon", ""))
-            _tick = _int(_brow.get("tick"))
             _is_team_kill = _is_explicit_team_kill(
                 _brow.get("attackerteam"),
                 _brow.get("userteam"),
@@ -1396,6 +1426,13 @@ class DemoAnalyzer:
                 "rounds": [],
                 "error": f"{type(exc).__name__}: {exc}",
             }
+
+        # Event frames and the mmap'd parser are no longer needed. Drop them
+        # before the isolated worker starts a second full-demo replay parse.
+        _shared.clear()
+        spatial_cache.clear()
+        alive_summary.clear()
+        self.release_native_parser()
 
         for analysis_name, result in results.items():
             identity_registry.decorate_result(result, analysis_name)
@@ -2226,11 +2263,7 @@ def get_demo_match_summary(
 ) -> dict[str, object]:
     """上传后即刻可用的比赛摘要（无需选定玩家）。"""
     path = Path(dem_path)
-    try:
-        demo_end_tick = read_demo_end_tick(path)
-    except (OSError, ValueError):
-        logger.exception("Could not read PBDEMS2 end tick: %s", path)
-        demo_end_tick = 0
+    demo_end_tick = _safe_read_demo_end_tick(path)
     fallback: dict[str, object] = {
         "map_name": "unknown", "server_name": "", "target_player": "",
         "target_player_user_id": None, "target_steam_id": None,

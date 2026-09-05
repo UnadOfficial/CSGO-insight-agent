@@ -286,9 +286,10 @@ describe("DemoAnalysisPage Insight Agent flow", () => {
 
     const view = renderPage(shell);
 
-    await waitFor(() => expect(API.get).toHaveBeenCalledWith("/steam/player-avatars", {
-      params: { steam_ids: "76561198000000001" },
-    }));
+    await waitFor(() => expect(API.get).toHaveBeenCalledWith(
+      "/steam/player-avatars",
+      expect.objectContaining({ params: { steam_ids: "76561198000000001" } }),
+    ));
     const avatars = await screen.findAllByAltText("ZywOo Steam avatar");
     const avatar = avatars[0];
     const avatarFrame = avatar.parentElement;
@@ -1170,9 +1171,10 @@ describe("DemoAnalysisPage Insight Agent flow", () => {
       canAddCurrentPlayerHighlights: true,
     }));
 
-    await waitFor(() => expect(API.get).toHaveBeenCalledWith("/steam/player-avatars", {
-      params: { steam_ids: steamId },
-    }));
+    await waitFor(() => expect(API.get).toHaveBeenCalledWith(
+      "/steam/player-avatars",
+      expect.objectContaining({ params: { steam_ids: steamId } }),
+    ));
     const actionBar = screen.getByTestId("clip-selection-action-bar");
     expect(actionBar.textContent).toContain("Hhippo");
     expect(actionBar.textContent).not.toContain("steamid:");

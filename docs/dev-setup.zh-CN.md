@@ -54,15 +54,24 @@ pnpm run dev
 这是日常桌面调试的默认入口：React/CSS 修改由 Vite 热更新，不会暂存发布
 runtime，也不会生成 NSIS 安装包。
 
+日常改代码请用仓库根目录的一键脚本，不要反复打 NSIS 安装包：
+
+```powershell
+.\dev.bat
+```
+
+双击 `dev.bat` 效果相同。缺 `.venv` 或前端依赖时会自动补齐，然后启动
+Tauri 热更新（Vite HMR，不生成安装包）。只要浏览器、不要桌面窗时：
+
+```powershell
+.\dev.bat -Browser
+```
+
+也可以手动进入前端目录：
+
 ```powershell
 Set-Location frontend
 pnpm run desktop:dev
-```
-
-也可以从仓库根目录直接运行：
-
-```powershell
-.\packaging\windows\dev_desktop.bat
 ```
 
 提交前若只想检查生产前端与 Tauri Rust 壳能否通过编译，同样无需打安装包：

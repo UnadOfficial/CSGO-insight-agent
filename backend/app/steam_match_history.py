@@ -22,6 +22,9 @@ STEAM_COMMUNITY_BASE = "https://steamcommunity.com"
 STEAM_ID64_ACCOUNT_BASE = 76561197960265728
 _STEAM_AVATAR_CACHE_TTL_SECS = 24 * 3600
 _STEAM_AVATAR_FAILURE_TTL_SECS = 10 * 60
+_STEAM_PUBLIC_LOOKUP_DEADLINE_SECS = 4.0
+_STEAM_PUBLIC_CONCURRENCY = 4
+_STEAM_PUBLIC_HTTP_TIMEOUT = httpx.Timeout(2.5, connect=1.5)
 _steam_public_profile_cache: dict[str, tuple[float, dict | None]] = {}
 _MAP_NAMES: dict[int, str] = {
     0: "de_dust2",
@@ -190,13 +193,18 @@ async def fetch_match_history(api_key: str, steam_id64: str, count: int = 20) ->
     return result.get("matches") or []
 
 
-async def fetch_player_summaries(api_key: str, steam_ids64: list[str]) -> list[dict]:
+async def fetch_player_summaries(
+    api_key: str,
+    steam_ids64: list[str],
+    *,
+    timeout: float = 10.0,
+) -> list[dict]:
     steam_ids = [str(value).strip() for value in steam_ids64 if str(value).strip()][:100]
     if not steam_ids:
         return []
     url = f"{STEAM_API_BASE}/ISteamUser/GetPlayerSummaries/v002/"
     params = {"key": api_key, "steamids": ",".join(steam_ids)}
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=max(0.5, float(timeout))) as client:
         resp = await client.get(url, params=params)
         resp.raise_for_status()
     return resp.json().get("response", {}).get("players") or []
@@ -301,56 +309,89 @@ async def fetch_public_player_summaries(steam_ids64: list[str]) -> list[dict]:
 
     fetched: list[tuple[str, dict | None]] = []
     if missing:
+        deadline = now + _STEAM_PUBLIC_LOOKUP_DEADLINE_SECS
         headers = {
             "Accept": "application/json",
             "User-Agent": "CS2-Insight-Agent/2.4 Steam-avatar-resolver",
         }
-        client = httpx.AsyncClient(timeout=8.0, follow_redirects=True, headers=headers)
+        client = httpx.AsyncClient(
+            timeout=_STEAM_PUBLIC_HTTP_TIMEOUT,
+            follow_redirects=True,
+            headers=headers,
+        )
+        sem = asyncio.Semaphore(_STEAM_PUBLIC_CONCURRENCY)
 
         async def fetch_one(steam_id64: str) -> tuple[str, dict | None]:
-            try:
-                account_id = int(steam_id64) - STEAM_ID64_ACCOUNT_BASE
-                if account_id < 0:
+            async with sem:
+                if time.monotonic() >= deadline:
                     return steam_id64, None
-            except (TypeError, ValueError):
-                return steam_id64, None
-
-            payload: dict = {}
-            try:
-                response = await client.get(f"{STEAM_COMMUNITY_BASE}/miniprofile/{account_id}/json")
-                response.raise_for_status()
-                decoded = response.json()
-                if isinstance(decoded, dict):
-                    payload = decoded
-            except (httpx.HTTPError, TypeError, ValueError):
-                logger.debug("Public Steam mini-profile unavailable for %s", steam_id64, exc_info=True)
-
-            avatar_url = _official_steam_avatar_url(
-                payload.get("avatar_url") or payload.get("avatarfull")
-            )
-            if not _official_steam_animated_avatar_url(avatar_url):
                 try:
-                    profile_response = await client.get(
-                        f"{STEAM_COMMUNITY_BASE}/profiles/{steam_id64}/",
-                        headers={"Accept": "text/html,application/xhtml+xml"},
-                    )
-                    profile_response.raise_for_status()
-                    animated_url = _animated_avatar_url_from_profile_html(profile_response.text)
-                    if animated_url:
-                        avatar_url = animated_url
-                except httpx.HTTPError:
-                    logger.debug("Public Steam profile unavailable for %s", steam_id64, exc_info=True)
+                    account_id = int(steam_id64) - STEAM_ID64_ACCOUNT_BASE
+                    if account_id < 0:
+                        return steam_id64, None
+                except (TypeError, ValueError):
+                    return steam_id64, None
 
-            if not avatar_url:
-                return steam_id64, None
-            return steam_id64, {
-                "steamid": steam_id64,
-                "personaname": str(payload.get("persona_name") or payload.get("personaname") or ""),
-                "avatarfull": avatar_url,
-            }
+                payload: dict = {}
+                try:
+                    response = await client.get(f"{STEAM_COMMUNITY_BASE}/miniprofile/{account_id}/json")
+                    response.raise_for_status()
+                    decoded = response.json()
+                    if isinstance(decoded, dict):
+                        payload = decoded
+                except (httpx.HTTPError, TypeError, ValueError):
+                    logger.debug("Public Steam mini-profile unavailable for %s", steam_id64, exc_info=True)
+
+                avatar_url = _official_steam_avatar_url(
+                    payload.get("avatar_url") or payload.get("avatarfull")
+                )
+                remaining = deadline - time.monotonic()
+                if not _official_steam_animated_avatar_url(avatar_url) and remaining > 0.8:
+                    try:
+                        profile_response = await client.get(
+                            f"{STEAM_COMMUNITY_BASE}/profiles/{steam_id64}/",
+                            headers={"Accept": "text/html,application/xhtml+xml"},
+                        )
+                        profile_response.raise_for_status()
+                        animated_url = await asyncio.to_thread(
+                            _animated_avatar_url_from_profile_html,
+                            profile_response.text,
+                        )
+                        if animated_url:
+                            avatar_url = animated_url
+                    except httpx.HTTPError:
+                        logger.debug("Public Steam profile unavailable for %s", steam_id64, exc_info=True)
+
+                if not avatar_url:
+                    return steam_id64, None
+                return steam_id64, {
+                    "steamid": steam_id64,
+                    "personaname": str(payload.get("persona_name") or payload.get("personaname") or ""),
+                    "avatarfull": avatar_url,
+                }
 
         async with client:
-            fetched = await asyncio.gather(*(fetch_one(steam_id) for steam_id in missing))
+            tasks = [asyncio.create_task(fetch_one(steam_id)) for steam_id in missing]
+            done, pending = await asyncio.wait(
+                tasks,
+                timeout=max(0.05, deadline - time.monotonic()),
+            )
+            if pending:
+                logger.info(
+                    "Public Steam avatar lookup deadline reached; cancelling %s of %s profiles",
+                    len(pending),
+                    len(tasks),
+                )
+                for task in pending:
+                    task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
+            for task in done:
+                if task.cancelled():
+                    continue
+                try:
+                    fetched.append(task.result())
+                except Exception:
+                    logger.debug("Public Steam avatar task failed", exc_info=True)
 
     for steam_id, player in fetched:
         ttl = _STEAM_AVATAR_CACHE_TTL_SECS if player else _STEAM_AVATAR_FAILURE_TTL_SECS

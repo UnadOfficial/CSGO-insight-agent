@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 
 import httpx
@@ -26,6 +27,7 @@ from ..demo_library.ingestion import enqueue_demo_path
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["match-history"])
+_STEAM_AVATAR_ROUTE_DEADLINE_SECS = 4.5
 
 
 class MatchHistoryDownloadBody(BaseModel):
@@ -148,17 +150,32 @@ async def get_steam_player_avatars(
     if not unique_ids:
         return {"enabled": True, "avatars": {}}
 
+    started = time.monotonic()
+    deadline = started + _STEAM_AVATAR_ROUTE_DEADLINE_SECS
     players: list[dict] = []
     try:
-        players = await fetch_public_player_summaries(unique_ids)
+        remaining = deadline - time.monotonic()
+        if remaining > 0.05:
+            players = await asyncio.wait_for(
+                fetch_public_player_summaries(unique_ids),
+                timeout=remaining,
+            )
+    except asyncio.TimeoutError:
+        logger.info("Public Steam avatar lookup timed out after %.1fs", time.monotonic() - started)
     except httpx.HTTPError as exc:
         logger.info("Public Steam avatar lookup unavailable: %s", exc)
 
     resolved_ids = {str(player.get("steamid") or "") for player in players}
     missing_ids = [steam_id for steam_id in unique_ids if steam_id not in resolved_ids]
-    if missing_ids and cfg.steam_api_key:
+    remaining = deadline - time.monotonic()
+    if missing_ids and cfg.steam_api_key and remaining > 0.3:
         try:
-            players.extend(await fetch_player_summaries(cfg.steam_api_key, missing_ids))
+            players.extend(await asyncio.wait_for(
+                fetch_player_summaries(cfg.steam_api_key, missing_ids, timeout=remaining),
+                timeout=remaining,
+            ))
+        except asyncio.TimeoutError:
+            logger.info("Steam Web API avatar lookup timed out after %.1fs", time.monotonic() - started)
         except (httpx.HTTPError, ValueError) as exc:
             logger.info("Steam Web API avatar lookup unavailable: %s", exc)
 
@@ -168,6 +185,12 @@ async def get_steam_player_avatars(
         avatar_url = _official_steam_avatar_url(player.get("avatarfull"))
         if steam_id in unique_ids and avatar_url:
             avatars[steam_id] = avatar_url
+    logger.info(
+        "Steam avatar lookup ids=%s resolved=%s elapsed=%.2fs",
+        len(unique_ids),
+        len(avatars),
+        time.monotonic() - started,
+    )
     return {"enabled": True, "avatars": avatars}
 
 

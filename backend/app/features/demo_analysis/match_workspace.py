@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from collections.abc import Mapping
 from typing import Any, Iterable, Optional
 
 import math
 
 from ... import native_table as pd
 
-from .parse_utils import _bool, _int, _round_end_winner_team_num, _to_pandas_df
+from .parse_utils import _bool, _int, _round_end_winner_team_num
 from .weapons import _normalize_item
 
 
@@ -483,42 +484,91 @@ def _grenade_throws_by_round(
     return out
 
 
+def _grenade_column_table(frame: Any) -> dict[str, list[Any]]:
+    """Borrow parser column lists without copying multi-million-row grenade tables."""
+    if frame is None:
+        return {}
+    if isinstance(frame, pd.DataFrame):
+        return {str(name): values for name, values in frame._data.items()}
+    if isinstance(frame, Mapping):
+        out: dict[str, list[Any]] = {}
+        for key, value in frame.items():
+            if isinstance(value, pd.Series):
+                out[str(key)] = value._values
+            elif isinstance(value, list):
+                out[str(key)] = value
+            else:
+                try:
+                    out[str(key)] = list(value)
+                except TypeError:
+                    continue
+        return out
+    try:
+        converted = pd.DataFrame(frame)
+    except (TypeError, ValueError):
+        return {}
+    return {str(name): values for name, values in converted._data.items()}
+
+
 def _extract_grenade_trajectories(parser: Any, tick_rate: float) -> list[dict[str, Any]]:
     """Compact demoparser projectile rows into real per-throw flight paths."""
     if parser is None:
         return []
     try:
-        frame = _to_pandas_df(parser.parse_grenades())
+        table = _grenade_column_table(parser.parse_grenades())
     except BaseException:
         return []
-    required = {"grenade_type", "grenade_entity_id", "tick", "x", "y"}
-    if frame is None or frame.empty or not required.issubset(frame.columns):
+    required = ("grenade_type", "grenade_entity_id", "tick", "x", "y")
+    if any(name not in table for name in required):
         return []
-    try:
-        work = frame.loc[frame["grenade_type"].isin(_GRENADE_PROJECTILES)].copy()
-        for column in ("tick", "x", "y", "z"):
-            if column not in work.columns:
-                continue
-            work[column] = pd.to_numeric(work[column], errors="coerce")
-        work = work.dropna(subset=["tick", "x", "y"])
-        if work.empty:
-            return []
-        work = work.sort_values(["grenade_entity_id", "tick"], kind="mergesort")
-        gap = max(32, int(round(float(tick_rate) * 1.25)))
-        segment = (
-            work["grenade_entity_id"].ne(work["grenade_entity_id"].shift())
-            | work["tick"].sub(work["tick"].shift()).gt(gap)
-        ).cumsum()
-        work["_segment"] = segment
-    except (KeyError, TypeError, ValueError):
+    type_col = table["grenade_type"]
+    entity_col = table["grenade_entity_id"]
+    tick_col = table["tick"]
+    x_col = table["x"]
+    y_col = table["y"]
+    z_col = table.get("z")
+    name_col = table.get("name")
+    steam_col = table.get("steamid")
+    row_count = min(len(type_col), len(entity_col), len(tick_col), len(x_col), len(y_col))
+    if row_count <= 0:
         return []
 
-    trajectories: list[dict[str, Any]] = []
-    for _, rows in work.groupby("_segment", sort=False):
-        if rows.empty:
+    kept: list[int] = []
+    for index in range(row_count):
+        kind = _GRENADE_PROJECTILES.get(str(type_col[index] or ""))
+        if not kind:
             continue
-        first = rows.iloc[0]
-        kind = _GRENADE_PROJECTILES.get(str(first.get("grenade_type") or ""))
+        tick = _int(tick_col[index])
+        x_value = _float(x_col[index], float("nan"))
+        y_value = _float(y_col[index], float("nan"))
+        if tick <= 0 or pd.isna(x_value) or pd.isna(y_value):
+            continue
+        kept.append(index)
+    # The native grenade scan can emit a row every tick a projectile still
+    # exists. Drop the raw table as soon as we have the kept index list.
+    del table
+    if not kept:
+        return []
+
+    kept.sort(key=lambda index: (entity_col[index], _int(tick_col[index])))
+    gap = max(32, int(round(float(tick_rate) * 1.25)))
+    trajectories: list[dict[str, Any]] = []
+    start = 0
+    while start < len(kept):
+        end = start + 1
+        prev_index = kept[start]
+        while end < len(kept):
+            current_index = kept[end]
+            same_entity = entity_col[current_index] == entity_col[prev_index]
+            tick_delta = _int(tick_col[current_index]) - _int(tick_col[prev_index])
+            if not same_entity or tick_delta > gap:
+                break
+            prev_index = current_index
+            end += 1
+        segment = kept[start:end]
+        start = end
+        first_index = segment[0]
+        kind = _GRENADE_PROJECTILES.get(str(type_col[first_index] or ""))
         if not kind:
             continue
         # demoparser2 keeps smoke projectile entities alive at their landing
@@ -526,41 +576,51 @@ def _extract_grenade_trajectories(parser: Any, tick_rate: float) -> list[dict[st
         # makes a single throw appear to last for 18+ seconds and can cause it
         # to be matched to a later smoke detonation.  Retain one landing row,
         # but discard the repeated stationary samples before matching/events.
-        if kind == "烟雾弹" and len(rows) > 2:
-            movement = (
-                rows[["x", "y"]]
-                .diff()
-                .pow(2)
-                .sum(axis=1)
-                .pow(0.5)
-                .tolist()
-            )
-            moving_positions = [index for index, distance in enumerate(movement) if float(distance or 0) > 0.05]
+        if kind == "烟雾弹" and len(segment) > 2:
+            moving_positions: list[int] = []
+            prev_x = _float(x_col[segment[0]], float("nan"))
+            prev_y = _float(y_col[segment[0]], float("nan"))
+            for offset, row_index in enumerate(segment[1:], start=1):
+                cur_x = _float(x_col[row_index], float("nan"))
+                cur_y = _float(y_col[row_index], float("nan"))
+                try:
+                    distance = math.hypot(cur_x - prev_x, cur_y - prev_y)
+                except (TypeError, ValueError):
+                    distance = 0.0
+                if distance > 0.05:
+                    moving_positions.append(offset)
+                prev_x, prev_y = cur_x, cur_y
             if moving_positions:
-                landing_end = min(len(rows), moving_positions[-1] + 2)
-                rows = rows.iloc[:landing_end]
-        count = len(rows)
+                segment = segment[: min(len(segment), moving_positions[-1] + 2)]
+        count = len(segment)
         stride = max(1, math.ceil(count / 56))
-        sampled = rows.iloc[::stride]
-        if sampled.index[-1] != rows.index[-1]:
-            sampled = pd.concat([sampled, rows.iloc[[-1]]])
+        sampled = list(segment[::stride])
+        if sampled[-1] != segment[-1]:
+            sampled.append(segment[-1])
         points = []
-        for _, row in sampled.iterrows():
+        for row_index in sampled:
             point = {
-                "tick": int(row["tick"]),
-                "x": round(float(row["x"]), 2),
-                "y": round(float(row["y"]), 2),
+                "tick": _int(tick_col[row_index]),
+                "x": round(_float(x_col[row_index]), 2),
+                "y": round(_float(y_col[row_index]), 2),
             }
-            z = row.get("z")
-            if z is not None and not pd.isna(z):
-                point["z"] = round(float(z), 2)
+            if z_col is not None and row_index < len(z_col):
+                z_value = _float(z_col[row_index], float("nan"))
+                if not pd.isna(z_value):
+                    point["z"] = round(z_value, 2)
             points.append(point)
+        actor = ""
+        if name_col is not None and first_index < len(name_col):
+            actor = _clean_name(name_col[first_index])
+        steamid64 = ""
+        if steam_col is not None and first_index < len(steam_col):
+            steamid64 = _clean_name(steam_col[first_index])
         trajectories.append({
             "kind": kind,
-            "actor": _clean_name(first.get("name")),
-            "steamid64": _clean_name(first.get("steamid")),
-            "throw_tick": int(rows.iloc[0]["tick"]),
-            "end_tick": int(rows.iloc[-1]["tick"]),
+            "actor": actor,
+            "steamid64": steamid64,
+            "throw_tick": _int(tick_col[segment[0]]),
+            "end_tick": _int(tick_col[segment[-1]]),
             "points": points,
         })
     return trajectories

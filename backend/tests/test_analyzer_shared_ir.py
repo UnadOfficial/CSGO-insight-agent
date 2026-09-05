@@ -10,7 +10,11 @@ from app.features.demo_analysis import analyzer as analyzer_module
 from app.features.demo_analysis import player_roster as player_roster_module
 from app.features.demo_analysis import round_economy as round_economy_module
 from app.features.demo_analysis.analyzer import DemoAnalyzer, _build_shared_player_indexes
-from app.features.demo_analysis.parse_utils import _max_demo_tick
+from app.features.demo_analysis.parse_utils import (
+    _freeze_end_ticks_desc,
+    _max_demo_tick,
+    _round_number_from_freeze_ticks,
+)
 from app.features.demo_analysis.player_roster import (
     build_player_name_to_steam_id,
     build_player_name_to_user_id,
@@ -514,6 +518,115 @@ def test_multi_player_analysis_excludes_team_kills_from_highlight_kills(monkeypa
     assert 90 not in captured["spatial_ticks"]
 
 
+def test_freeze_tick_round_mapping_ignores_missing_event_counter():
+    desc = _freeze_end_ticks_desc({1: 50, 2: 400, 3: 900})
+    assert _round_number_from_freeze_ticks(40, desc, None) == 1
+    assert _round_number_from_freeze_ticks(120, desc, None) == 1
+    assert _round_number_from_freeze_ticks(400, desc, None) == 2
+    assert _round_number_from_freeze_ticks(880, desc, 0) == 2
+    assert _round_number_from_freeze_ticks(901, desc, 0) == 3
+
+
+def test_kill_buckets_use_freeze_windows_when_death_round_counter_is_missing(monkeypatch):
+    empty = pd.DataFrame()
+    deaths = pd.DataFrame(
+        [
+            {
+                "tick": 120,
+                "attacker_name": "alpha",
+                "user_name": "enemy-one",
+                "attackerteam": 2,
+                "userteam": 3,
+                "weapon": "ak47",
+            },
+            {
+                "tick": 520,
+                "attacker_name": "alpha",
+                "user_name": "enemy-two",
+                "attackerteam": 2,
+                "userteam": 3,
+                "weapon": "ak47",
+            },
+            {
+                "tick": 530,
+                "total_rounds_played": 0,
+                "attacker_name": "alpha",
+                "user_name": "enemy-three",
+                "attackerteam": 2,
+                "userteam": 3,
+                "weapon": "ak47",
+            },
+        ]
+    )
+    shared_events = {
+        "events": deaths,
+        "fire_df": empty,
+        "hurt_df": empty,
+        "equip_df": empty,
+        "pickup_df": empty,
+        "planted_df": empty,
+        "defused_df": empty,
+        "bomb_exploded_df": empty,
+        "begindefuse_df": empty,
+        "nade_batch": {},
+        "re_df_cached": empty,
+        "blind_df": empty,
+        "economy_map_shared": {},
+        "round_freeze_end_ticks_shared": {1: 50, 2: 400},
+        "round_freeze_start_ticks_shared": {},
+        "tick_to_round_shared": {},
+        "economy_ticks_df": empty,
+        "freeze_end_df": empty,
+        "round_start_df": empty,
+        "match_start_df": empty,
+        "steam_to_final_team_shared": {},
+        "name_to_final_team_shared": {"alpha": 2, "enemy-one": 3, "enemy-two": 3, "enemy-three": 3},
+        "group_side_by_round_shared": {},
+        "player_info_df": empty,
+    }
+
+    class Parser:
+        def parse_header(self):
+            return {"map_name": "de_test"}
+
+    analyzer = object.__new__(DemoAnalyzer)
+    analyzer.dem_path = Path("fixture.dem")
+    analyzer.parser = Parser()
+    captured = {}
+
+    monkeypatch.setattr(analyzer_module, "_get_match_start_tick", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(
+        analyzer,
+        "_parse_shared_event_batch",
+        lambda: {"round_announce_match_start": empty},
+    )
+    monkeypatch.setattr(analyzer, "_parse_shared_events", lambda *_args, **_kwargs: shared_events)
+    monkeypatch.setattr(analyzer, "_build_shared_demo_facts", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        analyzer_module,
+        "extract_player_team_maps",
+        lambda *_args, **_kwargs: {"alpha": {1: 2, 2: 2}},
+    )
+    monkeypatch.setattr(analyzer_module, "build_round_scores_team_based", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        analyzer_module,
+        "parse_spatial_snapshots",
+        lambda _parser, ticks: ({}, {}),
+    )
+
+    def fake_finish(**kwargs):
+        captured.update(kwargs)
+        return kwargs["target_player"]
+
+    monkeypatch.setattr(analyzer, "_finish_single_player_analysis", fake_finish)
+
+    assert analyzer.analyze_multi_players(["alpha"]) == {"alpha": "alpha"}
+    assert captured["target_total_kills"] == 3
+    assert captured["round_target_kill_ticks"] == {1: [120], 2: [520, 530]}
+    assert [kill["victim"] for kill in captured["round_kills"][1]] == ["enemy-one"]
+    assert [kill["victim"] for kill in captured["round_kills"][2]] == ["enemy-two", "enemy-three"]
+
+
 def test_shared_facts_materialize_event_indexes_and_copy_rosters(monkeypatch):
     analyzer = object.__new__(DemoAnalyzer)
     analyzer.dem_path = Path("fixture.dem")
@@ -644,6 +757,32 @@ def test_shared_facts_materialize_event_indexes_and_copy_rosters(monkeypatch):
     first_roster[0]["name"] = "mutated"
     assert second_roster[0]["name"] == "alpha"
     assert facts.all_players_roster[0]["name"] == "alpha"
+
+
+def test_safe_demo_end_tick_logs_warning_not_exception(monkeypatch, caplog):
+    def boom(_path):
+        raise OSError("cancelled")
+
+    monkeypatch.setattr(analyzer_module, "read_demo_end_tick", boom)
+    with caplog.at_level("WARNING"):
+        assert analyzer_module._safe_read_demo_end_tick("gone.dem") == 0
+    assert "Could not read PBDEMS2 end tick" in caplog.text
+    assert "Traceback" not in caplog.text
+
+
+def test_release_native_parser_drops_wrapped_parser():
+    analyzer = object.__new__(DemoAnalyzer)
+
+    class Inner:
+        pass
+
+    class Wrapper:
+        def __init__(self):
+            self._parser = Inner()
+
+    analyzer.parser = Wrapper()
+    analyzer.release_native_parser()
+    assert analyzer.parser is None
 
 
 def test_per_player_finish_path_has_no_native_parser_access():

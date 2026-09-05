@@ -714,6 +714,38 @@ def test_parse_worker_dispatches_combined_inspection(monkeypatch):
     assert calls == ["match.dem"]
 
 
+def test_analyze_batch_worker_leaves_replay_cache_to_a_later_process(monkeypatch):
+    class Result:
+        def to_dict(self):
+            return {"clips": []}
+
+    class FakeAnalyzer:
+        analysis_workspace = {"rounds": [{"round_number": 1}]}
+        has_player_keyboard_input = False
+
+        def __init__(self, _path):
+            self.released = False
+
+        def analyze_multi_players(self, _players, freeze_to_death_rounds=None):
+            del freeze_to_death_rounds
+            return {"alpha": Result()}
+
+        def release_native_parser(self):
+            self.released = True
+
+    monkeypatch.setattr(parse_worker, "DemoAnalyzer", FakeAnalyzer)
+
+    result = parse_worker._run({
+        "action": "analyze_batch",
+        "dem_path": "match.dem",
+        "target_players": ["alpha"],
+    })
+
+    assert result["alpha"] == {"clips": []}
+    assert result["__analysis_workspace__"] == {"rounds": [{"round_number": 1}]}
+    assert "replay_cache" not in result["__analysis_workspace__"]
+
+
 def test_index_demo_player_stats_reuses_precomputed_roster(monkeypatch):
     players = [{"name": "alpha", "team": 2}]
     worker_calls = []
