@@ -82,7 +82,7 @@ export default {
   "match.remarkClickAdd": "Click to add a note...",
   "match.remarkCancel": "Cancel",
   "match.remarkSave": "Save",
-  "match.btnPlayCs2": "Advanced demo playback",
+  "match.btnPlayCsgo": "Advanced demo playback",
   "match.btnLocate": "Locate",
   "match.btnDelete": "Delete",
   "match.btnRemark": "Note",

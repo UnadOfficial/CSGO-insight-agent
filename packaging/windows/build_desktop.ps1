@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  One-click Windows NSIS package for CS2 Insight Agent (Tauri desktop:build:ver).
+  One-click Windows NSIS package for CSGO Insight Agent (Tauri desktop:build:ver).
 
 .DESCRIPTION
   Fast path (default): verify the backend venv / lean parser, then build the
@@ -16,7 +16,7 @@
 
 .PARAMETER Full
   First-time / reproducible build: setup-backend-dev.ps1 -BuildFromSource,
-  CS2_INSIGHT_DEMOPARSER_WHEEL + CS2_INSIGHT_REFRESH_PYTHON=1, pnpm install.
+  CSGO_INSIGHT_DEMOPARSER_WHEEL + CSGO_INSIGHT_REFRESH_PYTHON=1, pnpm install.
 
 .PARAMETER SkipPnpmInstall
   Skip `pnpm install --frozen-lockfile` (still runs on -Full unless set).
@@ -84,8 +84,8 @@ try {
             throw "Required wheel not found: $wheelsDir\$filter"
         }
 
-        $env:CS2_INSIGHT_DEMOPARSER_WHEEL = $wheel.FullName
-        $env:CS2_INSIGHT_REFRESH_PYTHON = "1"
+        $env:CSGO_INSIGHT_DEMOPARSER_WHEEL = $wheel.FullName
+        $env:CSGO_INSIGHT_REFRESH_PYTHON = "1"
         $wheelEnvSet = $true
         $refreshEnvSet = $true
         Write-Host "Using demoparser wheel: $($wheel.FullName)"
@@ -114,7 +114,7 @@ try {
         Pop-Location
     }
 
-    $installer = Join-Path $frontend "src-tauri\target\release\bundle\nsis\CS2 Insight Agent_${Version}_x64-setup.exe"
+    $installer = Join-Path $frontend "src-tauri\target\release\bundle\nsis\CSGO Insight Agent_${Version}_x64-setup.exe"
     $sig = "$installer.sig"
     Write-Host ""
     Write-Host "Build finished."
@@ -130,10 +130,10 @@ try {
     }
 } finally {
     if ($wheelEnvSet) {
-        Remove-Item Env:CS2_INSIGHT_DEMOPARSER_WHEEL -ErrorAction SilentlyContinue
+        Remove-Item Env:CSGO_INSIGHT_DEMOPARSER_WHEEL -ErrorAction SilentlyContinue
     }
     if ($refreshEnvSet) {
-        Remove-Item Env:CS2_INSIGHT_REFRESH_PYTHON -ErrorAction SilentlyContinue
+        Remove-Item Env:CSGO_INSIGHT_REFRESH_PYTHON -ErrorAction SilentlyContinue
     }
     Pop-Location
 }

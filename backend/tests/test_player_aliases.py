@@ -21,6 +21,20 @@ SID = "76561199032006224"
 SID2 = "76561198187322794"
 
 
+def _hl2demo_bytes(*, map_name: str = "de_dust2", ticks: int = 640, time_sec: float = 10.0) -> bytes:
+    """Minimal fixed Source 1 demo header accepted by require_csgo_demo()."""
+    import struct
+
+    buf = bytearray(1068)
+    buf[0:8] = b"HL2DEMO\0"
+    struct.pack_into("<i", buf, 8, 4)
+    struct.pack_into("<i", buf, 12, 137)
+    buf[536:536 + len(map_name)] = map_name.encode("ascii")
+    struct.pack_into("<f", buf, 1056, time_sec)
+    struct.pack_into("<i", buf, 1060, ticks)
+    return bytes(buf)
+
+
 @pytest.mark.parametrize("name", ["京介 🦋", "Умри", '<a>&"', " a b ", "🦋" * 16, "x" * 32])
 def test_unicode_and_spacing_are_preserved(name):
     assert DemoPlaybackOptionsBody(player_aliases={SID: name, SID2: name}).player_aliases == {SID: name, SID2: name}
@@ -132,24 +146,26 @@ def test_recording_api_keeps_copy_alive_through_director_then_cleans(monkeypatch
     import asyncio
     from unittest.mock import AsyncMock, Mock
     from fastapi import HTTPException
-    from app import cs2_config_backup, obs_director
+    from app import csgo_config_backup, obs_director
     from app.env_utils import AppConfig
     from app.recording import api
 
     source = tmp_path / "match.dem"
-    source.write_bytes(b"original")
+    source_bytes = _hl2demo_bytes()
+    source.write_bytes(source_bytes)
     dto = request(source, {SID: "京介"})
-    cfg = AppConfig(cs2_path=str(tmp_path / "never-launch.exe"))
+    csgo_exe = tmp_path / "csgo.exe"
+    csgo_exe.write_bytes(b"stub")
+    cfg = AppConfig(csgo_path=str(csgo_exe))
     monkeypatch.setattr(api, "load_config", lambda: cfg)
-    monkeypatch.setattr(api, "ensure_cs2_path", lambda value: value)
-    monkeypatch.setattr(cs2_config_backup, "is_cs2_running", lambda: False)
-    monkeypatch.setattr(cs2_config_backup, "is_restore_required", lambda: False)
+    monkeypatch.setattr(api, "ensure_csgo_path", lambda value: value)
+    monkeypatch.setattr(csgo_config_backup, "is_csgo_running", lambda: False)
+    monkeypatch.setattr(csgo_config_backup, "is_restore_required", lambda: False)
     monkeypatch.setattr(api, "OBSClient", Mock(return_value=Mock()))
     monkeypatch.setattr(api, "OBSFadeController", Mock(return_value=Mock(setup=AsyncMock(return_value=True))))
     monkeypatch.setattr(api, "resolve_working_demo_path", AsyncMock(return_value=source))
     monkeypatch.setattr(api, "_persist_v3_results", AsyncMock())
     monkeypatch.setattr(api, "_queue_abort_event", None)
-    monkeypatch.setattr(api, "ensure_demo_compatible", lambda path: pytest.fail("original must not be repaired"))
     def copy(src, output, names):
         assert Path(src) == source
         output.write_bytes(b"alias")
@@ -161,10 +177,9 @@ def test_recording_api_keeps_copy_alive_through_director_then_cleans(monkeypatch
         path = Path(requests[0].demo.demo_path)
         assert path.read_bytes() == b"alias"
         assert requests[0].target_player.name == "京介"
-        assert not getattr(kwargs["warmup"], "pov_hud_enabled", False)
-        assert getattr(kwargs["warmup"], "recording_hud_enabled", False)
+        assert not hasattr(kwargs["warmup"], "recording_hud_enabled")
+        assert not hasattr(kwargs["warmup"], "pov_hud_enabled")
         assert kwargs["warmup"].pov_voice_mode == "enemy"
-        assert kwargs["warmup"].input_hud_enabled is True
         observed.append(path)
         if fail:
             raise RuntimeError("recording failed")
@@ -172,11 +187,7 @@ def test_recording_api_keeps_copy_alive_through_director_then_cleans(monkeypatch
     monkeypatch.setattr(obs_director, "OBSDirector", Mock(return_value=Mock(execute_plan_queue=execute)))
     body = api.QueueRecordingRequest(
         requests=[dto],
-        pov_hud={
-            "enabled": False,
-            "voice_mode": "enemy",
-            "input_hud_enabled": True,
-        },
+        warmup={"pov_voice_mode": "enemy"},
     )
     if fail:
         with pytest.raises(HTTPException):
@@ -184,5 +195,5 @@ def test_recording_api_keeps_copy_alive_through_director_then_cleans(monkeypatch
     else:
         assert asyncio.run(api.execute_recording_queue(body)) == []
     assert observed and not observed[0].exists()
-    assert source.read_bytes() == b"original"
+    assert source.read_bytes() == source_bytes
     assert api._queue_abort_event is None

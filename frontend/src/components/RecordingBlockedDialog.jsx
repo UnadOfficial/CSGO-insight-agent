@@ -34,8 +34,8 @@ function recordingBlockedSubtitleKey(message, errorCode) {
   }
   if (
     m.includes("正在运行") ||
-    (m.includes("CS2") && m.includes("退出")) ||
-    (m.toLowerCase().includes("cs2") && m.toLowerCase().includes("running"))
+    (m.includes("CS:GO") && m.includes("退出")) ||
+    (m.toLowerCase().includes("csgo") && m.toLowerCase().includes("running"))
   ) {
     return "dialog.recordBlockedSubRunning";
   }
@@ -75,13 +75,12 @@ export default function RecordingBlockedDialog({
   message,
   errorCode = null,
   configRecoveryNeeded = null,
-  povRecoveryNeeded = false,
   onClose,
 }) {
   const t = useT();
   const navigate = useNavigate();
   if (!message) return null;
-  const unexpectedCs2Exit = errorCode === "RECORDING_CS2_EXITED";
+  const unexpectedCsgoExit = errorCode === "RECORDING_CSGO_EXITED";
   const subtitleKey = recordingBlockedSubtitleKey(message, errorCode);
   const showConfigLink =
     configRecoveryNeeded == null
@@ -113,7 +112,7 @@ export default function RecordingBlockedDialog({
           </div>
           <div className="min-w-0 pr-7">
             <h2 id="recording-blocked-title" className="text-sm font-bold text-cs2-text-primary">
-              {t(unexpectedCs2Exit ? "dialog.recordingInterruptedTitle" : "dialog.recordBlockedTitle")}
+              {t(unexpectedCsgoExit ? "dialog.recordingInterruptedTitle" : "dialog.recordBlockedTitle")}
             </h2>
             <p className="mt-1 text-[12px] leading-relaxed text-cs2-text-muted">{t(subtitleKey)}</p>
           </div>
@@ -131,15 +130,6 @@ export default function RecordingBlockedDialog({
               className="rounded-lg border border-cs2-accent/40 bg-cs2-accent/10 px-4 py-2 text-sm font-bold text-cs2-accent transition-colors hover:bg-cs2-accent/20"
             >
               {t("dialog.recordBlockedGoConfig")}
-            </button>
-          ) : null}
-          {unexpectedCs2Exit && povRecoveryNeeded ? (
-            <button
-              type="button"
-              onClick={() => { onClose(); navigate("/params"); }}
-              className="rounded-lg border border-cs2-accent/40 bg-cs2-accent/10 px-4 py-2 text-sm font-bold text-cs2-accent transition-colors hover:bg-cs2-accent/20"
-            >
-              {t("dialog.recordBlockedGoPov")}
             </button>
           ) : null}
           <button

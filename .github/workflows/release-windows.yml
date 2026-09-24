@@ -134,7 +134,7 @@ jobs:
               Where-Object HasPrivateKey |
               Select-Object -First 1
             if (-not $certificate) { throw "The imported PFX did not contain a code-signing certificate with a private key" }
-            "CS2_INSIGHT_WINDOWS_CERTIFICATE_THUMBPRINT=$($certificate.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            "CSGO_INSIGHT_WINDOWS_CERTIFICATE_THUMBPRINT=$($certificate.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           } finally {
             Remove-Item -LiteralPath $pfxPath -Force -ErrorAction SilentlyContinue
           }
@@ -142,7 +142,7 @@ jobs:
       - name: Build Tauri desktop installer
         shell: pwsh
         run: |
-          $env:CS2_INSIGHT_REFRESH_PYTHON = "1"
+          $env:CSGO_INSIGHT_REFRESH_PYTHON = "1"
           Push-Location frontend
           try {
             pnpm.cmd run desktop:build:ver -- $env:RELEASE_VERSION
@@ -183,8 +183,8 @@ jobs:
           Write-Host ("Installer size: {0:N2} MiB" -f $installerMiB)
           if ($installerMiB -gt 45) { throw ("Installer exceeds 45 MiB budget: {0:N2} MiB" -f $installerMiB) }
           $appExe = Get-Item "frontend/src-tauri/target/release/cs2-insight-agent-desktop.exe"
-          if ($env:CS2_INSIGHT_WINDOWS_CERTIFICATE_THUMBPRINT) {
-            $expectedThumbprint = $env:CS2_INSIGHT_WINDOWS_CERTIFICATE_THUMBPRINT -replace '\s', ''
+          if ($env:CSGO_INSIGHT_WINDOWS_CERTIFICATE_THUMBPRINT) {
+            $expectedThumbprint = $env:CSGO_INSIGHT_WINDOWS_CERTIFICATE_THUMBPRINT -replace '\s', ''
             foreach ($artifact in @($appExe, $installer)) {
               $signature = Get-AuthenticodeSignature -LiteralPath $artifact.FullName
               if ($signature.Status -ne 'Valid') { throw "Authenticode validation failed for $($artifact.Name): $($signature.Status)" }

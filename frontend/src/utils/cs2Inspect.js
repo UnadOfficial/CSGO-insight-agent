@@ -101,7 +101,7 @@ function inspectKeychain(keychain) {
   return result;
 }
 
-/** Build Valve's modern self-contained CS2 preview URL directly from item fields. */
+/** Build Valve's modern self-contained CS:GO preview URL directly from item fields. */
 export function buildCs2InspectLink(item) {
   if (item?.finish_known === false) {
     throw new Error("The Demo does not contain a trustworthy paint kit for this item.");
@@ -177,7 +177,7 @@ export function inspectHexFromValue(value) {
   const match = decoded.match(/csgo_econ_action_preview\s+([0-9a-f]+)/i);
   const hex = String(match?.[1] || "").trim();
   if (!hex || hex.length % 2 !== 0 || !INSPECT_HEX_PATTERN.test(hex)) {
-    throw new Error("The CS2 inspect payload is invalid.");
+    throw new Error("The CS:GO inspect payload is invalid.");
   }
   return hex.toUpperCase();
 }
@@ -186,7 +186,7 @@ export function isCs2SteamInspectUrl(value) {
   return /^steam:\/\/(?:run|rungame)\/730\//i.test(String(value || ""));
 }
 
-/** Launch CS2 with a validated self-contained preview payload. */
+/** Launch CS:GO with a validated self-contained preview payload. */
 export async function launchCs2Inspect(
   item,
   { launchInspect, openExternal, writeClipboardText } = {},
@@ -219,5 +219,5 @@ export async function launchCs2Inspect(
     return { status: "command-copied", value: command };
   }
 
-  throw launchError || new Error("CS2 inspect launcher is unavailable.");
+  throw launchError || new Error("CS:GO inspect launcher is unavailable.");
 }

@@ -1,6 +1,3 @@
-import { normalizeRecordingSkyboxId } from "./recordingSkybox.js";
-import { normalizeRecordingMapMaterialId } from "./recordingMapMaterial.js";
-import { normalizeRecordingWeatherEffectId } from "./recordingWeatherEffect.js";
 import { normalizePovVoiceMode } from "./povVoiceMode.js";
 
 function gcdInt(a, b) {
@@ -69,7 +66,7 @@ export function validateWarmupResolution(opts) {
   return { ok: true };
 }
 
-/** CS2 默认观战闪光弹亮度 */
+/** CS:GO 默认观战闪光弹亮度 */
 export const SPECTATOR_FLASHBANG_OPACITY_DEFAULT = 0.6;
 
 /** @param {unknown} n */
@@ -123,13 +120,7 @@ export function warmupUiOptsToPersisted(opts) {
     aspect_ratio: opts.aspect_ratio != null ? String(opts.aspect_ratio) : "",
     resolution_width: rw != null && rw !== "" ? String(rw) : "",
     resolution_height: rh != null && rh !== "" ? String(rh) : "",
-    pov_radar_mode: 0,
-    pov_teamcounter_numeric: !!opts.pov_teamcounter_numeric,
-    pov_voice_mode: normalizePovVoiceMode(opts.pov_voice_mode, opts.pov_voice_disabled === true),
-    input_hud_enabled: opts.input_hud_enabled !== false,
-    input_hud_display_mode: "hybrid",
-    input_audio_enabled: opts.input_audio_enabled === true,
-    combat_stats_hud_enabled: opts.combat_stats_hud_enabled !== false,
+    pov_voice_mode: normalizePovVoiceMode(opts.pov_voice_mode, false),
   };
 }
 
@@ -166,11 +157,9 @@ export function warmupApiPayloadToPersisted(warmup) {
     aspect_ratio: warmup.aspect_ratio != null ? String(warmup.aspect_ratio) : "",
     resolution_width: rw != null && rw !== "" ? String(rw) : "",
     resolution_height: rh != null && rh !== "" ? String(rh) : "",
-    pov_radar_mode: 0,
-    pov_teamcounter_numeric: !!warmup.pov_teamcounter_numeric,
     pov_voice_mode: normalizePovVoiceMode(
       warmup.pov_voice_mode,
-      warmup.pov_voice_disabled === true,
+      false,
     ),
   };
 }
@@ -217,46 +206,43 @@ export function aspectExportHint(aspectRatio) {
 export function splitRecordWarmupConfirmPayload(payload) {
   const src = payload && typeof payload === "object" ? payload : {};
   const {
-    session_cs2_extra_launch_args,
+    session_csgo_extra_launch_args,
     session_record_inject_console_lines,
-    experimental_pov_enabled,
-    recording_skybox,
-    recording_map_material,
-    recording_weather_effect,
     obs_transition_enabled,
     obs_transition_name,
     obs_transition_duration_ms,
-    input_hud_enabled,
-    input_hud_display_mode,
-    input_audio_enabled,
-    combat_stats_hud_enabled,
     player_aliases_by_demo,
+    // Source 2/POV HUD fields are retired.  Drop them at the request boundary
+    // so stale presets cannot accidentally reach the CS:GO recording API.
+    recording_skybox: _recordingSkybox,
+    recording_map_material: _recordingMapMaterial,
+    recording_weather_effect: _recordingWeatherEffect,
+    pov_radar_mode: _povRadarMode,
+    pov_teamcounter_numeric: _povTeamcounterNumeric,
+    pov_voice_disabled: _povVoiceDisabled,
+    input_hud_enabled: _inputHudEnabled,
+    input_hud_display_mode: _inputHudDisplayMode,
+    input_audio_enabled: _inputAudioEnabled,
+    input_audio_volume_percent: _inputAudioVolumePercent,
+    combat_stats_hud_enabled: _combatStatsHudEnabled,
+    experimental_pov_enabled: _experimentalPovEnabled,
     ...warmupForApi
   } = src;
   return {
     warmupForApi,
     session: {
       player_aliases_by_demo: player_aliases_by_demo || {},
-      cs2_extra_launch_args:
-        typeof session_cs2_extra_launch_args === "string"
-          ? session_cs2_extra_launch_args
+      csgo_extra_launch_args:
+        typeof session_csgo_extra_launch_args === "string"
+          ? session_csgo_extra_launch_args
           : undefined,
       record_inject_console_lines:
         typeof session_record_inject_console_lines === "string"
           ? session_record_inject_console_lines
           : undefined,
-      experimental_pov_enabled: !!experimental_pov_enabled,
-      recording_skybox: normalizeRecordingSkyboxId(recording_skybox),
-      recording_map_material: normalizeRecordingMapMaterialId(recording_map_material),
-      recording_weather_effect: normalizeRecordingWeatherEffectId(recording_weather_effect),
       obs_transition_enabled,
       obs_transition_name,
       obs_transition_duration_ms,
-      input_hud_enabled: typeof input_hud_enabled === "boolean" ? input_hud_enabled : true,
-      input_hud_display_mode: "hybrid",
-      input_audio_enabled: typeof input_audio_enabled === "boolean" ? input_audio_enabled : false,
-      combat_stats_hud_enabled:
-        typeof combat_stats_hud_enabled === "boolean" ? combat_stats_hud_enabled : true,
     },
   };
 }

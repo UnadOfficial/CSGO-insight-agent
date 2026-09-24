@@ -63,7 +63,7 @@ def _demo_key(demo_path: str | Path) -> tuple[str, int, int]:
 
 
 def resolve_input_extractor() -> Path:
-    configured = os.environ.get("CS2_INSIGHT_INPUT_EXTRACTOR", "").strip()
+    configured = os.environ.get("CSGO_INSIGHT_INPUT_EXTRACTOR", "").strip()
     if configured:
         path = Path(configured).expanduser().resolve()
         if not path.is_file():
@@ -81,7 +81,7 @@ def resolve_input_extractor() -> Path:
             return path.resolve()
     raise InputCommandError(
         f"{_EXTRACTOR_NAME} not found; build tools/demo-cosmetic-rewriter or set "
-        "CS2_INSIGHT_INPUT_EXTRACTOR"
+        "CSGO_INSIGHT_INPUT_EXTRACTOR"
     )
 
 

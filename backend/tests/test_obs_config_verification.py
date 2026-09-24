@@ -115,7 +115,7 @@ def test_quick_check_rejects_stale_verification_when_obs_path_is_empty(monkeypat
         ),
     )
     monkeypatch.setattr(obs_api, "load_config", lambda: cfg)
-    monkeypatch.setattr(obs_api, "ensure_cs2_path", lambda value: value)
+    monkeypatch.setattr(obs_api, "ensure_csgo_path", lambda value: value)
 
     result = obs_api.config_quick_check()
 
@@ -130,7 +130,7 @@ def test_quick_check_rejects_stale_verification_when_obs_path_is_missing(monkeyp
         ),
     )
     monkeypatch.setattr(obs_api, "load_config", lambda: cfg)
-    monkeypatch.setattr(obs_api, "ensure_cs2_path", lambda value: value)
+    monkeypatch.setattr(obs_api, "ensure_csgo_path", lambda value: value)
 
     result = obs_api.config_quick_check()
 
@@ -147,7 +147,7 @@ def test_quick_check_accepts_verified_obs_with_existing_path(monkeypatch, tmp_pa
         ),
     )
     monkeypatch.setattr(obs_api, "load_config", lambda: cfg)
-    monkeypatch.setattr(obs_api, "ensure_cs2_path", lambda value: value)
+    monkeypatch.setattr(obs_api, "ensure_csgo_path", lambda value: value)
 
     result = obs_api.config_quick_check()
 

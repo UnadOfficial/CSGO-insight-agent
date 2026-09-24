@@ -23,10 +23,10 @@ class IsolatedParseError(RuntimeError):
 
 def _timeout_seconds(action: str) -> float:
     if action in {"players", "summary", "inspect"}:
-        env_name = "CS2_INSIGHT_DEMO_INSPECT_TIMEOUT_SEC"
+        env_name = "CSGO_INSIGHT_DEMO_INSPECT_TIMEOUT_SEC"
         default = "30"
     else:
-        env_name = "CS2_INSIGHT_PARSE_WORKER_TIMEOUT_SEC"
+        env_name = "CSGO_INSIGHT_PARSE_WORKER_TIMEOUT_SEC"
         default = "240"
     raw = (os.environ.get(env_name) or default).strip()
     try:

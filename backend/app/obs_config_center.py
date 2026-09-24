@@ -1,4 +1,4 @@
-"""OBS 配置中心：诊断、推荐预设、.cs2obs 与原生文件导入、备份恢复（主要面向 Windows 本机 OBS 配置目录）。"""
+"""OBS 配置中心：诊断、推荐预设与原生文件导入、备份恢复（主要面向 Windows 本机 OBS 配置目录）。"""
 
 from __future__ import annotations
 
@@ -29,13 +29,13 @@ BACKUP_SUBDIR = ".obs_config_backups"
 
 
 def _dedicated_scene_name() -> str:
-    s = (os.environ.get("CS2_INSIGHT_OBS_SCENE_NAME") or "CS2 Insight Recording").strip()
-    return s or "CS2 Insight Recording"
+    s = (os.environ.get("CSGO_INSIGHT_OBS_SCENE_NAME") or "CS:GO Insight Recording").strip()
+    return s or "CS:GO Insight Recording"
 
 
 def _dedicated_capture_name() -> str:
-    s = (os.environ.get("CS2_INSIGHT_OBS_GAME_CAPTURE_NAME") or "CS2 Insight Game Capture").strip()
-    return s or "CS2 Insight Game Capture"
+    s = (os.environ.get("CSGO_INSIGHT_OBS_GAME_CAPTURE_NAME") or "CS:GO Insight Game Capture").strip()
+    return s or "CS:GO Insight Game Capture"
 
 
 def _obs_studio_root() -> Optional[Path]:
@@ -859,7 +859,7 @@ def diagnose(obs_cfg) -> dict[str, Any]:
                 {
                     "code": "CAPTURE_SOURCE_MISSING",
                     "level": "error",
-                    "title": "CS2 捕获源缺失",
+                    "title": "CS:GO 捕获源缺失",
                     "message": f"场景「{scene_name}」中未找到「{cap_name}」。",
                     "fixable": True,
                 }
@@ -869,7 +869,7 @@ def diagnose(obs_cfg) -> dict[str, Any]:
                 {
                     "code": "SOURCE_NOT_FIT_CANVAS",
                     "level": "warning",
-                    "title": "CS2 捕获源未铺满画布",
+                    "title": "CS:GO 捕获源未铺满画布",
                     "message": "可能出现黑边或未拉伸。应用推荐预设可修复变换。",
                     "fixable": True,
                 }
@@ -963,7 +963,7 @@ def diagnose(obs_cfg) -> dict[str, Any]:
 
 def calibrate(obs_cfg) -> dict[str, Any]:
     """运行时校准：读显示器分辨率 → 修正 OBS 画布 → 建场景 → 建 Game Capture → 设拉伸 → 修输出格式。
-    仅操作 CS2 Insight 专用场景，不动用户其他场景。
+    仅操作 CS:GO Insight 专用场景，不动用户其他场景。
     """
     from .env_utils import get_primary_monitor_resolution
 
@@ -1036,7 +1036,7 @@ def calibrate(obs_cfg) -> dict[str, Any]:
             already_ok.append(f"画布分辨率正确（{canvas_w}×{canvas_h}）")
             already_ok.append(f"输出分辨率正确（{output_w}×{output_h}）")
 
-        # Step 4: 确保 CS2 Insight 场景存在
+        # Step 4: 确保 CS:GO Insight 场景存在
         scene_name = _dedicated_scene_name()
         scenes_resp = ws.call(obs_requests.GetSceneList())
         scenes_data = getattr(scenes_resp, "datain", None) or {}
@@ -1059,7 +1059,7 @@ def calibrate(obs_cfg) -> dict[str, Any]:
                 sceneName=scene_name,
                 inputName=capture_name,
                 inputKind="game_capture",
-                inputSettings={"capture_mode": "window", "window": "cs2.exe"},
+                inputSettings={"capture_mode": "window", "window": "csgo.exe"},
             ))
             changed.append(f"已创建 Game Capture 源「{capture_name}」")
         else:

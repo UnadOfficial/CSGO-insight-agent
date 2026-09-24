@@ -5,13 +5,13 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 try:
-    from ...win_cs2_console import inject_console_sequence
+    from ...win_csgo_console import inject_console_sequence
 except ImportError:
     def inject_console_sequence(lines): pass
 
 async def spec_player(player_name: str, mode: int = 5) -> None:
     """
-    Send spec_mode + spec_player commands to CS2.
+    Send spec_mode + spec_player commands to CSGO.
     mode: 5 = first-person (POV), 4 = chase/third-person, 1 = free
     """
     # Nicknames are display data, never console commands. Numeric-slot selection

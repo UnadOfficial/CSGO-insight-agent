@@ -15,18 +15,9 @@ import {
   PLAYER_ALIAS_ENTRY_VISIBLE,
   playerAliasMaps,
 } from "../utils/playerAliases.js";
-import Cs2LaunchConsoleFields from "./Cs2LaunchConsoleFields";
+import CsgoLaunchConsoleFields from "./CsgoLaunchConsoleFields";
 import { POV_CONFLICT_HUD, RecordingHudCard } from "./RecordingHudCard";
 import { useT } from "../i18n/useT.js";
-import { normalizeRecordingSkyboxId } from "../utils/recordingSkybox.js";
-import {
-  DEFAULT_RECORDING_MAP_MATERIAL,
-  normalizeRecordingMapMaterialId,
-} from "../utils/recordingMapMaterial.js";
-import {
-  DEFAULT_RECORDING_WEATHER_EFFECT,
-  normalizeRecordingWeatherEffectId,
-} from "../utils/recordingWeatherEffect.js";
 import { DEFAULT_POV_VOICE_MODE, normalizePovVoiceMode } from "../utils/povVoiceMode.js";
 
 /** 拼装随观战选项变化的 cvar（顺序与后端一致）；固定 cvar 见 record_inject_console_lines 配置 */
@@ -68,7 +59,7 @@ export function buildWarmupConsoleCommands(o) {
   }
   const flashOpacity = effectiveSpectatorFlashbangOpacity(
     o,
-    !!(o.pov_hud_enabled || o.experimental_pov_enabled),
+    !!o.hlae_mirv_pov,
   );
   if (flashOpacity != null) {
     lines.push(`r_spectator_flashbang_opacity ${flashOpacity}`);
@@ -98,19 +89,13 @@ export const RECORD_WARMUP_DEFAULT_OPTIONS = {
   resolution_width: "",
   resolution_height: "",
   /** POV 雷达不再提供录制选项，成片固定显示。 */
-  pov_radar_mode: 0,
   /** POV：true 正上方显示存活人数；false 显示双方十人头像（默认关存活人数条） */
-  pov_teamcounter_numeric: false,
   /** POV：语音播放与左下角说话标识使用同一受众范围。 */
   pov_voice_mode: DEFAULT_POV_VOICE_MODE,
-  /** Whether to render the authoritative in-game keyboard/mouse HUD. */
-  input_hud_enabled: true,
+  /** Whether to render the optional HLAE mirv_pov path. */
   /** Visibility policy for the in-game keyboard/mouse HUD. */
-  input_hud_display_mode: "hybrid",
   /** Preserved while its editor is temporarily hidden; default off. */
-  input_audio_enabled: false,
   /** Whether to show the per-Pawn K/D/A and damage block in the recording VPK. */
-  combat_stats_hud_enabled: true,
 };
 
 /** 录制预热弹窗每次打开时的 OBS 转场推荐默认值；勾选关闭则提交 null 沿用服务器全局配置 */
@@ -171,11 +156,8 @@ export default function RecordWarmupModal({
   onConfirm,
   aliasDemos = [],
   defaultOverrides,
-  experimentalPovEnabled = false,
-  recordingSkybox = "default",
-  recordingMapMaterial = DEFAULT_RECORDING_MAP_MATERIAL,
-  recordingWeatherEffect = DEFAULT_RECORDING_WEATHER_EFFECT,
-  cs2ExtraLaunchArgs = "",
+  hlaeMirvPovEnabled = false,
+  csgoExtraLaunchArgs = "",
   recordInjectConsoleLines = "",
   initObsTransEnabled = false,
   initObsTransName = "Fade",
@@ -192,17 +174,8 @@ export default function RecordWarmupModal({
   const [obsTransEnabled, setObsTransEnabled] = useState(null);  // null = use global
   const [obsTransName, setObsTransName] = useState(null);
   const [obsTransDurationMs, setObsTransDurationMs] = useState(null);
-  const [sessionPovEnabled, setSessionPovEnabled] = useState(false);
-  const [sessionInputHudEnabled, setSessionInputHudEnabled] = useState(true);
-  const [sessionInputHudDisplayMode, setSessionInputHudDisplayMode] = useState("hybrid");
-  const [sessionInputAudioEnabled, setSessionInputAudioEnabled] = useState(false);
-  const [sessionCombatStatsHudEnabled, setSessionCombatStatsHudEnabled] = useState(true);
-  const [sessionSkybox, setSessionSkybox] = useState("default");
-  const [sessionMapMaterial, setSessionMapMaterial] = useState(DEFAULT_RECORDING_MAP_MATERIAL);
-  const [sessionWeatherEffect, setSessionWeatherEffect] = useState(
-    DEFAULT_RECORDING_WEATHER_EFFECT,
-  );
-  const [sessionCs2ExtraLaunchArgs, setSessionCs2ExtraLaunchArgs] = useState("");
+  const [sessionHlaeMirvPov, setSessionHlaeMirvPov] = useState(false);
+  const [sessionCsgoExtraLaunchArgs, setSessionCsgoExtraLaunchArgs] = useState("");
   const [sessionRecordInjectConsoleLines, setSessionRecordInjectConsoleLines] = useState("");
 
   useEffect(() => {
@@ -224,23 +197,15 @@ export default function RecordWarmupModal({
     }
     base.pov_voice_mode = normalizePovVoiceMode(
       o?.pov_voice_mode,
-      o?.pov_voice_disabled === true,
+      false,
     );
-    base.pov_radar_mode = 0;
     setOpts(base);
     setResolutionError("");
     setObsTransEnabled(!!initObsTransEnabled);
     setObsTransName(initObsTransName || "Fade");
     setObsTransDurationMs(Number(initObsTransDurationMs) || 200);
-    setSessionPovEnabled(!!experimentalPovEnabled);
-    setSessionInputHudEnabled(o?.input_hud_enabled !== false);
-    setSessionInputHudDisplayMode("hybrid");
-    setSessionInputAudioEnabled(false);
-    setSessionCombatStatsHudEnabled(o?.combat_stats_hud_enabled !== false);
-    setSessionSkybox(normalizeRecordingSkyboxId(recordingSkybox));
-    setSessionMapMaterial(normalizeRecordingMapMaterialId(recordingMapMaterial));
-    setSessionWeatherEffect(normalizeRecordingWeatherEffectId(recordingWeatherEffect));
-    setSessionCs2ExtraLaunchArgs(cs2ExtraLaunchArgs);
+    setSessionHlaeMirvPov(!!hlaeMirvPovEnabled);
+    setSessionCsgoExtraLaunchArgs(csgoExtraLaunchArgs);
     setSessionRecordInjectConsoleLines(recordInjectConsoleLines);
   }, [
     open,
@@ -248,11 +213,8 @@ export default function RecordWarmupModal({
     initObsTransEnabled,
     initObsTransName,
     initObsTransDurationMs,
-    experimentalPovEnabled,
-    recordingSkybox,
-    recordingMapMaterial,
-    recordingWeatherEffect,
-    cs2ExtraLaunchArgs,
+    hlaeMirvPovEnabled,
+    csgoExtraLaunchArgs,
     recordInjectConsoleLines,
   ]);
 
@@ -295,20 +257,18 @@ export default function RecordWarmupModal({
       fov_cs_debug: opts.apply_fov ? Number(opts.fov_cs_debug) || 90 : null,
       viewmodel_fov_68: opts.viewmodel_fov_68,
       third_person_camera: opts.third_person_camera,
-      spectator_flashbang_opacity: effectiveSpectatorFlashbangOpacity(opts, sessionPovEnabled),
+      spectator_flashbang_opacity: effectiveSpectatorFlashbangOpacity(opts, sessionHlaeMirvPov),
       hide_demo_playback_ui: opts.hide_demo_playback_ui,
       hide_grenade_trajectory_pip: opts.hide_grenade_trajectory_pip,
       resolution_width: rw,
       resolution_height: rh,
       aspect_ratio: ar || null,
-      pov_radar_mode: 0,
-      pov_teamcounter_numeric: !!opts.pov_teamcounter_numeric,
       pov_voice_mode: normalizePovVoiceMode(opts.pov_voice_mode),
     };
     const console_cmds = buildWarmupConsoleCommands({
       ...opts,
       spec_show_xray: !!opts.spec_show_xray,
-      experimental_pov_enabled: sessionPovEnabled,
+       hlae_mirv_pov: sessionHlaeMirvPov,
     });
 
     onConfirm({
@@ -318,15 +278,8 @@ export default function RecordWarmupModal({
         obs_transition_enabled: obsTransEnabled,
         obs_transition_name: obsTransName,
         obs_transition_duration_ms: obsTransDurationMs,
-        input_hud_enabled: sessionInputHudEnabled,
-        input_hud_display_mode: sessionInputHudDisplayMode,
-        input_audio_enabled: sessionInputAudioEnabled,
-        combat_stats_hud_enabled: sessionCombatStatsHudEnabled,
-        experimental_pov_enabled: sessionPovEnabled,
-        recording_skybox: normalizeRecordingSkyboxId(sessionSkybox),
-        recording_map_material: normalizeRecordingMapMaterialId(sessionMapMaterial),
-        recording_weather_effect: normalizeRecordingWeatherEffectId(sessionWeatherEffect),
-        session_cs2_extra_launch_args: sessionCs2ExtraLaunchArgs,
+        hlae_mirv_pov: sessionHlaeMirvPov,
+        session_csgo_extra_launch_args: sessionCsgoExtraLaunchArgs,
         session_record_inject_console_lines: sessionRecordInjectConsoleLines,
       });
   };
@@ -445,7 +398,7 @@ export default function RecordWarmupModal({
                 checked={opts.cl_draw_only_deathnotices}
                 onChange={(v) => set({ cl_draw_only_deathnotices: v })}
                 outcomeOn={t("record.hudSimplifyOutcome")}
-                disabled={!!sessionPovEnabled}
+                disabled={!!sessionHlaeMirvPov}
                 disabledReason={POV_CONFLICT_HUD}
               />
               <RecordingHudCard
@@ -559,13 +512,13 @@ export default function RecordWarmupModal({
               <div className="rounded-lg border border-cs2-border bg-cs2-bg-input/40 px-3 py-2.5">
                 <label
                   className={`flex items-center gap-3 ${
-                    sessionPovEnabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                    sessionHlaeMirvPov ? "cursor-not-allowed opacity-60" : "cursor-pointer"
                   }`}
                 >
                   <input
                     type="checkbox"
-                    checked={sessionPovEnabled || opts.apply_spectator_flashbang_opacity}
-                    disabled={sessionPovEnabled}
+                    checked={sessionHlaeMirvPov || opts.apply_spectator_flashbang_opacity}
+                    disabled={sessionHlaeMirvPov}
                     onChange={(e) => set({ apply_spectator_flashbang_opacity: e.target.checked })}
                     className="h-4 w-4 shrink-0 rounded border-cs2-border accent-cs2-orange disabled:opacity-50"
                   />
@@ -579,7 +532,7 @@ export default function RecordWarmupModal({
                     min={0.2}
                     max={1}
                     step={0.1}
-                    value={sessionPovEnabled ? 1 : opts.spectator_flashbang_opacity}
+                    value={sessionHlaeMirvPov ? 1 : opts.spectator_flashbang_opacity}
                     onChange={(e) => {
                       if (e.target.value === "") return;
                       const n = parseFloat(e.target.value, 10);
@@ -589,12 +542,12 @@ export default function RecordWarmupModal({
                           : Math.min(1, Math.max(0.2, n)),
                       });
                     }}
-                    disabled={sessionPovEnabled || !opts.apply_spectator_flashbang_opacity}
+                    disabled={sessionHlaeMirvPov || !opts.apply_spectator_flashbang_opacity}
                     className="w-24 rounded border border-cs2-border bg-cs2-bg-input px-2 py-1.5 font-mono text-sm text-cs2-text-primary disabled:opacity-40"
                   />
                   <span className="text-xs text-cs2-text-muted">{t("record.warmupFlashRange")}</span>
                 </div>
-                {sessionPovEnabled ? (
+                {sessionHlaeMirvPov ? (
                   <p className="mt-2 border-t border-cs2-border pt-2 pl-7 text-[11px] leading-relaxed text-cs2-amber-on-surface">
                     {t("record.warmupFlashPovActive")}
                   </p>
@@ -612,9 +565,9 @@ export default function RecordWarmupModal({
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-cs2-text-muted">
               {t("record.warmupCmdLabel")}
             </p>
-            <Cs2LaunchConsoleFields
-              cs2ExtraLaunchArgs={sessionCs2ExtraLaunchArgs}
-              onCs2ExtraLaunchArgsChange={setSessionCs2ExtraLaunchArgs}
+            <CsgoLaunchConsoleFields
+              csgoExtraLaunchArgs={sessionCsgoExtraLaunchArgs}
+              onCsgoExtraLaunchArgsChange={setSessionCsgoExtraLaunchArgs}
               recordInjectConsoleLines={sessionRecordInjectConsoleLines}
               onRecordInjectConsoleLinesChange={setSessionRecordInjectConsoleLines}
               omitConsoleHint
@@ -625,22 +578,10 @@ export default function RecordWarmupModal({
           <div className="min-w-0 space-y-4">
           <ExperimentalPovSection
             visible={open}
-            experimentalPovEnabled={sessionPovEnabled}
-            onExperimentalPovChange={setSessionPovEnabled}
-            povTeamcounterNumeric={opts.pov_teamcounter_numeric}
-            onPovTeamcounterNumericChange={(v) => set({ pov_teamcounter_numeric: v })}
+            hlaeMirvPovEnabled={sessionHlaeMirvPov}
+            onHlaeMirvPovChange={setSessionHlaeMirvPov}
             povVoiceMode={opts.pov_voice_mode}
             onPovVoiceModeChange={(v) => set({ pov_voice_mode: v })}
-            inputHudEnabled={sessionInputHudEnabled}
-            inputHudDisplayMode={sessionInputHudDisplayMode}
-            onInputHudEnabledChange={setSessionInputHudEnabled}
-            onInputHudDisplayModeChange={setSessionInputHudDisplayMode}
-            recordingSkybox={sessionSkybox}
-            onRecordingSkyboxChange={setSessionSkybox}
-            recordingMapMaterial={sessionMapMaterial}
-            onRecordingMapMaterialChange={setSessionMapMaterial}
-            recordingWeatherEffect={sessionWeatherEffect}
-            onRecordingWeatherEffectChange={setSessionWeatherEffect}
             contentAfterVoice={PLAYER_ALIAS_ENTRY_VISIBLE ? (
               <PlayerAliasesSection
                 demos={aliasDemos}
@@ -650,7 +591,6 @@ export default function RecordWarmupModal({
                 compact
               />
             ) : null}
-            omitDisclaimer
           />
 
           {/* Live KDA / damage is temporarily hidden while the VPK presentation is revised.
@@ -659,14 +599,14 @@ export default function RecordWarmupModal({
             <div
               id="sec-combat-stats"
               data-testid="record-combat-stats-option"
-              className={`rounded-lg border border-cs2-border bg-cs2-bg-input/40 px-3 py-3 ${sessionPovEnabled ? "" : "opacity-55"}`}
+              className={`rounded-lg border border-cs2-border bg-cs2-bg-input/40 px-3 py-3 ${sessionHlaeMirvPov ? "" : "opacity-55"}`}
             >
-              <label className={`flex items-start gap-2 ${sessionPovEnabled ? "cursor-pointer" : "cursor-not-allowed opacity-45"}`}>
+              <label className={`flex items-start gap-2 ${sessionHlaeMirvPov ? "cursor-pointer" : "cursor-not-allowed opacity-45"}`}>
                 <input
                   type="checkbox"
                   aria-label={t("record.warmupCombatStatsEnable")}
                   checked={sessionCombatStatsHudEnabled}
-                  disabled={!sessionPovEnabled}
+                  disabled={!sessionHlaeMirvPov}
                   onChange={(event) => setSessionCombatStatsHudEnabled(event.target.checked)}
                   className="mt-0.5 h-3.5 w-3.5 rounded border-cs2-border accent-cs2-orange disabled:opacity-50"
                 />

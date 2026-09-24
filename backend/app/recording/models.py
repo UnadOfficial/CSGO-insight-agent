@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from ..player_aliases import PlayerAliases
 
 
@@ -83,6 +83,10 @@ class RoundInfo(BaseModel):
 
 
 class RecordingOptions(BaseModel):
+    # Preserve stale Source 2 option names at the HTTP boundary so callers can
+    # receive CSGO_UNSUPPORTED_FEATURE instead of silently losing their input.
+    model_config = ConfigDict(extra="allow")
+
     highlight_pre_sec: float = 3.0
     highlight_post_sec: float = 2.0
     kill_jump_cut_threshold_sec: float = 12.0
@@ -106,7 +110,7 @@ class RecordingOptions(BaseModel):
     enable_fail_killer_pov: bool = False
     fail_killer_pre_sec: float = 3.0
     fail_killer_post_sec: float = 2.0
-    # Stop before the real PBDEMS2 EOF so CS2 cannot finish playback and
+    # Stop before the real HL2DEMO EOF so CS:GO cannot finish playback and
     # return to the main menu. This guard applies to every segment.
     demo_end_guard_sec: float = 1.5
     # Extra tail for the final round's clip so the match-deciding moment does
@@ -128,6 +132,10 @@ class SourceRef(BaseModel):
 
 
 class RecordingRequestDTO(BaseModel):
+    # Keep stale Source 2 fields visible at the HTTP boundary so the API can
+    # return CSGO_UNSUPPORTED_FEATURE instead of silently dropping them.
+    model_config = ConfigDict(extra="allow")
+
     request_id: str
     request_type: RequestType
     source_type: SourceType

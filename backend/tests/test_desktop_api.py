@@ -63,7 +63,7 @@ def test_launch_cs2_inspect_rejects_malformed_payload(payload):
 def test_cold_cs2_launch_waits_then_dispatches_canonical_inspect_uri(monkeypatch):
     opened: list[str] = []
 
-    monkeypatch.setattr(desktop, "find_cs2_hwnd", lambda: 0)
+    monkeypatch.setattr(desktop, "find_csgo_hwnd", lambda: 0)
     monkeypatch.setattr(desktop, "_launch_cs2_inspect_url", opened.append)
 
     async def fake_wait(_timeout: float = 75.0) -> bool:
@@ -88,7 +88,7 @@ def test_cold_cs2_launch_waits_then_dispatches_canonical_inspect_uri(monkeypatch
 def test_running_cs2_receives_self_contained_steam_preview_without_console_bind(monkeypatch):
     opened: list[str] = []
 
-    monkeypatch.setattr(desktop, "find_cs2_hwnd", lambda: 123)
+    monkeypatch.setattr(desktop, "find_csgo_hwnd", lambda: 123)
     monkeypatch.setattr(desktop, "_launch_cs2_inspect_url", opened.append)
 
     result = asyncio.run(desktop._launch_and_deliver_cs2_inspect("00AABBCCDDEE"))

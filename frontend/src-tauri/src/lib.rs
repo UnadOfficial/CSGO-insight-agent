@@ -493,9 +493,7 @@ fn start_backend(app: &AppHandle) -> Result<(), String> {
         .arg(&run_server)
         .current_dir(&backend_dir)
         .env("CSGO_INSIGHT_PORT", "19871")
-        .env("CS2_INSIGHT_PORT", "19871")
         .env("CSGO_INSIGHT_INSTANCE_ID", &instance_id)
-        .env("CS2_INSIGHT_INSTANCE_ID", &instance_id)
         .env("PYTHONNOUSERSITE", "1")
         .env("PYTHONDONTWRITEBYTECODE", "1")
         .env("PYTHONUNBUFFERED", "1")
@@ -504,20 +502,13 @@ fn start_backend(app: &AppHandle) -> Result<(), String> {
             "CSGO_INSIGHT_CONFIG",
             data_root.join("csgo-insight.config.json"),
         )
-        .env(
-            "CS2_INSIGHT_CONFIG",
-            data_root.join("csgo-insight.config.json"),
-        )
         .env("CSGO_INSIGHT_LOG_DIR", &logs_dir)
-        .env("CS2_INSIGHT_LOG_DIR", &logs_dir)
         .env("CSGO_INSIGHT_DATA_DIR", &data_root)
-        .env("CS2_INSIGHT_DATA_DIR", &data_root)
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
     if bundle_data_dir.is_dir() {
         command.env("CSGO_INSIGHT_BUNDLE_DATA_DIR", &bundle_data_dir);
-        command.env("CS2_INSIGHT_BUNDLE_DATA_DIR", bundle_data_dir);
     }
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);

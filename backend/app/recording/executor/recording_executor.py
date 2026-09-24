@@ -201,7 +201,7 @@ async def _record_until_tick_round_segment(
     poll_count = 0
     # Computed once: used by both the phase guard and the round guard below.
     is_alive_round = meta_death_tick is None
-    # Final-round alive player: after the match-winning kill, CS2/GSI may emit
+    # Final-round alive player: after the match-winning kill, CSGO/GSI may emit
     # "freezetime" (end-game screen transition) and/or advance map.round beyond
     # target_round. Neither signal represents a real next round, so both GSI-based
     # stop conditions are disabled here — wall-clock timing takes over instead.
@@ -797,7 +797,7 @@ class RecordingExecutor:
                 # 失败时降级到 console pause（仍需要 0.35s 等控制台动画关闭）。
                 _silent_ok = await demo_pause_silent_attempt()
                 if _silent_ok:
-                    # 无控制台：只需等 CS2 处理完按键（通常 < 1 game tick = 15ms）
+                    # 无控制台：只需等 CSGO 处理完按键（通常 < 1 game tick = 15ms）
                     await asyncio.sleep(0.05)
                 else:
                     await demo_pause()
@@ -841,7 +841,7 @@ class RecordingExecutor:
                     await self._ctrl.resume_record_safe()
                     obs_record_mono = time.monotonic()
 
-                    # Resume the demo while OBS is still fully black. CS2 can
+                    # Resume the demo while OBS is still fully black. CSGO can
                     # render its in-game cursor for one frame while focus and
                     # playback settle; revealing the game concurrently with the
                     # key tap made that cursor flash visible.

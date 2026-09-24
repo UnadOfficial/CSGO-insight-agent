@@ -479,7 +479,7 @@ export function ClipPane({
         </div>
       </PaneSection>
       {media.ai ? (
-        <PaneSection title="CS2 元数据" defaultOpen={false}>
+        <PaneSection title="CS:GO 元数据" defaultOpen={false}>
           <p className="text-[11px] leading-relaxed text-cs2-text-secondary">{media.ai}</p>
         </PaneSection>
       ) : null}

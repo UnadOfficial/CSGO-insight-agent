@@ -1,6 +1,6 @@
-# 🎮 CS2 Insight Agent — 玩家使用指南
+# 🎮 CS:GO Insight Agent — 玩家使用指南
 
-> **CS2 洞察智能体** — 你的私人 CS2 高光导演 & 视频编排工具。
+> **CS:GO 洞察智能体** — 你的私人 CS:GO 高光导演 & 视频编排工具。
 >
 > 自动解析 Demo 录像，提取你的高光 / 下饭名场面，支持 AI 锐评打分，一键控制 OBS 全自动录制精彩片段，拖拉拽形式添加BGM/片头/片尾/玩家信息卡生成视频合集。
 
@@ -21,7 +21,7 @@
 
 不熟悉文字说明？可以先观看 B 站视频教程：
 
-- [▶ BV1PcVj69ExZ — CS2 Insight Agent 使用教程](https://www.bilibili.com/video/BV1PcVj69ExZ/)
+- [▶ BV1PcVj69ExZ — CS:GO Insight Agent 使用教程](https://www.bilibili.com/video/BV1PcVj69ExZ/)
 
 > [!TIP]
 > 建议新手先看完视频教程，再按下方目录逐步配置 OBS、FFmpeg 等功能。
@@ -30,7 +30,7 @@
 
 ## 🎬 成片展示
 
-以下是社区 UP 主使用 CS2 Insight Agent 制作的成片示例，供参考最终效果：
+以下是社区 UP 主使用 CS:GO Insight Agent 制作的成片示例，供参考最终效果：
 
 ### 游戏片段自动剪辑
 
@@ -38,7 +38,7 @@
 - [▶ BV1TPGq67EFS](https://www.bilibili.com/video/BV1TPGq67EFS/)
 
 > [!NOTE]
-> 上述成片的片头片尾 BGM、战队 Logo 由 UP 主自行合成；**游戏片段**由 CS2 Insight Agent 自动剪辑。
+> 上述成片的片头片尾 BGM、战队 Logo 由 UP 主自行合成；**游戏片段**由 CS:GO Insight Agent 自动剪辑。
 
 ### 全链路剪辑合成
 
@@ -46,7 +46,7 @@
 - [▶ BV1G198BkEHd](https://www.bilibili.com/video/BV1G198BkEHd/)
 
 > [!NOTE]
-> 上述成片的片头片尾 BGM 及游戏片段**均由 CS2 Insight Agent 剪辑合成产出**。
+> 上述成片的片头片尾 BGM 及游戏片段**均由 CS:GO Insight Agent 剪辑合成产出**。
 
 ---
 
@@ -72,7 +72,7 @@
 | 项目 | 是否必需 | 说明 |
 | --- | --- | --- |
 | Windows 10/11 电脑 | ✅ 必需 | 目前仅支持 Windows |
-| 已安装 CS:GO Legacy | 🎬 录制时必需 | Steam 中打开 CS2 → 属性 → Beta `csgo_legacy`，确认存在 `csgo.exe`。只解析 Demo 不需要启动游戏。 |
+| 已安装 CS:GO Legacy | 🎬 录制时必需 | Steam 中打开 CS:GO → 属性 → Beta `csgo_legacy`，确认存在 `csgo.exe`。只解析 Demo 不需要启动游戏。 |
 | OBS Studio | 🎬 录制时必需 | 用于自动录制高光片段，免费下载 |
 | FFmpeg | 🎬 生成合集时必须 | 用于合集工作台合成视频，免费下载 |
 | AI 大模型 API Key | 💡 可选 | 用于开启 AI 锐评模式（推荐 DeepSeek，价格便宜） |
@@ -83,7 +83,7 @@
 
 ### 第一步：下载安装包
 
-前往项目的 [Releases 页面](https://github.com/DrEAmSs59/CS2-insight-agent/releases)，找到最新版本，点击下载 **`CS2-Insight-Agent-Setup-x.x.x.exe`**，或者下载直链 baigei.pro/cia 复制到浏览器打开。
+前往项目的 [Releases 页面](https://github.com/DrEAmSs59/CS2-insight-agent/releases)，找到最新版本，点击下载 **`CSGO Insight Agent_x.x.x_x64-setup.exe`**，或者下载直链 baigei.pro/cia 复制到浏览器打开。
 
 ### 第二步：运行安装包
 
@@ -93,14 +93,14 @@
 > **建议安装路径不含中文字符。** 例如：
 > - ✅ `D:\CS2-Insight-Agent\`
 > - ✅ `C:\Program Files\CS2-Insight-Agent\`
-> - ❌ `D:\游戏工具\CS2洞察\` ← 中文路径可能导致问题
+> - ❌ `D:\游戏工具\CS:GO洞察\` ← 中文路径可能导致问题
 
 > [!NOTE]
 > 部分电脑在首次运行安装包时，Windows 可能弹出「Windows 已保护你的电脑」的 SmartScreen 提示。这是因为程序尚未积累大量用户数量的信任记录，**并非病毒**。点击「更多信息」→「仍要运行」即可继续安装。
 
 ### 第三步：完成安装
 
-安装完成后，桌面和开始菜单会出现 **CS2 Insight Agent** 的快捷方式，安装完毕。
+安装完成后，桌面和开始菜单会出现 **CS:GO Insight Agent** 的快捷方式，安装完毕。
 
 ---
 
@@ -108,7 +108,7 @@
 
 ### 启动程序
 
-双击桌面的 **CS2 Insight Agent** 快捷方式，程序会直接以桌面窗口的形式打开，**无需打开浏览器，也无需手动启动后端服务**。
+双击桌面的 **CS:GO Insight Agent** 快捷方式，程序会直接以桌面窗口的形式打开，**无需打开浏览器，也无需手动启动后端服务**。
 
 程序启动后你将看到一个**深色电竞风格**的桌面界面，左侧是导航栏，右侧是主工作区。
 
@@ -143,7 +143,7 @@
 
 ### 第二步：开启 OBS WebSocket 服务
 
-CS2 Insight 通过 OBS 的 WebSocket 接口来远程控制 OBS 的录制功能。你需要在 OBS 里开启它：
+CS:GO Insight 通过 OBS 的 WebSocket 接口来远程控制 OBS 的录制功能。你需要在 OBS 里开启它：
 
 1. 打开 **OBS Studio**
 2. 点击顶部菜单栏 **「工具」→「WebSocket 服务器设置」**
@@ -153,13 +153,13 @@ CS2 Insight 通过 OBS 的 WebSocket 接口来远程控制 OBS 的录制功能�
 3. 在弹出的窗口中：
    - ✅ **勾选** 「启用 WebSocket 服务器」
    - **服务器端口**：默认 `4455`（不用改）
-   - **密码**：点「生成密码」自动生成一个，或自己设一个；**记住这个密码！** 后面要填到 CS2 Insight 里
+   - **密码**：点「生成密码」自动生成一个，或自己设一个；**记住这个密码！** 后面要填到 CS:GO Insight 里
 4. 点 **「确定」** 保存
 
 > [!TIP]
-> 如果你嫌麻烦，也可以取消勾选「启用认证」来去掉密码，这样 CS2 Insight 里密码留空就行。但出于安全考虑不推荐这么做。
+> 如果你嫌麻烦，也可以取消勾选「启用认证」来去掉密码，这样 CS:GO Insight 里密码留空就行。但出于安全考虑不推荐这么做。
 
-### 第三步：在 CS2 Insight 中完成 OBS 配置
+### 第三步：在 CS:GO Insight 中完成 OBS 配置
 
 在 **「设置」→「视频设置」** 中完成 OBS 配置；这里集中管理 OBS 的启动、WebSocket 连接和录制环境校准。
 
@@ -170,7 +170,7 @@ CS2 Insight 通过 OBS 的 WebSocket 接口来远程控制 OBS 的录制功能�
    - **端口**：`4455`（除非你在 OBS 中改过）
    - **密码**：填写刚才在 OBS 中设置的密码
 3. 点击 **「配置检查」**。程序会按需启动 OBS，并检查路径与 WebSocket 连接；连接成功后 OBS 配置即被验证。
-4. 连接成功后，在「一键校准」中查看状态；有问题时点击 **「一键修复」**。它只会操作 `CS2 Insight Recording` 专用场景，可自动创建场景和 Game Capture 源，并修正画布/输出分辨率、画面拉伸、录像格式和录像质量等常见问题。
+4. 连接成功后，在「一键校准」中查看状态；有问题时点击 **「一键修复」**。它只会操作 `CS:GO Insight Recording` 专用场景，可自动创建场景和 Game Capture 源，并修正画布/输出分辨率、画面拉伸、录像格式和录像质量等常见问题。
 
 > [!TIP]
 > 如果校准提示录像编码器已变更，请重启 OBS 后再开始录制。
@@ -210,7 +210,7 @@ AI 模式可以让大模型为你的每个高光/下饭片段生成**评分 (0-1
 4. 复制生成的 Key（以 `sk-` 开头的一串字符）
 5. 充值几块钱就够用很久了
 
-### 在 CS2 Insight 中配置 AI
+### 在 CS:GO Insight 中配置 AI
 
 1. 进入 **「设置」→「解析设置」**，在「分析模式」中选择 **「AI 洞察」**。
 2. 此时会显示「大模型（AI）」卡片，填写：
@@ -227,9 +227,9 @@ AI 模式可以让大模型为你的每个高光/下饭片段生成**评分 (0-1
 
 ### 什么是 Demo 文件？
 
-Demo 就是 CS2 的比赛录像文件（`.dem` 格式）。你可以从以下途径获取：
+Demo 就是 CS:GO Source 1 的比赛录像文件（HL2DEMO / .dem 格式）。CS2 的 PBDEMS2 文件不受支持。你可以从以下途径获取：
 
-- **Steam 个人比赛历史**：CS2 主菜单 → 你的比赛 → 点击某场比赛 → 最下方的「下载」按钮
+- **Steam 个人比赛历史**：CS:GO 主菜单 → 你的比赛 → 点击某场比赛 → 最下方的「下载」按钮
 - **5E 客户端**：5E → 比赛记录 → 选择某场比赛 → 下载 Demo
 - **完美世界平台**：完美世界竞技平台 → 比赛记录 → 下载录像
 - **HLTV / 比赛网站**：如果你要分析职业比赛
@@ -269,15 +269,17 @@ Demo 就是 CS2 的比赛录像文件（`.dem` 格式）。你可以从以下途
 
 ## 7. 一键自动录制
 
-这是 CS2 Insight 最硬核的功能——全自动控制 CS2 回放 + OBS 录制。
+这是 CS:GO Insight 最硬核的功能——全自动控制 CS:GO 回放 + OBS 录制。
+
+> **说明：** CS:GO 录制链路只支持 Source 1 / HL2DEMO。天空盒、材质、天气和 POV HUD 覆盖等 Source 2 选项不适用于本流程；如需第一人称 HUD，可在本地 Demo + -insecure 下可选使用 HLAE mirv_pov。
 
 ### 前提条件
 
 - ✅ OBS 已配置并连接成功（参见 [第 4 节](#4-配置-obs录制功能必需)）
-- ✅ CS2 已安装，且程序设置中的 **CS2 路径**正确指向 `cs2.exe`
-  - 程序会自动探测 Steam 安装的 CS2 路径
+- ✅ CS:GO 已安装，且程序设置中的 **CS:GO 路径**正确指向 `csgo.exe`
+  - 程序会自动探测 Steam 安装的 CS:GO 路径
   - 如果没有自动检测到，需要手动填写，例如：
-    `D:\steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe`
+    `D:\steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\csgo.exe`
 - ✅ OBS 保持打开状态
 
 ### 操作步骤
@@ -286,16 +288,16 @@ Demo 就是 CS2 的比赛录像文件（`.dem` 格式）。你可以从以下途
 2. **勾选**你想录制的片段（或全选），加入录制队列
 3. 在录制队列页面点击**「开始录制」**按钮
 4. 程序会自动完成以下所有操作：
-   - 🎮 自动启动 CS2，并加载 Demo 录像
+   - 🎮 自动启动 CS:GO，并加载 Demo 录像
    - ⏩ 自动跳转到每个片段对应的游戏时间点
    - 🎥 自动控制 OBS 开始录制
    - ⏱️ 等待片段播放完毕（jump-cut 自动拼接多杀片段）
    - ⏹️ 自动控制 OBS 停止录制
    - 🔁 自动跳到下一个片段，重复上述过程
-   - 🚪 全部录完后自动关闭 CS2
+   - 🚪 全部录完后自动关闭 CS:GO
 
 > [!WARNING]
-> **录制过程中请勿操作电脑！** 程序需要向 CS2 窗口发送键盘指令来控制 Demo 回放。录制期间切换窗口或打字可能导致命令丢失，严重时可能覆盖你的游戏配置。
+> **录制过程中请勿操作电脑！** 程序需要向 CS:GO 窗口发送键盘指令来控制 Demo 回放。录制期间切换窗口或打字可能导致命令丢失，严重时可能覆盖你的游戏配置。
 >
 > 建议泡杯咖啡 ☕ 等几分钟，让程序自动完成一切。
 
@@ -380,7 +382,7 @@ D:\ffmpeg\bin\ffmpeg.exe
 在 **「设置」→「解析设置」** 中配置**「Demo 监听路径」**后，程序会监听该目录后续新增的 Demo 文件。若要把目录中已有的录像加入库，请点击 **「扫描本地 demo 库」**。
 
 > [!TIP]
-> 可以设置多个监听目录。例如把 Steam 的 CS2 replay 目录和 5E 的下载目录都加进去，所有平台的录像统一管理。
+> 可以设置多个监听目录。例如把 Steam 的 CS:GO replay 目录和 5E 的下载目录都加进去，所有平台的录像统一管理。
 
 ### 关注名单
 
@@ -393,7 +395,7 @@ D:\ffmpeg\bin\ffmpeg.exe
 **Q：程序打不开 / 安装后没有快捷方式？**
 
 - 确认安装包已经正常运行到完成，而不是中途关闭了
-- 检查 Windows「开始菜单」中是否有 CS2 Insight Agent 的条目
+- 检查 Windows「开始菜单」中是否有 CS:GO Insight Agent 的条目
 - 尝试重新运行安装包
 
 **Q：启动时弹出 Windows SmartScreen 警告？**
@@ -414,21 +416,21 @@ D:\ffmpeg\bin\ffmpeg.exe
 - 确认 OBS 版本 ≥ 28.0（旧版需要单独安装 obs-websocket 插件）
 - 尝试在 OBS 中关闭认证（取消勾选），密码留空
 
-**Q：CS2 路径没有自动检测到？**
+**Q：CS:GO 路径没有自动检测到？**
 
-手动找到 CS2 的安装路径，默认 Steam 安装一般在：
+手动找到 CS:GO 的安装路径，默认 Steam 安装一般在：
 
 ```
-C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe
+C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\csgo.exe
 ```
 
 如果你把 Steam 游戏库装在了其他盘（比如 D 盘）：
 
 ```
-D:\steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe
+D:\steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\csgo.exe
 ```
 
-在设置的「CS2 路径」中填入完整路径即可。
+在设置的「CS:GO 路径」中填入完整路径即可。
 
 > [!CAUTION]
 > **⚠️ 需要特别注意 ⚠️**
@@ -437,7 +439,7 @@ D:\steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe
 
 **Q：开始录制时提示需要恢复玩家配置，应该去哪里？**
 
-在拦截弹窗中点击 **「前往玩家配置」**，会进入 **「设置」→「通用设置」**中的「玩家游戏配置」区域。先关闭 CS2，再点击 **「一键恢复玩家配置」**；恢复完成后再重新开始录制。该页也可以打开备份目录，供你手动处理。
+在拦截弹窗中点击 **「前往玩家配置」**，会进入 **「设置」→「通用设置」**中的「玩家游戏配置」区域。先关闭 CS:GO，再点击 **「一键恢复玩家配置」**；恢复完成后再重新开始录制。该页也可以打开备份目录，供你手动处理。
 
 **Q：实验性功能 POV HUD / mirv_pov 是什么？**
 
@@ -459,14 +461,14 @@ CS:GO 的第一人称 HUD 走 HLAE 的 `mirv_pov`：把 GOTV Demo 伪装成目�
 - 确保agent内的端口与obs的websocket端口保持一致
 - 确保agent内与obs的websocket密码保持一致，必要时可取消身份验证或自己手填密码，不用随机生成的。
 
-**Q：录制时 CS2 没有画面 / OBS 录到黑屏？**
+**Q：录制时 CS:GO 没有画面 / OBS 录到黑屏？**
 
 - 在「设置」→「视频设置」重新进行 OBS 校准，**校准完毕后重启OBS(必须!)**
 - OBS 和 Agent 权限保持一致；必要时 OBS 管理员启动；
-- 检查 `CS2 Insight Recording` 场景的游戏捕获源；右键捕获源检查属性。
-- 如果使用了多显示器，确保 CS2 和 OBS 捕获的是同一个屏幕
+- 检查 `CS:GO Insight Recording` 场景的游戏捕获源；右键捕获源检查属性。
+- 如果使用了多显示器，确保 CS:GO 和 OBS 捕获的是同一个屏幕
 
-**Q：录制没声音 / CS2 没声音？**
+**Q：录制没声音 / CS:GO 没声音？**
 
 - 检查OBS 音频捕获源，OBS中是否有桌面音频捕获或应用音频捕获，这两个捕获只能保留一个
 - 检查是否存在多音轨，确保音轨只有一条
@@ -480,7 +482,7 @@ CS:GO 的第一人称 HUD 走 HLAE 的 `mirv_pov`：把 GOTV Demo 伪装成目�
 
 **Q：成片有黑边/游戏画面被裁切？**
 
-- 你的 CS2 是 4:3 显示时，有可能发生该情况
+- 你的 CS:GO 是 4:3 显示时，有可能发生该情况
 - 确保在 OBS 的「游戏捕获」中右键 → 变换 → 拉伸到全屏
 - 如果游戏画面被裁切，请确保游戏在全屏模式**(并非全屏窗口模式)**下，游戏存在你录制时设置的分辨率。
 解决方案：
@@ -497,9 +499,9 @@ CS:GO 的第一人称 HUD 走 HLAE 的 `mirv_pov`：把 GOTV Demo 伪装成目�
 ①将OBS输出模式从高级改为简单，再通过agent进行OBS校准，校准完毕后重启OBS
 ②OBS输出模式为高级的情况下，点击录制菜单，**视频编码器不要选择（使用直播编码器）**。
 
-**Q：录制时 CS2 停留在游戏主菜单？**
+**Q：录制时 CS:GO 停留在游戏主菜单？**
 
-目前最新的 CS2 版本仅能播放 2026 年 4 月 21 日（ag2 动作系统更新）以后的 Demo。如果想录制更早比赛的镜头，需要把 CS2 版本回退到 1.41.4.1。
+CS:GO 录制只接受 Source 1 的 HL2DEMO Demo；CS2 的 PBDEMS2 Demo 会被拒绝。
 
 **Q：录制出来的视频是第三人称视角？**
 
@@ -522,11 +524,11 @@ CS:GO 的第一人称 HUD 走 HLAE 的 `mirv_pov`：把 GOTV Demo 伪装成目�
 
 - **5E**：5E 客户端 → 比赛记录 → 选择某场比赛 → 下载 Demo
 - **完美世界**：完美世界竞技平台 → 比赛记录 → 下载录像
-- 下载的 `.dem` 文件可以直接拖入 CS2 Insight 使用
+- 下载的 `.dem` 文件可以直接拖入 CS:GO Insight 使用
 
 **Q：可以同时录多场 Demo 的片段吗？**
 
-可以。将来自不同 Demo 的片段都加入录制队列，程序会自动按 Demo 分组，依次启动 CS2 并录制各自的片段，全程无需人工干预。
+可以。将来自不同 Demo 的片段都加入录制队列，程序会自动按 Demo 分组，依次启动 CS:GO 并录制各自的片段，全程无需人工干预。
 
 ---
 
@@ -535,13 +537,13 @@ CS:GO 的第一人称 HUD 走 HLAE 的 `mirv_pov`：把 GOTV Demo 伪装成目�
 ```
 1. 下载安装包并完成安装
 2. 双击桌面快捷方式启动程序
-3. 进入「设置」：在「通用设置」填写 CS2 路径，在「视频设置」完成 OBS 配置检查和校准
+3. 进入「设置」：在「通用设置」填写 CS:GO 路径，在「视频设置」完成 OBS 配置检查和校准
 4. 拖入 Demo → 选玩家 → 开始解析
 5. 勾选想录的片段 → 加入队列 → 开始录制 → 等待完成
 6. 去 OBS 录像目录取视频，或在合辑工作台合成导出
 ```
 
-祝你在 CS2 战场上大杀四方！🔥💀
+祝你在 CS:GO 战场上大杀四方！🔥💀
 
 ---
 
@@ -552,4 +554,4 @@ CS:GO 的第一人称 HUD 走 HLAE 的 `mirv_pov`：把 GOTV Demo 伪装成目�
 <img src="asset/wx.jpg" alt="赞助方式1" style="zoom:33%;" />
 <img src="asset/ali.jpg" alt="赞助方式2" style="zoom:33%;" />
 
-> **CS2 Insight Agent** v2.2.1 · Made with ❤️ for CS2 Players
+> **CS:GO Insight Agent** v2.2.1 · Made with ❤️ for CS:GO Players

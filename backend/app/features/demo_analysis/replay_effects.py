@@ -48,7 +48,7 @@ INFERNO_EFFECT_DURATION_SEC = 7.0
 
 
 def dynamic_utility_effects_enabled() -> bool:
-    raw = os.environ.get("CS2_INSIGHT_DYNAMIC_UTILITY_EFFECTS", "1").strip().lower()
+    raw = os.environ.get("CSGO_INSIGHT_DYNAMIC_UTILITY_EFFECTS", "1").strip().lower()
     return raw not in {"0", "false", "no", "off"}
 
 
@@ -854,7 +854,7 @@ def extract_dynamic_effect_tracks(
             "version": EFFECT_TRACKS_VERSION,
             "capabilities": capabilities,
             "effects": [],
-            "warnings": ["dynamic utility effects disabled by CS2_INSIGHT_DYNAMIC_UTILITY_EFFECTS"],
+            "warnings": ["dynamic utility effects disabled by CSGO_INSIGHT_DYNAMIC_UTILITY_EFFECTS"],
             "parse_ms": 0.0,
             "cache_hit": False,
         }

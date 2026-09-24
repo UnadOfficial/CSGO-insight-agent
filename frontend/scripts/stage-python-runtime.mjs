@@ -9,8 +9,8 @@ const pythonDir = join(repoRoot, "python");
 const pythonExe = join(pythonDir, "python.exe");
 const portablePs1 = join(repoRoot, "packaging", "windows", "package_portable.ps1");
 
-if (process.env.CS2_INSIGHT_SKIP_PYTHON_STAGE === "1") {
-  console.log("[desktop] CS2_INSIGHT_SKIP_PYTHON_STAGE=1 — skip Python staging");
+if (process.env.CSGO_INSIGHT_SKIP_PYTHON_STAGE === "1") {
+  console.log("[desktop] CSGO_INSIGHT_SKIP_PYTHON_STAGE=1 — skip Python staging");
   process.exit(0);
 }
 
@@ -22,18 +22,18 @@ if (process.platform !== "win32") {
   process.exit(0);
 }
 
-const customPython = process.env.CS2_INSIGHT_PORTABLE_PYTHON_DIR?.trim();
+const customPython = process.env.CSGO_INSIGHT_PORTABLE_PYTHON_DIR?.trim();
 if (!existsSync(portablePs1)) {
   console.error(`[desktop] missing Python staging script: ${portablePs1}`);
   process.exit(1);
 }
 
-if (existsSync(pythonExe) && process.env.CS2_INSIGHT_REFRESH_PYTHON !== "1") {
+if (existsSync(pythonExe) && process.env.CSGO_INSIGHT_REFRESH_PYTHON !== "1") {
   const manifest = runtimeManifestStatus(repoRoot, pythonDir);
   if (!manifest.valid) {
     console.error(
       `[desktop] existing Python runtime is stale (${manifest.reason}); rebuild with ` +
-      "CS2_INSIGHT_REFRESH_PYTHON=1.",
+      "CSGO_INSIGHT_REFRESH_PYTHON=1.",
     );
     process.exit(1);
   }
@@ -60,7 +60,7 @@ if (existsSync(pythonExe) && process.env.CS2_INSIGHT_REFRESH_PYTHON !== "1") {
   if (verification.status !== 0) {
     console.error(
       "[desktop] existing Python runtime is incompatible; rebuild with " +
-      "CS2_INSIGHT_REFRESH_PYTHON=1 after building tools/csgo-demo-extract.",
+      "CSGO_INSIGHT_REFRESH_PYTHON=1 after building tools/csgo-demo-extract.",
     );
     process.exit(verification.status ?? 1);
   }

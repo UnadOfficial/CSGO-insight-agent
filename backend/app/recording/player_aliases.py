@@ -3,7 +3,7 @@
 # Licensed under the PolyForm Noncommercial License 1.0.0. See LICENSE in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-"""Apply each demo's alias map once, before any VPK or recording plan is built."""
+"""Apply each demo's alias map once before a CS:GO recording plan is built."""
 from pathlib import Path
 
 from ..demo_compat_service import ensure_demo_compatible

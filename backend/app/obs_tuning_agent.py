@@ -24,7 +24,7 @@ from .obs_tuning import ObsTuningGoal
 logger = logging.getLogger(__name__)
 
 
-OBS_TUNING_SYSTEM_PROMPT = """你是 CS2 Insight 的 OBS 录制调优规划 Agent。
+OBS_TUNING_SYSTEM_PROMPT = """你是 CS:GO Insight 的 OBS 录制调优规划 Agent。
 
 你只负责根据用户选择的输出分辨率、整数 FPS，以及经过脱敏的本机 OBS、GPU、硬件编码器、磁盘和 FFmpeg 信息，解释风险并生成结构化建议。
 
@@ -88,7 +88,7 @@ def _api_key(llm: LLMConfig) -> str:
     if key.startswith("****"):
         raise ValueError("AI API Key 只是脱敏占位符，请在设置中重新填写")
     if not key and llm_base_url_is_local_host(llm.base_url):
-        return (os.environ.get("CS2_INSIGHT_LOCAL_LLM_API_KEY") or "local").strip() or "local"
+        return (os.environ.get("CSGO_INSIGHT_LOCAL_LLM_API_KEY") or "local").strip() or "local"
     if not key:
         raise ValueError("尚未配置 AI API Key")
     return key

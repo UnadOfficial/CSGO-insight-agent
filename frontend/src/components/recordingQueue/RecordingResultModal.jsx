@@ -87,7 +87,9 @@ function resultClip(result) {
     demo_filename: clipData.demo_filename ?? queueItem.demoFilename,
     demo_path: clipData.demo_path ?? queueItem.demoPath,
     clip_id: clipData.clip_id ?? queueItem.clipId,
-    pov_hud_enabled: result?.pov_hud_enabled ?? clipData.pov_hud_enabled,
+    // The old Source 2 POV HUD result field is intentionally not propagated.
+    // CS:GO recordings expose the optional HLAE path explicitly instead.
+    hlae_mirv_pov: result?.hlae_mirv_pov ?? clipData.hlae_mirv_pov,
     recording_perspective: result?.recording_perspective ?? clipData.recording_perspective,
     victim_pov_segments: result?.victim_pov_segments ?? clipData.victim_pov_segments,
     planned_segments: result?.planned_segments ?? clipData.planned_segments,
@@ -196,7 +198,7 @@ function RecordingResultCard({ result, copiedIdx, onCopy, onReveal, onDurationDe
   const extraVictimCount = getMontageExtraVictimPovCount(clip);
   const settingChips = uniqueStrings([
     perspective,
-    clip.pov_hud_enabled === true ? "HUD" : "",
+    clip.hlae_mirv_pov === true ? t("montage.perspectiveHlaeMirvPov") : "",
     extraVictimCount > 0 ? t("montage.perspectiveVictimSuffix", { n: extraVictimCount }) : "",
   ]);
   const tags = uniqueStrings([

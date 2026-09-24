@@ -1,19 +1,6 @@
-import { isRecordingSkyboxId } from "./recordingSkybox.js";
-import {
-  DEFAULT_RECORDING_MAP_MATERIAL,
-  isRecordingMapMaterialId,
-  normalizeRecordingMapMaterialId,
-  RAIN_PUDDLES_MAP_MATERIAL,
-} from "./recordingMapMaterial.js";
-import {
-  DEFAULT_RECORDING_WEATHER_EFFECT,
-  isRecordingWeatherEffectId,
-  normalizeRecordingWeatherEffectId,
-  RAIN_RECORDING_WEATHER_EFFECT,
-} from "./recordingWeatherEffect.js";
 import { isPovVoiceMode, normalizePovVoiceMode } from "./povVoiceMode.js";
 
-export const RECORDING_PRESET_FORMAT = "cs2-insight-recording-preset";
+export const RECORDING_PRESET_FORMAT = "csgo-insight-recording-preset";
 export const RECORDING_PRESET_VERSION = 7;
 export const RECORDING_PRESET_MAX_BYTES = 256 * 1024;
 
@@ -71,9 +58,6 @@ function parsePacing(value) {
 
 function parseWarmup(value, defaults) {
   if (!isObject(value)) invalid("default_record_warmup", "type");
-  const legacyVoiceDisabled = Object.hasOwn(value, "pov_voice_disabled")
-    ? requireBoolean(value.pov_voice_disabled, "default_record_warmup.pov_voice_disabled")
-    : false;
   const result = { ...defaults };
   for (const [key, defaultValue] of Object.entries(defaults)) {
     if (!Object.hasOwn(value, key)) continue;
@@ -81,18 +65,10 @@ function parseWarmup(value, defaults) {
     if (typeof defaultValue === "boolean") result[key] = requireBoolean(value[key], field);
     else if (key === "fov_cs_debug") result[key] = requireNumber(value[key], field, 60, 120);
     else if (key === "spectator_flashbang_opacity") result[key] = requireNumber(value[key], field, 0.2, 1);
-    else if (key === "pov_radar_mode") {
-      const n = requireNumber(value[key], field, -1, 0, true);
-      if (n !== -1 && n !== 0) invalid(field, "range");
-      result[key] = n;
-    } else if (key === "pov_voice_mode") {
+    else if (key === "pov_voice_mode") {
       const text = requireString(value[key], field, 16);
       if (!isPovVoiceMode(text)) invalid(field, "range");
       result[key] = text;
-    } else if (key === "input_hud_display_mode") {
-      const text = requireString(value[key], field, 16);
-      if (!["hybrid", "always", "active"].includes(text)) invalid(field, "range");
-      result[key] = "hybrid";
     } else if (key === "aspect_ratio") {
       const text = requireString(value[key], field, 8);
       if (!["", "4:3", "16:9", "16:10"].includes(text)) invalid(field, "range");
@@ -105,9 +81,8 @@ function parseWarmup(value, defaults) {
   }
   result.pov_voice_mode = normalizePovVoiceMode(
     Object.hasOwn(value, "pov_voice_mode") ? result.pov_voice_mode : undefined,
-    legacyVoiceDisabled,
+    false,
   );
-  result.pov_radar_mode = 0;
   return result;
 }
 
@@ -131,48 +106,14 @@ export function parseRecordingPresetFile(value, warmupDefaults) {
   const result = {
     recording_global_pacing: parsePacing(p.recording_global_pacing),
     default_record_warmup: parseWarmup(p.default_record_warmup, warmupDefaults),
-    cs2_extra_launch_args: requireString(p.cs2_extra_launch_args, "cs2_extra_launch_args"),
+    csgo_extra_launch_args: requireString(p.csgo_extra_launch_args, "csgo_extra_launch_args"),
     record_inject_console_lines: requireString(p.record_inject_console_lines, "record_inject_console_lines", 32768),
     obs_transition_enabled: requireBoolean(p.obs_transition_enabled, "obs_transition_enabled"),
     obs_transition_name: requireString(p.obs_transition_name, "obs_transition_name", 128),
     obs_transition_duration_ms: requireNumber(p.obs_transition_duration_ms, "obs_transition_duration_ms", 0, 10000, true),
-    experimental_pov_enabled: requireBoolean(p.experimental_pov_enabled, "experimental_pov_enabled"),
-    recording_skybox: Object.hasOwn(p, "recording_skybox")
-      ? requireString(p.recording_skybox, "recording_skybox", 64)
-      : "default",
-    recording_map_material: Object.hasOwn(p, "recording_map_material")
-      ? requireString(p.recording_map_material, "recording_map_material", 64)
-      : "default",
-    recording_weather_effect: Object.hasOwn(p, "recording_weather_effect")
-      ? requireString(p.recording_weather_effect, "recording_weather_effect", 64)
-      : DEFAULT_RECORDING_WEATHER_EFFECT,
+    hlae_mirv_pov_enabled: Object.hasOwn(p, "hlae_mirv_pov_enabled")
+      ? requireBoolean(p.hlae_mirv_pov_enabled, "hlae_mirv_pov_enabled")
+      : false,
   };
-  if (!isRecordingSkyboxId(result.recording_skybox)) {
-    invalid("recording_skybox", "range");
-  }
-  const legacyRainMaterial = result.recording_map_material.trim().toLowerCase()
-    === RAIN_PUDDLES_MAP_MATERIAL;
-  if (legacyRainMaterial) {
-    result.recording_map_material = DEFAULT_RECORDING_MAP_MATERIAL;
-    result.recording_weather_effect = RAIN_RECORDING_WEATHER_EFFECT;
-  }
-  if (!isRecordingMapMaterialId(result.recording_map_material)) {
-    invalid("recording_map_material", "range");
-  }
-  if (!isRecordingWeatherEffectId(result.recording_weather_effect)) {
-    invalid("recording_weather_effect", "range");
-  }
-  result.recording_map_material = normalizeRecordingMapMaterialId(
-    result.recording_map_material,
-  );
-  result.recording_weather_effect = normalizeRecordingWeatherEffectId(
-    result.recording_weather_effect,
-  );
-  if (
-    result.recording_map_material !== DEFAULT_RECORDING_MAP_MATERIAL
-    && result.recording_weather_effect !== DEFAULT_RECORDING_WEATHER_EFFECT
-  ) {
-    invalid("recording_weather_effect", "conflict");
-  }
   return result;
 }

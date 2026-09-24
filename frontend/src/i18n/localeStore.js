@@ -67,7 +67,7 @@ export const useLocaleStore = create((set, get) => ({
     set({ locale, effectiveLocale, hydrated: true, persistenceError: null });
   },
 
-  // 用户主动切换：立即更新 UI，并持久化到 cs2-insight.config.json（PUT /api/config）
+  // 用户主动切换：立即更新 UI，并持久化到 csgo-insight.config.json（PUT /api/config）
   setLocale: async (next) => {
     const previous = {
       locale: get().locale,

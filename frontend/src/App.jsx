@@ -18,20 +18,6 @@ import {
 } from "./utils/freezeToDeathRoundFilter";
 import { progressToastShowsBusy } from "./utils/progressToast";
 import { playerIdentityKey } from "./utils/playerIdentity.js";
-import {
-  normalizeRecordingSkyboxId,
-  RECORDING_SKYBOX_RESET_EVENT,
-} from "./utils/recordingSkybox.js";
-import {
-  DEFAULT_RECORDING_MAP_MATERIAL,
-  normalizeRecordingMapMaterialId,
-  RAIN_PUDDLES_MAP_MATERIAL,
-} from "./utils/recordingMapMaterial.js";
-import {
-  DEFAULT_RECORDING_WEATHER_EFFECT,
-  normalizeRecordingWeatherEffectId,
-  RAIN_RECORDING_WEATHER_EFFECT,
-} from "./utils/recordingWeatherEffect.js";
 import { useDemoAnalysisWorkflows } from "./features/demo-analysis/useDemoAnalysisWorkflows";
 import { useDemoLibraryController } from "./features/demo-library/useDemoLibraryController";
 import { useClipQueueActions } from "./features/recording-queue/useClipQueueActions";
@@ -60,13 +46,13 @@ const ObsAiTuningPreviewPage = lazy(() => import("./pages/ObsAiTuningPreviewPage
 const ObsAiEntryPreviewPage = lazy(() => import("./pages/ObsAiEntryPreviewPage"));
 const CosmeticsWorkshopPage = lazy(() => import("./features/cosmetics-workshop/CosmeticsWorkshopPage"));
 
-const DEFAULT_CS2_EXTRA_LAUNCH_ARGS = "-fullscreen";
+const DEFAULT_CSGO_EXTRA_LAUNCH_ARGS = "-fullscreen";
 
-function ensureDefaultCs2FullscreenArg(value) {
+function ensureDefaultCsgoFullscreenArg(value) {
   const text = String(value ?? "").trim();
-  if (!text) return DEFAULT_CS2_EXTRA_LAUNCH_ARGS;
+  if (!text) return DEFAULT_CSGO_EXTRA_LAUNCH_ARGS;
   if (/(?:^|\s)-fullscreen(?=$|\s)/i.test(text)) return text;
-  return `${text}\n${DEFAULT_CS2_EXTRA_LAUNCH_ARGS}`;
+  return `${text}\n${DEFAULT_CSGO_EXTRA_LAUNCH_ARGS}`;
 }
 
 export default function App() {
@@ -141,34 +127,22 @@ export default function App() {
     }
   }, []);
 
-  /** 来自 data/cs2-insight.config.json（或 CS2_INSIGHT_CONFIG），打开录制预热对话框时作为初始选项 */
+  /** 来自 data/csgo-insight.config.json（或 CS:GO_INSIGHT_CONFIG），打开录制预热对话框时作为初始选项 */
   const [savedRecordWarmupDefaults, setSavedRecordWarmupDefaults] = useState(null);
   const savedRecordWarmupDefaultsRef = useRef(null);
   const queuePacingInitializedRef = useRef(false);
-  const [cs2ExtraLaunchArgs, setCs2ExtraLaunchArgs] = useState("");
+  const [csgoExtraLaunchArgs, setCsgoExtraLaunchArgs] = useState("");
   const [recordInjectConsoleLines, setRecordInjectConsoleLines] = useState("");
   const [queueDrawerOpen, setQueueDrawerOpen] = useState(false);
   const [montageDrawerOpen, setMontageDrawerOpen] = useState(false);
   const [commonParamsOpen, setCommonParamsOpen] = useState(false);
-  const [experimentalPovEnabled, setExperimentalPovEnabled] = useState(false);
-  const [recordingSkybox, setRecordingSkybox] = useState("default");
-  const [recordingMapMaterial, setRecordingMapMaterial] = useState(
-    DEFAULT_RECORDING_MAP_MATERIAL,
-  );
-  const [recordingWeatherEffect, setRecordingWeatherEffect] = useState(
-    DEFAULT_RECORDING_WEATHER_EFFECT,
-  );
-  useEffect(() => {
-    const resetRecordingSkybox = () => setRecordingSkybox("default");
-    window.addEventListener(RECORDING_SKYBOX_RESET_EVENT, resetRecordingSkybox);
-    return () => window.removeEventListener(RECORDING_SKYBOX_RESET_EVENT, resetRecordingSkybox);
-  }, []);
+  const [hlaeMirvPovEnabled, setHlaeMirvPovEnabled] = useState(false);
   const [obsTransitionEnabled, setObsTransitionEnabled] = useState(false);
   const [obsTransitionName, setObsTransitionName] = useState("Fade");
   const [obsTransitionDurationMs, setObsTransitionDurationMs] = useState(100);
   /** 保存或拉取配置后递增，驱动常用参数页表单重新灌入 */
   const [commonParamsRefreshKey, setCommonParamsRefreshKey] = useState(0);
-  const [cs2Path, setCs2Path] = useState("");
+  const [csgoPath, setCsgoPath] = useState("");
   const [ffmpegPath, setFfmpegPath] = useState("");
   const [montageEncoder, setMontageEncoder] = useState("auto");
   const [demoWatchPaths, setDemoWatchPaths] = useState([]);
@@ -480,8 +454,8 @@ export default function App() {
     } else {
       setSavedRecordWarmupDefaults({});
     }
-    if (typeof data.cs2_extra_launch_args === "string") {
-      setCs2ExtraLaunchArgs(data.cs2_extra_launch_args);
+    if (typeof data.csgo_extra_launch_args === "string") {
+      setCsgoExtraLaunchArgs(data.csgo_extra_launch_args);
     }
     if (typeof data.record_inject_console_lines === "string") {
       setRecordInjectConsoleLines(data.record_inject_console_lines);
@@ -495,29 +469,8 @@ export default function App() {
     if (typeof data.obs_transition_duration_ms === "number") {
       setObsTransitionDurationMs(data.obs_transition_duration_ms);
     }
-    if (data.experimental && typeof data.experimental.pov_enabled === "boolean") {
-      setExperimentalPovEnabled(data.experimental.pov_enabled);
-    }
-    if (typeof data.recording_skybox === "string") {
-      setRecordingSkybox(normalizeRecordingSkyboxId(data.recording_skybox));
-    }
-    if (typeof data.recording_map_material === "string") {
-      const legacyRain = data.recording_map_material.trim().toLowerCase()
-        === RAIN_PUDDLES_MAP_MATERIAL;
-      setRecordingMapMaterial(
-        legacyRain
-          ? DEFAULT_RECORDING_MAP_MATERIAL
-          : normalizeRecordingMapMaterialId(data.recording_map_material),
-      );
-      setRecordingWeatherEffect(
-        legacyRain
-          ? RAIN_RECORDING_WEATHER_EFFECT
-          : normalizeRecordingWeatherEffectId(data.recording_weather_effect),
-      );
-    } else if (typeof data.recording_weather_effect === "string") {
-      setRecordingWeatherEffect(
-        normalizeRecordingWeatherEffectId(data.recording_weather_effect),
-      );
+    if (typeof data.hlae_mirv_pov_enabled === "boolean") {
+      setHlaeMirvPovEnabled(data.hlae_mirv_pov_enabled);
     }
     const savedPacing =
       data.recording_global_pacing &&
@@ -568,10 +521,10 @@ export default function App() {
             });
           }
           if (typeof data.ai_mode === "boolean") setAiMode(data.ai_mode);
-          if (typeof data.experimental?.pov_enabled === "boolean") {
-            setExperimentalPovEnabled(data.experimental.pov_enabled);
+          if (typeof data.hlae_mirv_pov_enabled === "boolean") {
+            setHlaeMirvPovEnabled(data.hlae_mirv_pov_enabled);
           }
-          if (data.cs2_path) setCs2Path(data.cs2_path);
+          if (data.csgo_path) setCsgoPath(data.csgo_path);
           if (typeof data.ffmpeg_path === "string") setFfmpegPath(data.ffmpeg_path);
           if (typeof data.montage_encoder === "string" && data.montage_encoder.trim()) {
             setMontageEncoder(data.montage_encoder.trim().toLowerCase());
@@ -617,15 +570,12 @@ export default function App() {
     const body = {
       default_record_warmup: mergedWarmup,
       recording_global_pacing: pacing,
-      cs2_extra_launch_args: String(payload?.cs2_extra_launch_args ?? ""),
+      csgo_extra_launch_args: String(payload?.csgo_extra_launch_args ?? ""),
       record_inject_console_lines: String(payload?.record_inject_console_lines ?? ""),
       obs_transition_enabled: !!payload?.obs_transition_enabled,
       obs_transition_name: payload?.obs_transition_name ?? "Fade",
       obs_transition_duration_ms: Number(payload?.obs_transition_duration_ms) || 100,
-      recording_skybox: normalizeRecordingSkyboxId(payload?.recording_skybox),
-      recording_map_material: normalizeRecordingMapMaterialId(payload?.recording_map_material),
-      recording_weather_effect: normalizeRecordingWeatherEffectId(payload?.recording_weather_effect),
-      experimental: { pov_enabled: !!payload?.experimental_pov_enabled },
+      hlae_mirv_pov_enabled: !!payload?.hlae_mirv_pov_enabled,
     };
     try {
       await API.put("config", body);
@@ -795,16 +745,16 @@ export default function App() {
     resetAnalysisWorkflow();
   }, [resetAnalysisWorkflow, setLibraryDemoIdsByIndex, setProgressText]);
 
-  const handleDetectCs2 = useCallback(async () => {
+  const handleDetectCsgo = useCallback(async () => {
     try {
-      const { data } = await API.post("config/detect-cs2");
-      if (data.cs2_path) {
-        setCs2Path(data.cs2_path);
-        setProgressText(t("app.cs2DetectFound", { path: data.cs2_path }), { autoDismissMs: 4500 });
+      const { data } = await API.post("config/detect-csgo");
+      if (data.csgo_path) {
+        setCsgoPath(data.csgo_path);
+        setProgressText(t("app.csgoDetectFound", { path: data.csgo_path }), { autoDismissMs: 4500 });
       }
     } catch (e) {
       const msg = e.response?.data?.detail || e.message;
-      setProgressText(typeof msg === "string" ? msg : t("app.cs2DetectFail"));
+       setProgressText(typeof msg === "string" ? msg : t("app.csgoDetectFail"));
     }
   }, [t]);
 
@@ -844,7 +794,7 @@ export default function App() {
         : [];
       try {
         await API.put("config", {
-          cs2_path: cs2Path,
+          csgo_path: csgoPath,
           ffmpeg_path: ffmpegPath,
           montage_encoder: montageEncoder,
           expected_parse_players: arr,
@@ -856,7 +806,7 @@ export default function App() {
         setProgressText(t("app.settingsSaveFail", { msg: e.response?.data?.detail || e.message }), { isError: true });
       }
     },
-    [cs2Path, ffmpegPath, montageEncoder, persistLlmConfig, setExpectedParsePlayersText, t],
+    [csgoPath, ffmpegPath, montageEncoder, persistLlmConfig, setExpectedParsePlayersText, t],
   );
 
   const handleExportSettingsConfig = useCallback(async () => {
@@ -865,7 +815,7 @@ export default function App() {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `cs2-insight-config-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+      a.download = `csgo-insight-config-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
       a.click();
       URL.revokeObjectURL(a.href);
       setProgressText(t("app.configExportDone"), { autoDismissMs: 3500 });
@@ -881,9 +831,9 @@ export default function App() {
     }
     try {
       const put = {};
-      if (typeof raw.cs2_path === "string") {
-        put.cs2_path = raw.cs2_path;
-        setCs2Path(raw.cs2_path);
+      if (typeof raw.csgo_path === "string") {
+        put.csgo_path = raw.csgo_path;
+        setCsgoPath(raw.csgo_path);
       }
       if (typeof raw.ffmpeg_path === "string") {
         put.ffmpeg_path = raw.ffmpeg_path;
@@ -909,19 +859,19 @@ export default function App() {
         put.expected_parse_players = raw.expected_parse_players;
         setExpectedParsePlayersText(raw.expected_parse_players.join("\n"));
       }
-      if (typeof raw.cs2_extra_launch_args === "string") {
+      if (typeof raw.csgo_extra_launch_args === "string") {
         const launchArgsUserConfigured =
-          typeof raw.cs2_extra_launch_args_user_configured === "boolean"
-            ? raw.cs2_extra_launch_args_user_configured
+          typeof raw.csgo_extra_launch_args_user_configured === "boolean"
+            ? raw.csgo_extra_launch_args_user_configured
             : false;
         const launchArgs = launchArgsUserConfigured
-          ? raw.cs2_extra_launch_args
-          : ensureDefaultCs2FullscreenArg(raw.cs2_extra_launch_args);
-        put.cs2_extra_launch_args = launchArgs;
-        put.cs2_extra_launch_args_user_configured = launchArgsUserConfigured;
-        setCs2ExtraLaunchArgs(launchArgs);
-      } else if (typeof raw.cs2_extra_launch_args_user_configured === "boolean") {
-        put.cs2_extra_launch_args_user_configured = raw.cs2_extra_launch_args_user_configured;
+          ? raw.csgo_extra_launch_args
+          : ensureDefaultCsgoFullscreenArg(raw.csgo_extra_launch_args);
+        put.csgo_extra_launch_args = launchArgs;
+        put.csgo_extra_launch_args_user_configured = launchArgsUserConfigured;
+        setCsgoExtraLaunchArgs(launchArgs);
+      } else if (typeof raw.csgo_extra_launch_args_user_configured === "boolean") {
+        put.csgo_extra_launch_args_user_configured = raw.csgo_extra_launch_args_user_configured;
       }
       if (Object.keys(put).length) {
         await API.put("config", put);
@@ -959,7 +909,7 @@ export default function App() {
       return;
     }
     const defaults = {
-      cs2_path: "",
+      csgo_path: "",
       ffmpeg_path: "",
       montage_encoder: "auto",
       ai_mode: false,
@@ -971,7 +921,7 @@ export default function App() {
     };
     try {
       await API.put("config", defaults);
-      setCs2Path("");
+      setCsgoPath("");
       setFfmpegPath("");
       setMontageEncoder("auto");
       setAiMode(false);
@@ -1276,8 +1226,8 @@ export default function App() {
     setLlmConfig,
     llmKeySavedOnServer,
     persistLlmConfig,
-    cs2Path,
-    setCs2Path,
+    csgoPath,
+    setCsgoPath,
     ffmpegPath,
     setFfmpegPath,
     montageEncoder,
@@ -1290,7 +1240,7 @@ export default function App() {
     fetchUpdateInfo,
     startupInitDone,
     initialQuickCheckStatus,
-    handleDetectCs2,
+    handleDetectCsgo,
     handleDetectFfmpeg,
     handleSaveAllSettingsPage,
     saveExpectedPlayersFromList,
@@ -1311,12 +1261,8 @@ export default function App() {
     savedRecordWarmupDefaults,
     saveAllCommonParams,
     commonParamsRefreshKey,
-    cs2ExtraLaunchArgs,
+    csgoExtraLaunchArgs,
     recordInjectConsoleLines,
-    experimentalPovEnabled,
-    recordingSkybox,
-    recordingMapMaterial,
-    recordingWeatherEffect,
     hasDemos,
     parsing,
     handleUpload,
@@ -1413,6 +1359,7 @@ export default function App() {
     obsTransitionEnabled,
     obsTransitionName,
     obsTransitionDurationMs,
+    hlaeMirvPovEnabled,
   };
 
   const parsingShownInline =
@@ -1424,7 +1371,7 @@ export default function App() {
     (anyDemoParsing && !parsingShownInline)
   );
   const globalNoticeText = progressText
-    || (batchRecording ? t("common.preparingMapResources") : "")
+    || (batchRecording ? t("common.preparingRecording") : "")
     || (analysisInlineProgress?.active === true ? analysisInlineProgress.text : "")
     || (anyDemoParsing ? t("analysis.parsing") : "");
   const isStandalonePreview = [
@@ -1553,11 +1500,8 @@ export default function App() {
           onClose={dismissWarmup}
           onConfirm={handleWarmupConfirm}
           defaultOverrides={savedRecordWarmupDefaults ?? undefined}
-          experimentalPovEnabled={experimentalPovEnabled}
-          recordingSkybox={recordingSkybox}
-          recordingMapMaterial={recordingMapMaterial}
-          recordingWeatherEffect={recordingWeatherEffect}
-          cs2ExtraLaunchArgs={cs2ExtraLaunchArgs}
+          hlaeMirvPovEnabled={hlaeMirvPovEnabled}
+          csgoExtraLaunchArgs={csgoExtraLaunchArgs}
           recordInjectConsoleLines={recordInjectConsoleLines}
           initObsTransEnabled={obsTransitionEnabled}
           initObsTransName={obsTransitionName}
@@ -1582,7 +1526,6 @@ export default function App() {
           message={recordingBlockedMessage}
           errorCode={recordingBlockedCode}
           configRecoveryNeeded={recordingRecoveryPrompt.configRecoveryNeeded}
-          povRecoveryNeeded={recordingRecoveryPrompt.povRecoveryNeeded}
           onClose={clearRecordingBlock}
         />
 

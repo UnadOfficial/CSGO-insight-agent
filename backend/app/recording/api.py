@@ -2,10 +2,11 @@ import asyncio
 import dataclasses
 import logging
 import tempfile
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from .models import RecordingRequestDTO, RecordingPlan, RequestType, RecordingOptions
 from .plan_builder import build_plan
 from .normalizer import NormalizationError, normalize
@@ -16,7 +17,7 @@ from .ai_director import (
     count_available_victim_pov,
 )
 from .planners.ai_directed_planner import plan_from_ai_outline
-from ..env_utils import OBSConfig, AppConfig, load_config, ensure_cs2_path, resolve_config_path
+from ..env_utils import OBSConfig, AppConfig, load_config, ensure_csgo_path, resolve_config_path
 from .executor.obs_client import OBSClient, OBSConnectionError
 from .executor.recording_executor import RecordingExecutor, ExecutionResult
 from .executor.kill_markers import enrich_markers_with_events
@@ -24,38 +25,78 @@ from .executor.obs_fade_controller import OBSFadeController, FadeConfig
 from .services.result_writer import write_result
 from ..montage_db import MontageDB
 from ..api_errors import error_detail
-from ..demo_compat_service import ensure_demo_compatible
+from ..csgo_demo_format import DemoFormatError, require_csgo_demo
+from ..csgo_config_backup import is_csgo_running
 from ..demo_paths import resolve_working_demo_path
 from ..databases import demo_db
 from ..runtime_session import runtime_session_dependency
-from ..skybox_vpk import DEFAULT_SKYBOX_ID, SkyboxVpkError, normalize_skybox_id
-from ..map_material_vpk import (
-    DEFAULT_MAP_MATERIAL_ID,
-    MapMaterialVpkError,
-    RAIN_PUDDLES_MAP_MATERIAL_ID,
-    normalize_map_material_id,
-)
 from ..player_aliases import PlayerAliasError
-from ..pov_constants import normalize_pov_voice_mode
-from ..weather_effects import (
-    DEFAULT_WEATHER_EFFECT_ID,
-    RAIN_WEATHER_EFFECT_ID,
-    WeatherEffectError,
-    normalize_weather_effect_id,
-)
 from .player_aliases import prepare_recording_aliases
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/recording", tags=["recording"])
 
-# ── Lazy singleton for the shared cs2-insight.db ────────────────────────────
+# ── Lazy singleton for the shared csgo-insight.db ────────────────────────────
 _montage_db: Optional[MontageDB] = None
+
+_UNSUPPORTED_SOURCE2_FIELDS = frozenset(
+    {
+        "recording_skybox",
+        "recording_map_material",
+        "recording_weather_effect",
+        "skybox",
+        "map_material",
+        "weather",
+        "skybox_id",
+        "map_material_id",
+        "weather_effect_id",
+        "pov_hud",
+        "pov_hud_enabled",
+        "recording_hud_enabled",
+        "experimental_pov_enabled",
+        "input_hud_enabled",
+        "input_hud_display_mode",
+        "input_audio_enabled",
+        "combat_stats_hud_enabled",
+        "pov_radar_mode",
+        "pov_teamcounter_numeric",
+    }
+)
+
+
+def _reject_source2_recording_features(dto: RecordingRequestDTO) -> None:
+    """Reject stale Source 2 recording options at every recording entry point."""
+    top_level = set(getattr(dto, "model_extra", {}) or {})
+    nested = set(getattr(dto.options, "model_extra", {}) or {})
+    unsupported = _UNSUPPORTED_SOURCE2_FIELDS.intersection(top_level | nested)
+    if unsupported:
+        raise HTTPException(
+            410,
+            error_detail("CSGO_UNSUPPORTED_FEATURE", feature="source2_visuals_or_pov_hud"),
+        )
+
+
+def _validate_demo_format_if_available(dto: RecordingRequestDTO) -> None:
+    """Apply the Source 1 magic-byte gate before planning or execution.
+
+    Queue items can temporarily contain a path that has not been materialized;
+    those are left for the normal path-resolution error. When the file exists,
+    however, PBDEMS2 and unknown formats must produce the stable public code
+    instead of being interpreted as a valid recording context.
+    """
+    demo_path = Path(str(dto.demo.demo_path or "").strip())
+    if not demo_path.is_file():
+        return
+    try:
+        require_csgo_demo(demo_path)
+    except DemoFormatError as exc:
+        raise HTTPException(422, error_detail(exc.code)) from exc
 
 
 def _get_montage_db() -> MontageDB:
     global _montage_db
     if _montage_db is None:
-        db_path = resolve_config_path().parent / "cs2-insight.db"
+        db_path = resolve_config_path().parent / "csgo-insight.db"
         _montage_db = MontageDB(db_path)
     return _montage_db
 
@@ -229,7 +270,7 @@ def build_v3_recorded_clip_meta(
         "segment_results": result.get("segment_results", []),
         "warnings": result.get("warnings", []),
         # Display fields for the montage workbench material pool
-        "pov_hud_enabled": result.get("pov_hud_enabled", False),
+        "hlae_mirv_pov": result.get("hlae_mirv_pov", False),
         "recording_perspective": result.get("recording_perspective"),
         "victim_pov_segments": result.get("victim_pov_segments", []),
     }
@@ -348,6 +389,8 @@ def recording_abort():
 
 @router.post("/plan", response_model=dict)
 async def create_recording_plan(dto: RecordingRequestDTO) -> dict:
+    _reject_source2_recording_features(dto)
+    _validate_demo_format_if_available(dto)
     try:
         plan = build_plan(dto)
     except NormalizationError as e:
@@ -405,6 +448,8 @@ async def create_recording_plan(dto: RecordingRequestDTO) -> dict:
 @router.post("/ai-director/preview", response_model=dict)
 async def ai_director_preview(dto: RecordingRequestDTO) -> dict:
     """LLM 导播大纲预览（不执行录制）。"""
+    _reject_source2_recording_features(dto)
+    _validate_demo_format_if_available(dto)
     try:
         req = normalize(dto)
     except NormalizationError as e:
@@ -453,9 +498,11 @@ async def execute_recording(
     _runtime_session: None = Depends(runtime_session_dependency),
 ) -> dict:
     """
-    Build a RecordingPlan and execute it using OBS + CS2.
+    Build a RecordingPlan and execute it using OBS + CSGO.
     Returns execution result summary.
     """
+    _reject_source2_recording_features(dto)
+    _validate_demo_format_if_available(dto)
     try:
         plan = build_plan(dto)
     except NormalizationError as e:
@@ -463,7 +510,15 @@ async def execute_recording(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    config = load_config()
+    config = ensure_csgo_path(load_config())
+    if (
+        not config.csgo_path
+        or not Path(str(config.csgo_path)).is_file()
+        or Path(str(config.csgo_path)).name.lower() != "csgo.exe"
+    ):
+        raise HTTPException(status_code=400, detail=error_detail("RECORDING_CSGO_PATH_MISSING"))
+    if is_csgo_running():
+        raise HTTPException(status_code=409, detail=error_detail("RECORDING_CSGO_RUNNING"))
     obs_cfg = config.obs if hasattr(config, "obs") else OBSConfig()
     obs_client = OBSClient(obs_cfg)
     global _queue_abort_event
@@ -514,15 +569,16 @@ async def execute_recording(
 
 
 class QueueRecordingRequest(BaseModel):
+    # Keep the boundary permissive only so stale Source 2 clients can receive
+    # the explicit CSGO_UNSUPPORTED_FEATURE response below. Unknown fields are
+    # never forwarded to the recorder.
+    model_config = ConfigDict(extra="allow")
+
     requests: list[RecordingRequestDTO] = Field(..., min_length=1, max_length=100)
     warmup: Optional[dict] = None
     obs: Optional[dict] = None
-    pov_hud: Optional[dict] = None  # POV plus independent in-game voice/input presentation choices
-    skybox: Optional[dict] = None  # {id: default|built-in id|custom:<uuid hex>}
-    map_material: Optional[dict] = None  # {id: default|waxed_reflection}
-    weather: Optional[dict] = None  # {id: default|rain}; future weather ids extend here
-    # 仅本次录制队列生效，不写入 cs2-insight.config.json
-    cs2_extra_launch_args: Optional[str] = None
+    # 仅本次录制队列生效，不写入 csgo-insight.config.json
+    csgo_extra_launch_args: Optional[str] = None
     record_inject_console_lines: Optional[str] = None
 
 
@@ -535,13 +591,13 @@ async def execute_recording_queue(
     [RecordingV3] Execute a batch of RecordingRequestDTOs through the new
     build_plan → RecordingExecutor pipeline.
 
-    Groups requests by demo path (one CS2 session per unique demo), launches
-    CS2 via OBSDirector infrastructure, then records each plan segment using
+    Groups requests by demo path (one CSGO session per unique demo), launches
+    CSGO via OBSDirector infrastructure, then records each plan segment using
     the new RecordingExecutor.
     """
     from pathlib import Path
-    from ..obs_director import OBSDirector, CS2AlreadyRunningError, CS2NotReadyError, RecordingWarmupExtras
-    from ..cs2_config_backup import is_cs2_running, is_restore_required
+    from ..obs_director import OBSDirector, CSGOAlreadyRunningError, CSGONotReadyError, RecordingWarmupExtras
+    from ..csgo_config_backup import is_csgo_running, is_restore_required
 
     def _merge_obs(payload: Optional[OBSConfig], saved: OBSConfig) -> OBSConfig:
         if payload is None:
@@ -562,13 +618,30 @@ async def execute_recording_queue(
     if not req.requests:
         return []
 
-    cfg = load_config()
-    cfg = ensure_cs2_path(cfg)
+    nested_unsupported = False
+    for dto in req.requests:
+        try:
+            _reject_source2_recording_features(dto)
+        except HTTPException:
+            nested_unsupported = True
+            break
+    if nested_unsupported or _UNSUPPORTED_SOURCE2_FIELDS.intersection(getattr(req, "model_extra", {}) or {}):
+        raise HTTPException(
+            410,
+            error_detail("CSGO_UNSUPPORTED_FEATURE", feature="source2_visuals_or_pov_hud"),
+        )
 
-    if not cfg.cs2_path:
-        raise HTTPException(400, error_detail("RECORDING_CS2_PATH_MISSING"))
-    if is_cs2_running():
-        raise HTTPException(409, error_detail("RECORDING_CS2_RUNNING"))
+    cfg = load_config()
+    cfg = ensure_csgo_path(cfg)
+
+    if (
+        not cfg.csgo_path
+        or not Path(str(cfg.csgo_path)).is_file()
+        or Path(str(cfg.csgo_path)).name.lower() != "csgo.exe"
+    ):
+        raise HTTPException(400, error_detail("RECORDING_CSGO_PATH_MISSING"))
+    if is_csgo_running():
+        raise HTTPException(409, error_detail("RECORDING_CSGO_RUNNING"))
     if is_restore_required():
         raise HTTPException(409, error_detail("RECORDING_CONFIG_RESTORE_REQUIRED"))
 
@@ -582,7 +655,7 @@ async def execute_recording_queue(
     obs_cfg = _merge_obs(obs_cfg_override, cfg.obs)
 
     # Pre-recording OBS connection check — verify OBS is reachable before
-    # launching CS2, so we fail fast rather than wasting ~60s on CS2 warmup
+    # launching CSGO, so we fail fast rather than wasting ~60s on CSGO warmup
     # only to discover OBS is down.
     try:
         _pre_obs_client = OBSClient(obs_cfg)
@@ -625,189 +698,46 @@ async def execute_recording_queue(
         )
     )
     for demo_path in unique_demo_paths:
-        # Alias sessions repair only the generated recording copy, never the source demo.
-        if any(
-            dto.player_aliases
-            for dto in resolved_requests
-            if dto.demo.demo_path == demo_path
-        ):
-            continue
         try:
-            compat = await asyncio.to_thread(ensure_demo_compatible, demo_path)
-        except Exception as exc:
-            logger.exception("[RecordingV3] demo compatibility preflight failed: %s", demo_path)
-            raise HTTPException(422, f"Demo compatibility repair failed: {exc}") from exc
-        logger.info(
-            "[RecordingV3] compatibility ready: cached=%s outcome=%s "
-            "removed_type138=%d removed_win_panel=%d source=%s",
-            compat.cached,
-            compat.report.outcome,
-            compat.report.removed_messages,
-            compat.report.removed_win_panel_events,
-            demo_path,
-        )
+            require_csgo_demo(demo_path)
+        except DemoFormatError as exc:
+            raise HTTPException(422, error_detail(exc.code)) from exc
 
-    # Build warmup extras from request warmup dict.
-    # Merge pov_hud fields into warmup_extras so execute_plan_queue sees them.
+    # Build the Source 1 warmup extras from the request.
     warmup_extras = None
     if req.warmup:
         try:
             _warmup_dict = dict(req.warmup)
+            unsupported_keys = {
+                "recording_skybox",
+                "recording_map_material",
+                "recording_weather_effect",
+                "skybox_id",
+                "map_material_id",
+                "weather_effect_id",
+                "pov_hud_enabled",
+                "recording_hud_enabled",
+                "experimental_pov_enabled",
+                "pov_hud",
+                "input_hud_enabled",
+                "input_hud_display_mode",
+                "input_audio_enabled",
+                "combat_stats_hud_enabled",
+                "pov_radar_mode",
+                "pov_teamcounter_numeric",
+            }
+            if unsupported_keys.intersection(_warmup_dict):
+                raise HTTPException(
+                    410,
+                    error_detail("CSGO_UNSUPPORTED_FEATURE", feature="source2_visuals_or_pov_hud"),
+                )
             _valid_keys = {f.name for f in dataclasses.fields(RecordingWarmupExtras)}
             _filtered = {k: v for k, v in _warmup_dict.items() if k in _valid_keys}
             warmup_extras = RecordingWarmupExtras(**_filtered)
+        except HTTPException:
+            raise
         except Exception as e:
             logger.warning("[RecordingV3] warmup parse failed: %s", e)
-
-    if req.pov_hud is not None:
-        pov_hud_cfg = req.pov_hud
-        if warmup_extras is None:
-            warmup_extras = RecordingWarmupExtras()
-        pov_enabled = bool(pov_hud_cfg.get("enabled"))
-        explicit_voice_mode = pov_hud_cfg.get("voice_mode")
-        voice_mode = normalize_pov_voice_mode(
-            explicit_voice_mode
-            if explicit_voice_mode is not None
-            else warmup_extras.pov_voice_mode,
-            legacy_voice_disabled=(
-                explicit_voice_mode is None
-                and bool(
-                    pov_hud_cfg.get(
-                        "voice_disabled",
-                        warmup_extras.pov_voice_disabled,
-                    )
-                )
-            ),
-        )
-        input_hud_display_mode = str(
-            pov_hud_cfg.get("input_hud_display_mode", "hybrid")
-        ).strip().lower()
-        if input_hud_display_mode not in {"hybrid", "always", "active"}:
-            input_hud_display_mode = "hybrid"
-        input_hud_enabled = bool(
-            pov_hud_cfg.get("input_hud_enabled", warmup_extras.input_hud_enabled)
-        )
-        has_independent_hud_choice = (
-            "voice_mode" in pov_hud_cfg or "input_hud_enabled" in pov_hud_cfg
-        )
-        recording_hud_enabled = bool(
-            pov_enabled
-            or (
-                has_independent_hud_choice
-                and (voice_mode != "mute" or input_hud_enabled)
-            )
-        )
-        # Patch warmup extras with POV HUD settings
-        warmup_extras = dataclasses.replace(
-            warmup_extras,
-            pov_hud_enabled=pov_enabled,
-            recording_hud_enabled=recording_hud_enabled,
-            pov_radar_mode=int(pov_hud_cfg.get("radar_mode", 0)),
-            pov_teamcounter_numeric=bool(pov_hud_cfg.get("teamcounter_numeric", False)),
-            pov_voice_mode=voice_mode,
-            pov_voice_disabled=False,
-            input_hud_enabled=input_hud_enabled,
-            input_hud_display_mode=input_hud_display_mode,
-            input_audio_enabled=bool(pov_hud_cfg.get("input_audio_enabled", False)),
-            combat_stats_hud_enabled=bool(
-                pov_hud_cfg.get("combat_stats_hud_enabled", True)
-            ),
-        )
-        logger.info(
-            "[RecordingV3] in-game HUD choices: pov=%s, recording_hud=%s, "
-            "radar_mode=%s, teamcounter_numeric=%s, "
-            "voice_mode=%s, input_hud=%s, input_mode=%s, input_audio=%s, combat_stats=%s",
-            warmup_extras.pov_hud_enabled,
-            warmup_extras.recording_hud_enabled,
-            warmup_extras.pov_radar_mode,
-            warmup_extras.pov_teamcounter_numeric,
-            warmup_extras.pov_voice_mode,
-            warmup_extras.input_hud_enabled,
-            warmup_extras.input_hud_display_mode,
-            warmup_extras.input_audio_enabled,
-            warmup_extras.combat_stats_hud_enabled,
-        )
-
-    saved_skybox_id = getattr(cfg, "recording_skybox", DEFAULT_SKYBOX_ID)
-    raw_skybox_id = (
-        req.skybox.get("id", saved_skybox_id)
-        if isinstance(req.skybox, dict)
-        else saved_skybox_id
-    )
-    try:
-        recording_skybox_id = normalize_skybox_id(raw_skybox_id)
-    except SkyboxVpkError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    if recording_skybox_id != DEFAULT_SKYBOX_ID:
-        if warmup_extras is None:
-            warmup_extras = RecordingWarmupExtras()
-        warmup_extras = dataclasses.replace(
-            warmup_extras,
-            skybox_id=recording_skybox_id,
-        )
-        logger.info("[RecordingV3] skybox enabled: %s", recording_skybox_id)
-
-    saved_map_material_id = getattr(
-        cfg, "recording_map_material", DEFAULT_MAP_MATERIAL_ID
-    )
-    raw_map_material_id = (
-        req.map_material.get("id", saved_map_material_id)
-        if isinstance(req.map_material, dict)
-        else saved_map_material_id
-    )
-    try:
-        recording_map_material_id = normalize_map_material_id(raw_map_material_id)
-    except MapMaterialVpkError as exc:
-        raise HTTPException(422, str(exc)) from exc
-
-    saved_weather_effect_id = getattr(
-        cfg, "recording_weather_effect", DEFAULT_WEATHER_EFFECT_ID
-    )
-    raw_weather_effect_id = (
-        req.weather.get("id", saved_weather_effect_id)
-        if isinstance(req.weather, dict)
-        else saved_weather_effect_id
-    )
-    try:
-        recording_weather_effect_id = normalize_weather_effect_id(
-            raw_weather_effect_id
-        )
-    except WeatherEffectError as exc:
-        raise HTTPException(422, str(exc)) from exc
-
-    # Compatibility for presets saved before rain became an independent
-    # weather category.
-    if recording_map_material_id == RAIN_PUDDLES_MAP_MATERIAL_ID:
-        if recording_weather_effect_id not in {
-            DEFAULT_WEATHER_EFFECT_ID,
-            RAIN_WEATHER_EFFECT_ID,
-        }:
-            raise HTTPException(422, "雨天不能与另一种天气效果同时启用。")
-        recording_map_material_id = DEFAULT_MAP_MATERIAL_ID
-        recording_weather_effect_id = RAIN_WEATHER_EFFECT_ID
-
-    if (
-        recording_map_material_id != DEFAULT_MAP_MATERIAL_ID
-        and recording_weather_effect_id != DEFAULT_WEATHER_EFFECT_ID
-    ):
-        raise HTTPException(422, "打蜡与天气效果不能同时启用。")
-
-    if (
-        recording_map_material_id != DEFAULT_MAP_MATERIAL_ID
-        or recording_weather_effect_id != DEFAULT_WEATHER_EFFECT_ID
-    ):
-        if warmup_extras is None:
-            warmup_extras = RecordingWarmupExtras()
-        warmup_extras = dataclasses.replace(
-            warmup_extras,
-            map_material_id=recording_map_material_id,
-            weather_effect_id=recording_weather_effect_id,
-        )
-        logger.info(
-            "[RecordingV3] visual effects enabled: map_material=%s weather=%s",
-            recording_map_material_id,
-            recording_weather_effect_id,
-        )
 
     global _queue_abort_event
     if _queue_abort_event is not None:
@@ -824,9 +754,9 @@ async def execute_recording_queue(
         logger.warning("[RecordingV3] OBS fade transition setup failed or disabled; recording in hard-cut mode")
 
     launch_args = (
-        req.cs2_extra_launch_args
-        if req.cs2_extra_launch_args is not None
-        else cfg.cs2_extra_launch_args
+        req.csgo_extra_launch_args
+        if req.csgo_extra_launch_args is not None
+        else cfg.csgo_extra_launch_args
     )
     inject_lines = (
         req.record_inject_console_lines
@@ -835,9 +765,9 @@ async def execute_recording_queue(
     )
     director = OBSDirector(
         obs_cfg,
-        cfg.cs2_path,
+        cfg.csgo_path,
         abort_event=abort_ev,
-        cs2_extra_launch_args=launch_args,
+        csgo_extra_launch_args=launch_args,
         record_inject_console_lines=inject_lines,
         spec_player_verify=cfg.spec_player_verify,
     )
@@ -854,9 +784,9 @@ async def execute_recording_queue(
             )
     except PlayerAliasError as e:
         raise HTTPException(422, str(e)) from e
-    except CS2AlreadyRunningError as e:
-        raise HTTPException(409, error_detail("RECORDING_CS2_RUNNING")) from e
-    except CS2NotReadyError as e:
+    except CSGOAlreadyRunningError as e:
+        raise HTTPException(409, error_detail("RECORDING_CSGO_RUNNING")) from e
+    except CSGONotReadyError as e:
         raise HTTPException(409, error_detail("RECORDING_GSI_NOT_READY")) from e
     except Exception as e:
         logger.exception("[RecordingV3] execute_plan_queue failed")

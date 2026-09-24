@@ -14,7 +14,7 @@ AppPublisherURL={#MyAppURL}
 DefaultDirName={localappdata}\CSGOInsightAgent
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
-OutputBaseFilename=CS2InsightAgent-{#MyAppVersion}-Setup
+OutputBaseFilename=CSGOInsightAgent-{#MyAppVersion}-Setup
 SetupIconFile=app-icon.ico
 Compression=lzma2/max
 SolidCompression=yes
@@ -38,8 +38,8 @@ Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubd
 
 [Icons]
 ; WorkingDir must be install root: some shells resolve -File relative to Start-in; script lives in {app}, not {app}\backend.
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Normal -ExecutionPolicy Bypass -File ""{app}\Launch-CS2Insight.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Normal -ExecutionPolicy Bypass -File ""{app}\Launch-CS2Insight.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Normal -ExecutionPolicy Bypass -File ""{app}\Launch-CSGOInsight.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Normal -ExecutionPolicy Bypass -File ""{app}\Launch-CSGOInsight.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Normal -ExecutionPolicy Bypass -File ""{app}\scripts\install-optional-ffmpeg.ps1"" -AppRoot ""{app}"""; StatusMsg: "Installing FFmpeg..."; Tasks: downloadffmpeg; Flags: runasoriginaluser waituntilterminated

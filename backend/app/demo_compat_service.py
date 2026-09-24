@@ -1,4 +1,4 @@
-"""One-time, persistent compatibility preflight for local CS2 demos."""
+"""One-time compatibility preflight for local CS:GO demos."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from .demo_playback_compat import (
     PlaybackDemoReport,
     repair_demo_in_place,
 )
+from .csgo_demo_format import require_csgo_demo
 from .env_utils import get_data_dir
 
 logger = logging.getLogger(__name__)
@@ -194,6 +195,9 @@ def ensure_compatible_baseline(
     source = Path(source_path).resolve(strict=True)
     if not source.is_file() or source.suffix.lower() != ".dem":
         raise FileNotFoundError(f"Demo file not found: {source}")
+    # Compatibility rewriting is intentionally never applied to Source 2
+    # PBDEMS2 files.  The product accepts Source 1 HL2DEMO only.
+    require_csgo_demo(source)
     root = Path(cache_dir).resolve()
     root.mkdir(parents=True, exist_ok=True)
     source_fingerprint = _fingerprint(source)
@@ -297,6 +301,9 @@ def ensure_demo_compatible(
     source = Path(source_path).resolve(strict=True)
     if not source.is_file() or source.suffix.lower() != ".dem":
         raise FileNotFoundError(f"Demo file not found: {source}")
+    # Gate the file before any legacy compatibility scanner can inspect or
+    # rewrite it.  This prevents PBDEMS2 demos from entering the CS:GO parser.
+    require_csgo_demo(source)
     key = _path_key(source)
     fingerprint = _fingerprint(source)
     cache_path = _cache_path()

@@ -20,8 +20,8 @@ def test_config_backup_router_preserves_public_contract():
 
 
 def test_gsi_router_preserves_public_contract():
+    """CS:GO-only surface: one GSI sink plus one status probe, no CS2 alias."""
     assert _route_methods(gsi_router) == {
-        "/api/gsi/cs2": {"POST"},
         "/api/gsi/csgo": {"POST"},
         "/api/gsi/status": {"GET"},
     }

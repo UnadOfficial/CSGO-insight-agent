@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 # Keep the round-result beat visible in round compilations and full-round timeline
-# clips.  ``round_end_tick`` is the instant CS2 decides the round (often the same
+# clips.  ``round_end_tick`` is the instant CS:GO decides the round (often the same
 # tick as the last kill), not the end of the post-round presentation.  This
 # mirrors the 3 s tail used by the round timeline path while still being capped
 # before the next round's freeze phase.
@@ -46,7 +46,7 @@ def plan_round_pov(req: NormalizedRequest) -> tuple[list[RecordingSegment], list
     # Guard budget:
     #   poll_latency ≈ 100 ms  (two poll cycles of 100 ms each to guarantee wall-clock wins)
     #   t0_offset    ≈  50 ms  (demo resumes ~50 ms before t0 is set)
-    #   KP-5 → CS2  ≈  16 ms  (key delivery + one game frame for demo to freeze)
+    #   KP-5 → CS:GO  ≈  16 ms  (key delivery + one game frame for demo to freeze)
     #   Total        ≈ 366 ms  → use 500 ms to have comfortable headroom.
     #
     # Cost: recording ends 0.5 s before the next round's freeze.  The round-end scoreboard
@@ -161,7 +161,7 @@ def plan_round_pov(req: NormalizedRequest) -> tuple[list[RecordingSegment], list
         # post-round so the match-winning moment / scoreboard beat doesn't cut
         # abruptly. A mid-round death keeps its fixed death+post tail (no extra) —
         # spectating-after-death footage isn't worth lingering on. The generic
-        # demo-end guard bounds this against the real PBDEMS2 EOF.
+        # demo-end guard bounds this against the real HL2DEMO EOF.
         if (
             is_final_round
             and round_info.target_death_tick is None

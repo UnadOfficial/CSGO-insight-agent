@@ -1,3 +1,12 @@
+"""CS:GO-only direct demo playback service.
+
+The old suite exercised the retired Source 2 POV pipeline (VPK install,
+gameinfo.gi patching, skybox/material/weather overrides).  CS:GO playback is
+deliberately much smaller: copy the demo into ``csgo/``, write a private
+``+exec`` cfg, launch ``csgo.exe``, then restore player configs and delete the
+temporary files once the game exits.
+"""
+
 import sys
 import time
 from pathlib import Path
@@ -8,89 +17,28 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import demo_playback_service as playback
-from app import pov_hud_manager
-
-
-class _FakePovManager:
-    instances = []
-
-    def __init__(self, _config):
-        self.installed = 0
-        self.installed_demo_paths = []
-        self.advanced_playback_flags = []
-        self.skybox_ids = []
-        self.map_material_ids = []
-        self.input_options = []
-        self.weather_effect_ids = []
-        self.restored = 0
-        self.needs_restore = False
-        self.__class__.instances.append(self)
-
-    def status(self):
-        return {
-            "needs_restore": self.needs_restore,
-            "warnings": [],
-            "original_gameinfo_sha256": "a" * 64 if self.needs_restore else None,
-        }
-
-    def install(
-        self,
-        *,
-        demo_path=None,
-        advanced_playback_enabled=False,
-        skybox_id="default",
-        map_material_id="default",
-        input_hud_enabled=True,
-        input_hud_display_mode="hybrid",
-        input_hud_scale_percent=100,
-        input_audio_enabled=False,
-        input_audio_volume_percent=100,
-        weather_effect_id="default",
-    ):
-        self.installed += 1
-        self.installed_demo_paths.append(demo_path)
-        self.advanced_playback_flags.append(bool(advanced_playback_enabled))
-        self.skybox_ids.append(skybox_id)
-        self.map_material_ids.append(map_material_id)
-        self.input_options.append(
-            (
-                input_hud_enabled,
-                input_hud_display_mode,
-                input_hud_scale_percent,
-                input_audio_enabled,
-                input_audio_volume_percent,
-            )
-        )
-        self.weather_effect_ids.append(weather_effect_id)
-        self.needs_restore = True
-
-    def restore(self):
-        self.restored += 1
-        self.needs_restore = False
-        return self.verify_restoration("a" * 64)
-
-    def verify_restoration(self, expected_gameinfo_sha256=None):
-        restored = not self.needs_restore
-        return {
-            "verified": restored,
-            "gameinfo_restored": restored,
-            "pov_vpk_removed": restored,
-            "expected_gameinfo_sha256": expected_gameinfo_sha256,
-            "actual_gameinfo_sha256": expected_gameinfo_sha256 if restored else "b" * 64,
-            "error": "" if restored else "not restored",
-        }
+from app.csgo_demo_format import DemoFormatError
 
 
 class _FakeProcess:
     def __init__(self):
         self.waited = 0
+        self.terminated = 0
 
-    def wait(self):
+    def wait(self, timeout=None):
         self.waited += 1
         return 0
 
+    def terminate(self):
+        self.terminated += 1
+
+    def kill(self):
+        pass
+
 
 class _DeferredThread:
+    """Keep playback monitoring deterministic: never run the thread inline."""
+
     def __init__(self, *, target, args, **_kwargs):
         self.target = target
         self.args = args
@@ -99,42 +47,84 @@ class _DeferredThread:
         return None
 
 
+def _hl2demo_bytes(payload: bytes = b"") -> bytes:
+    return b"HL2DEMO" + payload
+
+
 def _paths(tmp_path: Path):
-    game_root = tmp_path / "game"
-    cs2 = game_root / "bin" / "win64" / "cs2.exe"
-    cs2.parent.mkdir(parents=True)
-    cs2.write_bytes(b"exe")
+    game_root = tmp_path / "Counter-Strike Global Offensive"
+    csgo_exe = game_root / "csgo.exe"
+    csgo_exe.parent.mkdir(parents=True)
+    csgo_exe.write_bytes(b"exe")
     (game_root / "csgo").mkdir()
     demo = tmp_path / "match.dem"
-    demo.write_bytes(b"demo")
-    return SimpleNamespace(cs2_path=str(cs2)), demo, game_root
+    demo.write_bytes(_hl2demo_bytes(b"demo"))
+    return SimpleNamespace(csgo_path=str(csgo_exe)), demo, game_root
 
 
 @pytest.fixture(autouse=True)
 def _playback_fakes(monkeypatch):
-    _FakePovManager.instances.clear()
-    monkeypatch.setattr(playback, "PovHudManager", _FakePovManager)
-    monkeypatch.setattr(playback, "is_cs2_running", lambda: False)
-    monkeypatch.setattr(
-        playback,
-        "ensure_demo_compatible",
-        lambda _path: SimpleNamespace(
-            cached=False,
-            report=SimpleNamespace(outcome="clean", removed_messages=0),
-        ),
-    )
-    monkeypatch.setattr(playback, "snapshot_user_configs", lambda _cs2_path: {})
+    monkeypatch.setattr(playback, "is_csgo_running", lambda: False)
+    monkeypatch.setattr(playback, "snapshot_user_configs", lambda _csgo_path: {})
+    monkeypatch.setattr(playback, "write_persistent_backup_from_snap", lambda _snap: Path("backup.json"))
     monkeypatch.setattr(playback.threading, "Thread", _DeferredThread)
 
 
-def test_launch_is_blocked_when_cs2_is_running(monkeypatch, tmp_path: Path):
-    cfg, demo, _game_root = _paths(tmp_path)
-    monkeypatch.setattr(playback, "is_cs2_running", lambda: True)
-    popen = pytest.fail
-    monkeypatch.setattr(playback.subprocess, "Popen", popen)
+def test_preflight_requires_a_csgo_executable(tmp_path: Path):
+    service = playback.DemoPlaybackService()
+    missing = service.preflight(SimpleNamespace(csgo_path=""))
 
-    with pytest.raises(playback.DemoPlaybackCs2RunningError):
+    assert missing["ok"] is False
+    assert missing["csgo_path_configured"] is False
+    assert missing["csgo_running"] is False
+    assert missing["playback_active"] is False
+
+    cfg, _demo, _root = _paths(tmp_path)
+    ready = service.preflight(cfg)
+    assert ready["ok"] is True
+    assert ready["csgo_path_configured"] is True
+
+
+def test_preflight_rejects_a_non_csgo_executable(tmp_path: Path):
+    impostor = tmp_path / "cs2.exe"
+    impostor.write_bytes(b"exe")
+    result = playback.DemoPlaybackService().preflight(SimpleNamespace(csgo_path=str(impostor)))
+    assert result["ok"] is False
+    assert result["csgo_path_configured"] is False
+
+
+def test_preflight_reports_a_running_game(monkeypatch, tmp_path: Path):
+    cfg, _demo, _root = _paths(tmp_path)
+    monkeypatch.setattr(playback, "is_csgo_running", lambda: True)
+    result = playback.DemoPlaybackService().preflight(cfg)
+    assert result["ok"] is False
+    assert result["csgo_running"] is True
+
+
+def test_launch_is_blocked_when_csgo_is_already_running(monkeypatch, tmp_path: Path):
+    cfg, demo, _game_root = _paths(tmp_path)
+    monkeypatch.setattr(playback, "is_csgo_running", lambda: True)
+    monkeypatch.setattr(playback.subprocess, "Popen", pytest.fail)
+
+    with pytest.raises(playback.DemoPlaybackCSGORunningError):
         playback.DemoPlaybackService().launch(demo, cfg)
+
+
+def test_launch_rejects_a_source2_demo(monkeypatch, tmp_path: Path):
+    cfg, demo, _game_root = _paths(tmp_path)
+    demo.write_bytes(b"PBDEMS2" + b"\x00" * 32)
+    monkeypatch.setattr(playback.subprocess, "Popen", pytest.fail)
+
+    with pytest.raises(DemoFormatError):
+        playback.DemoPlaybackService().launch(demo, cfg)
+
+
+def test_launch_requires_a_real_csgo_executable(tmp_path: Path):
+    demo = tmp_path / "match.dem"
+    demo.write_bytes(_hl2demo_bytes(b"demo"))
+
+    with pytest.raises(FileNotFoundError):
+        playback.DemoPlaybackService().launch(demo, SimpleNamespace(csgo_path=""))
 
 
 def test_normal_playback_uses_unique_demo_and_cleans_it(monkeypatch, tmp_path: Path):
@@ -151,447 +141,163 @@ def test_normal_playback_uses_unique_demo_and_cleans_it(monkeypatch, tmp_path: P
     result = service.launch(demo, cfg)
 
     session = service._active
-    assert result["ok"] is True
-    assert result["pov_hud_enabled"] is False
+    assert result["ok"] is True and result["session_id"]
     assert session is not None and session.copied_demo.is_file()
+    # The disposable copy lives inside the CS:GO tree, never beside the source.
+    assert session.copied_demo.parent == game_root / "csgo"
+    assert demo.read_bytes() == _hl2demo_bytes(b"demo")
+
     argv, kwargs = calls[0]
-    predict_index = argv.index("+cl_demo_predict")
-    assert argv[predict_index:predict_index + 2] == ["+cl_demo_predict", "0"]
-    assert predict_index < argv.index("+playdemo")
-    assert argv[-2] == "+playdemo"
-    assert argv[-1] == session.copied_demo.name
+    assert argv[0] == str(game_root / "csgo.exe")
     assert kwargs["cwd"] == str(game_root)
     assert kwargs["env"]["SteamAppId"] == "730"
+    assert kwargs["env"]["SteamGameId"] == "730"
+    # Source 1 contract: native playdemo via +exec, no Source 2 launcher flags.
+    assert "+playdemo" not in argv
+    assert argv[-2:] == ["+exec", session.copied_cfg.stem]
+    assert session.copied_cfg.read_text(encoding="ascii") == f'playdemo "{session.copied_demo.name}"\n'
+    assert session.copied_cfg.parent == game_root / "csgo" / "cfg"
 
     session.started_at_monotonic = time.monotonic() - 4
     service._monitor_session(session)
     assert process.waited == 1
     assert not session.copied_demo.exists()
+    assert not session.copied_cfg.exists()
     assert service._active is None
+    assert service.session_status(result["session_id"])["state"] == "completed"
 
 
-@pytest.mark.parametrize("pov_enabled", [False, True])
-def test_alias_copy_is_used_for_playback_and_vpk_then_removed(monkeypatch, tmp_path, pov_enabled):
-    cfg, demo, _ = _paths(tmp_path)
+def test_alias_copy_is_used_for_playback_then_removed(monkeypatch, tmp_path: Path):
+    cfg, demo, _game_root = _paths(tmp_path)
     process = _FakeProcess()
-    monkeypatch.setattr(playback.subprocess, "Popen", lambda *args, **kwargs: process)
-    repaired = []
-
-    def compatible(path):
-        repaired.append(path)
-        return SimpleNamespace(
-            cached=False,
-            report=SimpleNamespace(
-                outcome="clean",
-                removed_messages=0,
-                removed_win_panel_events=0,
-            ),
-        )
+    monkeypatch.setattr(playback.subprocess, "Popen", lambda *_args, **_kwargs: process)
 
     def copy(source, output, aliases):
         assert source == demo and aliases == {"76561199032006224": "京介"}
-        output.write_bytes(b"aliased")
+        output.write_bytes(_hl2demo_bytes(b"aliased"))
         return output
 
     monkeypatch.setattr(playback, "create_player_alias_copy", copy)
-    monkeypatch.setattr(playback, "ensure_demo_compatible", compatible)
     service = playback.DemoPlaybackService()
     service.launch(
         demo,
         cfg,
-        playback.DemoPlaybackPovOptions(
-            enabled=pov_enabled,
-            player_aliases={"76561199032006224": "京介"},
-        ),
+        playback.DemoPlaybackOptions(player_aliases={"76561199032006224": "京介"}),
     )
+
     session = service._active
-    assert session.copied_demo.read_bytes() == b"aliased"
-    assert repaired == [session.copied_demo]
-    if pov_enabled:
-        assert _FakePovManager.instances[-1].installed_demo_paths == [session.copied_demo]
-    assert demo.read_bytes() == b"demo"
+    assert session is not None
+    assert session.copied_demo.read_bytes() == _hl2demo_bytes(b"aliased")
+    assert demo.read_bytes() == _hl2demo_bytes(b"demo")
     session.started_at_monotonic = time.monotonic() - 4
     service._monitor_session(session)
     assert not session.copied_demo.exists()
 
 
-def test_pov_playback_installs_cfg_and_restores_after_exit(monkeypatch, tmp_path: Path):
+def test_launch_is_busy_while_a_session_is_active(monkeypatch, tmp_path: Path):
     cfg, demo, _game_root = _paths(tmp_path)
-    process = _FakeProcess()
-    calls = []
-    monkeypatch.setattr(
-        playback.subprocess,
-        "Popen",
-        lambda argv, **kwargs: calls.append((argv, kwargs)) or process,
-    )
+    monkeypatch.setattr(playback.subprocess, "Popen", lambda *_args, **_kwargs: _FakeProcess())
     service = playback.DemoPlaybackService()
-    result = service.launch(
-        demo,
-        cfg,
-        playback.DemoPlaybackPovOptions(
-            enabled=True,
-            radar_mode=-1,
-            teamcounter_numeric=True,
-            skybox_id="cartoon3",
-            map_material_id="waxed_reflection",
-            input_hud_enabled=True,
-            input_hud_display_mode="active",
-            input_hud_scale_percent=115,
-            input_audio_enabled=False,
-            input_audio_volume_percent=50,
-            weather_effect_id="snow",
-        ),
-    )
+    service.launch(demo, cfg)
 
-    session = service._active
-    manager = _FakePovManager.instances[-1]
-    assert result["pov_hud_enabled"] is True
-    assert manager.installed == 1
-    assert manager.installed_demo_paths == [demo]
-    assert manager.advanced_playback_flags == [True]
-    assert manager.skybox_ids == ["cartoon3"]
-    assert manager.map_material_ids == ["waxed_reflection"]
-    assert manager.input_options == [(True, "active", 115, False, 50)]
-    assert result["recording_skybox_id"] == "cartoon3"
-    assert result["recording_map_material_id"] == "waxed_reflection"
-    assert result["input_hud_display_mode"] == "active"
-    assert result["input_hud_scale_percent"] == 115
-    assert result["input_audio_enabled"] is False
-    assert result["input_audio_volume_percent"] == 50
-    assert manager.weather_effect_ids == ["snow"]
-    assert result["weather_effect_id"] == "snow"
-    assert session is not None and session.copied_cfg is not None
-    cfg_text = session.copied_cfg.read_text(encoding="ascii")
-    assert "demoui false" not in cfg_text
-    assert "sv_cheats 1" in cfg_text
-    assert cfg_text.index("sv_cheats 1") < cfg_text.index("playdemo ")
-    assert cfg_text.rstrip().endswith(f'playdemo "{session.copied_demo.stem}.dem"\ndemoui true')
-    assert "demo_ui_mode" not in cfg_text
-    assert "cl_draw_only_deathnotices false" in cfg_text
-    assert "snd_disable_radar_visualize 0" in cfg_text
-    assert "cl_drawhud_force_radar -1" in cfg_text
-    assert "cl_teamcounter_playercount_instead_of_avatars true" in cfg_text
-    assert "mat_fullbright 0" in cfg_text
-    assert "r_rendersun 0" in cfg_text
-    assert "r_directlighting 0" in cfg_text
-    assert "r_indirectlighting 1" in cfg_text
-    argv = calls[0][0]
-    predict_index = argv.index("+cl_demo_predict")
-    assert argv[predict_index:predict_index + 2] == ["+cl_demo_predict", "0"]
-    assert predict_index < argv.index("+exec")
-    assert argv[-2:] == ["+exec", session.copied_demo.stem]
-
-    session.started_at_monotonic = time.monotonic() - 4
-    service._monitor_session(session)
-    assert manager.restored == 1
-    assert not session.copied_demo.exists()
-    assert not session.copied_cfg.exists()
-    assert service._active is None
-    status = service.session_status(result["session_id"])
-    assert status["state"] == "completed"
-    assert status["restore"]["verified"] is True
-    assert status["restore"]["gameinfo_restored"] is True
-    assert status["restore"]["pov_vpk_removed"] is True
-
-    manager.needs_restore = True
-    rechecked = service.session_status(result["session_id"])
-    assert rechecked["state"] == "restore_failed"
-    assert rechecked["restore"]["verified"] is False
+    with pytest.raises(playback.DemoPlaybackBusyError):
+        service.launch(demo, cfg)
 
 
-def test_rain_playback_cfg_does_not_fire_light_environment_commands(
-    monkeypatch,
-    tmp_path: Path,
-):
+def test_player_configs_are_snapshotted_and_restored(monkeypatch, tmp_path: Path):
     cfg, demo, _game_root = _paths(tmp_path)
-    process = _FakeProcess()
-    monkeypatch.setattr(playback.subprocess, "Popen", lambda *_args, **_kwargs: process)
-    service = playback.DemoPlaybackService()
-    result = service.launch(
-        demo,
-        cfg,
-        playback.DemoPlaybackPovOptions(
-            enabled=True,
-            weather_effect_id="rain",
-        ),
-    )
+    sentinel = {tmp_path / "config.cfg": b"bind w +forward"}
+    restore_calls = []
+    monkeypatch.setattr(playback, "snapshot_user_configs", lambda _path: sentinel)
+    monkeypatch.setattr(playback.subprocess, "Popen", lambda *_args, **_kwargs: _FakeProcess())
 
-    session = service._active
-    assert result["weather_effect_id"] == "rain"
-    assert session is not None and session.copied_cfg is not None
-    cfg_text = session.copied_cfg.read_text(encoding="ascii")
-    assert "r_directlighting 0" not in cfg_text
-    assert "r_rendersun 0" not in cfg_text
-    assert "ent_fire light_environment" not in cfg_text
+    def restore(snapshot):
+        restore_calls.append(snapshot)
+        return {"ok": True, "verified": True, "checked": 1, "restored": 1, "failed": []}
 
-    session.started_at_monotonic = time.monotonic() - 4
-    service._monitor_session(session)
-
-
-def test_chroma_pov_playback_redirects_only_the_disposable_demo_copy(
-    monkeypatch,
-    tmp_path: Path,
-):
-    cfg, demo, _game_root = _paths(tmp_path)
-    original = demo.read_bytes()
-    process = _FakeProcess()
-    calls = []
-
-    def fake_prepare(source, destination, **kwargs):
-        calls.append((Path(source), Path(destination), kwargs))
-        Path(destination).write_bytes(b"redirected-handle-demo")
-        return SimpleNamespace(
-            manifest_report=SimpleNamespace(rewritten_chroma_sky_references=2),
-            handle_report=SimpleNamespace(
-                fields_rewritten=28,
-                input_sha256="1" * 64,
-                output_sha256="2" * 64,
-            ),
-        )
-
-    monkeypatch.setattr(playback, "prepare_chroma_demo_copy", fake_prepare)
-    monkeypatch.setattr(
-        playback,
-        "_detect_chroma_demo_map_name",
-        lambda _path: "de_ancient",
-    )
-    monkeypatch.setattr(playback.subprocess, "Popen", lambda *_args, **_kwargs: process)
-
-    service = playback.DemoPlaybackService()
-    service.launch(
-        demo,
-        cfg,
-        playback.DemoPlaybackPovOptions(
-            enabled=True,
-            skybox_id="chroma_blue",
-        ),
-    )
-
-    session = service._active
-    assert session is not None
-    assert demo.read_bytes() == original
-    assert session.copied_demo.read_bytes() == b"redirected-handle-demo"
-    assert len(calls) == 1
-    source, destination, kwargs = calls[0]
-    assert source == demo
-    assert destination == session.copied_demo
-    assert kwargs == {"map_name": "de_ancient"}
-
-    session.started_at_monotonic = time.monotonic() - 4
-    service._monitor_session(session)
-
-
-def test_aliases_are_applied_before_chroma_redirect_and_vpk_install(
-    monkeypatch,
-    tmp_path: Path,
-):
-    cfg, demo, _game_root = _paths(tmp_path)
-    original = demo.read_bytes()
-    process = _FakeProcess()
-    calls = []
-
-    def fake_alias(source, destination, aliases):
-        calls.append(("alias", Path(source), Path(destination), aliases))
-        Path(destination).write_bytes(b"aliased-demo")
-        return Path(destination)
-
-    def fake_prepare(source, destination, **kwargs):
-        source = Path(source)
-        destination = Path(destination)
-        calls.append(("chroma", source, destination, source.read_bytes(), kwargs))
-        destination.write_bytes(b"aliased-and-chroma-demo")
-        return SimpleNamespace(
-            manifest_report=SimpleNamespace(rewritten_chroma_sky_references=2),
-            handle_report=SimpleNamespace(
-                fields_rewritten=28,
-                input_sha256="1" * 64,
-                output_sha256="2" * 64,
-            ),
-        )
-
-    monkeypatch.setattr(playback, "create_player_alias_copy", fake_alias)
-    monkeypatch.setattr(playback, "prepare_chroma_demo_copy", fake_prepare)
-    monkeypatch.setattr(playback, "_detect_chroma_demo_map_name", lambda _path: "de_ancient")
-    monkeypatch.setattr(playback.subprocess, "Popen", lambda *_args, **_kwargs: process)
-
-    service = playback.DemoPlaybackService()
-    service.launch(
-        demo,
-        cfg,
-        playback.DemoPlaybackPovOptions(
-            enabled=True,
-            skybox_id="chroma_blue",
-            player_aliases={"76561199032006224": "京介"},
-        ),
-    )
-
-    session = service._active
-    assert session is not None
-    assert demo.read_bytes() == original
-    assert session.copied_demo.read_bytes() == b"aliased-and-chroma-demo"
-    assert calls[0] == (
-        "alias",
-        demo,
-        session.copied_demo,
-        {"76561199032006224": "京介"},
-    )
-    assert calls[1][0] == "chroma"
-    assert calls[1][1] == session.copied_demo
-    assert calls[1][2] == session.copied_demo.with_name(f"{session.copied_demo.stem}_chroma.dem")
-    assert calls[1][3] == b"aliased-demo"
-    assert calls[1][4] == {"map_name": "de_ancient"}
-    assert _FakePovManager.instances[-1].installed_demo_paths == [session.copied_demo]
-
-    session.started_at_monotonic = time.monotonic() - 4
-    service._monitor_session(session)
-    assert not session.copied_demo.exists()
-
-
-def test_pov_playback_snapshots_and_restores_player_configs(monkeypatch, tmp_path: Path):
-    cfg, demo, _game_root = _paths(tmp_path)
-    process = _FakeProcess()
-    original_snapshot = {tmp_path / "cs2_machine_convars.vcfg": b'"cl_hud_color" "8"'}
-    calls = []
-
-    monkeypatch.setattr(playback, "snapshot_user_configs", lambda _cs2_path: original_snapshot)
-    monkeypatch.setattr(
-        playback,
-        "write_persistent_backup_from_snap",
-        lambda snapshot: calls.append(("backup", snapshot)) or (tmp_path / "backup"),
-    )
-    monkeypatch.setattr(
-        playback,
-        "restore_user_config_snapshot",
-        lambda snapshot: calls.append(("restore", snapshot)) or {
-            "ok": True,
-            "verified": True,
-            "checked": 1,
-            "restored": 1,
-            "failed": [],
-            "source": "manifest",
-        },
-    )
-    monkeypatch.setattr(playback.subprocess, "Popen", lambda *_args, **_kwargs: process)
-
-    service = playback.DemoPlaybackService()
-    result = service.launch(demo, cfg, playback.DemoPlaybackPovOptions(enabled=True))
-    session = service._active
-    assert session is not None
-    session.started_at_monotonic = time.monotonic() - 4
-    service._monitor_session(session)
-
-    assert calls == [
-        ("backup", original_snapshot),
-        ("restore", original_snapshot),
-    ]
-    status = service.session_status(result["session_id"])
-    assert status["state"] == "completed"
-    assert status["player_config_restore"]["verified"] is True
-    assert status["player_config_restore"]["state"] == "restored"
-
-
-def test_pov_launch_failure_restores_player_configs(monkeypatch, tmp_path: Path):
-    cfg, demo, _game_root = _paths(tmp_path)
-    original_snapshot = {tmp_path / "cs2_user_keys.vcfg": b'"ALT" "toggleradarscale"'}
-    restored = []
-
-    monkeypatch.setattr(playback, "snapshot_user_configs", lambda _cs2_path: original_snapshot)
-    monkeypatch.setattr(
-        playback,
-        "write_persistent_backup_from_snap",
-        lambda _snapshot: tmp_path / "backup",
-    )
-    monkeypatch.setattr(
-        playback,
-        "restore_user_config_snapshot",
-        lambda snapshot: restored.append(snapshot) or {
-            "ok": True,
-            "verified": True,
-            "checked": 1,
-            "restored": 0,
-            "failed": [],
-            "source": "manifest",
-        },
-    )
-    monkeypatch.setattr(
-        playback.subprocess,
-        "Popen",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("launch failed")),
-    )
-
-    with pytest.raises(OSError, match="launch failed"):
-        playback.DemoPlaybackService().launch(
-            demo,
-            cfg,
-            playback.DemoPlaybackPovOptions(enabled=True),
-        )
-
-    assert restored == [original_snapshot]
-
-
-def test_playback_is_blocked_when_player_config_backup_cannot_be_created(
-    monkeypatch,
-    tmp_path: Path,
-):
-    cfg, demo, _game_root = _paths(tmp_path)
-    snapshot = {tmp_path / "cs2_machine_convars.vcfg": b'"cl_hud_color" "8"'}
-    monkeypatch.setattr(playback, "snapshot_user_configs", lambda _cs2_path: snapshot)
-    monkeypatch.setattr(playback, "write_persistent_backup_from_snap", lambda _snapshot: None)
-    monkeypatch.setattr(playback.subprocess, "Popen", pytest.fail)
-
-    with pytest.raises(RuntimeError, match="player config backup"):
-        playback.DemoPlaybackService().launch(
-            demo,
-            cfg,
-            playback.DemoPlaybackPovOptions(enabled=True),
-        )
-
-
-def test_pov_launch_failure_rolls_back_files(monkeypatch, tmp_path: Path):
-    cfg, demo, _game_root = _paths(tmp_path)
-    monkeypatch.setattr(
-        playback.subprocess,
-        "Popen",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("launch failed")),
-    )
-    service = playback.DemoPlaybackService()
-
-    with pytest.raises(OSError, match="launch failed"):
-        service.launch(demo, cfg, playback.DemoPlaybackPovOptions(enabled=True))
-
-    manager = _FakePovManager.instances[-1]
-    assert manager.installed == 1
-    assert manager.restored == 1
-    assert list((tmp_path / "game" / "csgo").glob("_insight_preview_*")) == []
-    assert service._active is None
-
-
-def test_normal_playback_repairs_orphaned_pov_residue_before_launch(
-    monkeypatch,
-    tmp_path: Path,
-):
-    cfg, demo, game_root = _paths(tmp_path)
-    csgo = game_root / "csgo"
-    gameinfo = csgo / "gameinfo.gi"
-    gameinfo.write_text(
-        'FileSystem\n{\n  SearchPaths\n  {\n    Game csgo/pov.vpk\n    Game csgo\n  }\n}\n',
-        encoding="utf-8",
-    )
-    (csgo / "pov.vpk").write_bytes(b"residue")
-    process = _FakeProcess()
-
-    monkeypatch.setattr(playback, "PovHudManager", pov_hud_manager.PovHudManager)
-    monkeypatch.setattr(pov_hud_manager.sys, "platform", "win32")
-    monkeypatch.setattr(pov_hud_manager, "is_cs2_running", lambda: False)
-    monkeypatch.setattr(playback.subprocess, "Popen", lambda *_args, **_kwargs: process)
-
+    monkeypatch.setattr(playback, "restore_user_config_snapshot", restore)
     service = playback.DemoPlaybackService()
     result = service.launch(demo, cfg)
 
-    assert result["ok"] is True
-    assert "csgo/pov.vpk" not in gameinfo.read_text(encoding="utf-8")
-    assert not (csgo / "pov.vpk").exists()
     session = service._active
     assert session is not None
     session.started_at_monotonic = time.monotonic() - 4
     service._monitor_session(session)
+
+    assert restore_calls == [sentinel]
+    status = service.session_status(result["session_id"])
+    assert status["player_config_restore"]["verified"] is True
+    assert status["state"] == "completed"
+
+
+def test_backup_failure_blocks_launch_and_leaves_no_artifacts(monkeypatch, tmp_path: Path):
+    cfg, demo, game_root = _paths(tmp_path)
+    monkeypatch.setattr(playback, "snapshot_user_configs", lambda _path: {tmp_path / "config.cfg": b"x"})
+    monkeypatch.setattr(playback, "write_persistent_backup_from_snap", lambda _snap: None)
+    monkeypatch.setattr(playback.subprocess, "Popen", pytest.fail)
+
+    with pytest.raises(RuntimeError):
+        playback.DemoPlaybackService().launch(demo, cfg)
+
+    assert list((game_root / "csgo").glob("_insight_preview_*")) == []
+
+
+def test_launch_failure_rolls_back_files_and_player_configs(monkeypatch, tmp_path: Path):
+    cfg, demo, game_root = _paths(tmp_path)
+    restored = []
+    monkeypatch.setattr(playback, "snapshot_user_configs", lambda _path: {tmp_path / "config.cfg": b"x"})
+    monkeypatch.setattr(
+        playback,
+        "restore_user_config_snapshot",
+        lambda snapshot: restored.append(snapshot) or {"ok": True, "verified": True},
+    )
+
+    def boom(*_args, **_kwargs):
+        raise OSError("csgo.exe refused to start")
+
+    monkeypatch.setattr(playback.subprocess, "Popen", boom)
+
+    with pytest.raises(OSError):
+        playback.DemoPlaybackService().launch(demo, cfg)
+
+    assert restored, "player configs must be restored after a failed launch"
+    assert list((game_root / "csgo").glob("_insight_preview_*")) == []
+    assert list((game_root / "csgo" / "cfg").glob("_insight_preview_*")) == []
+
+
+def test_monitor_waits_for_a_short_lived_launcher(monkeypatch, tmp_path: Path):
+    """Steam/launcher handoff: the process may exit before csgo.exe appears.
+
+    ``_monitor_session`` grants a bounded grace window when the launch handle
+    dies almost immediately.  A fake clock keeps the assertion deterministic
+    instead of burning the real 12-second window.
+    """
+    cfg, demo, _game_root = _paths(tmp_path)
+    clock = {"now": 1000.0}
+    running = {"value": False}
+    sleeps = {"count": 0}
+
+    def sleep(seconds):
+        clock["now"] += seconds
+        sleeps["count"] += 1
+        if sleeps["count"] == 1:
+            # csgo.exe shows up shortly after the launcher process exits.
+            running["value"] = True
+        else:
+            # ... and eventually the player closes the game.
+            running["value"] = False
+
+    monkeypatch.setattr(playback, "is_csgo_running", lambda: running["value"])
+    monkeypatch.setattr(playback.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(playback.time, "sleep", sleep)
+    monkeypatch.setattr(playback.subprocess, "Popen", lambda *_args, **_kwargs: _FakeProcess())
+
+    service = playback.DemoPlaybackService()
+    service.launch(demo, cfg)
+    session = service._active
+    assert session is not None
+
+    service._monitor_session(session)
+
+    assert service._active is None
+    assert not session.copied_demo.exists()

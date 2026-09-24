@@ -2,7 +2,7 @@
 """Test AI recording director with configured LLM (23-kill compilation scenario).
 
 Usage (from repo root):
-  set CS2_INSIGHT_CONFIG=%APPDATA%\\cs2-insight-agent\\data\\cs2-insight.config.json
+  set CSGO_INSIGHT_CONFIG=%APPDATA%\\cs2-insight-agent\\data\\csgo-insight.config.json
   python backend/scripts/test_ai_director.py
 """
 

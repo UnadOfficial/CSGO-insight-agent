@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from app import cs2_config_backup as backup
+from app import csgo_config_backup as backup
 
 
 def _prepare_manifest(monkeypatch, tmp_path: Path, *, original: Path, backup_bytes: bytes) -> Path:
@@ -31,7 +31,7 @@ def test_restore_reports_success_only_after_byte_verification(monkeypatch, tmp_p
     original.write_bytes(b"modified during recording")
     _prepare_manifest(monkeypatch, tmp_path, original=original, backup_bytes=b"before recording")
 
-    result = backup.restore_latest_user_config_backup(skip_cs2_running_check=True)
+    result = backup.restore_latest_user_config_backup(skip_csgo_running_check=True)
 
     assert original.read_bytes() == b"before recording"
     assert result == {
@@ -55,7 +55,7 @@ def test_restore_keeps_recovery_required_when_post_write_verification_fails(
     _prepare_manifest(monkeypatch, tmp_path, original=original, backup_bytes=b"before recording")
     monkeypatch.setattr(backup, "_atomic_write_bytes", lambda _target, _data: None)
 
-    result = backup.restore_latest_user_config_backup(skip_cs2_running_check=True)
+    result = backup.restore_latest_user_config_backup(skip_csgo_running_check=True)
 
     assert result["ok"] is False
     assert result["verified"] is False
@@ -113,7 +113,7 @@ def test_memory_snapshot_restores_local_and_remote_player_settings(monkeypatch, 
     remote_keys.write_bytes(b"")
     machine_convars.write_bytes(b'"cl_hud_color" "12"')
     monkeypatch.setattr(backup, "is_restore_required", lambda: False)
-    monkeypatch.setattr(backup, "is_cs2_running", lambda: False)
+    monkeypatch.setattr(backup, "is_csgo_running", lambda: False)
 
     result = backup.restore_user_config_snapshot(snapshot)
 

@@ -1,10 +1,9 @@
-"""Direct CS2 demo playback with process gating and optional POV HUD lifecycle."""
+"""Direct Source 1 / CS:GO demo playback."""
 
 from __future__ import annotations
 
 import logging
 import os
-import shutil
 import subprocess
 import sys
 import threading
@@ -14,25 +13,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from .cs2_config_backup import (
-    is_cs2_running,
+from .csgo_config_backup import (
+    is_csgo_running,
     restore_user_config_snapshot,
     snapshot_user_configs,
     write_persistent_backup_from_snap,
 )
-from .chroma_demo_copy import prepare_chroma_demo_copy
-from .demo_compat_service import ensure_demo_compatible
-from .map_material_vpk import DEFAULT_MAP_MATERIAL_ID
-from .weather_effects import visual_layer_console_commands
-from .pov_constants import POV_CORE_FORCED_COMMANDS, pov_tail_commands
-from .pov_hud_manager import (
-    PovHudError,
-    PovHudManager,
-    _detect_chroma_demo_map_name,
-    restore_pov_after_cs2_exit,
-)
+from .csgo_demo_format import require_csgo_demo
 from .player_aliases import create_player_alias_copy
-from .skybox_vpk import CHROMA_SKYBOX_IDS
 
 logger = logging.getLogger(__name__)
 
@@ -43,24 +31,15 @@ class DemoPlaybackBusyError(RuntimeError):
     """A playback launch is already active or still being cleaned up."""
 
 
-class DemoPlaybackCs2RunningError(RuntimeError):
-    """CS2 is already running and must be closed before managed playback."""
+class DemoPlaybackCSGORunningError(RuntimeError):
+    """CS:GO is already running and must be closed before managed playback."""
 
 
 @dataclass(frozen=True)
-class DemoPlaybackPovOptions:
-    enabled: bool = False
-    radar_mode: int = 0
-    teamcounter_numeric: bool = False
-    skybox_id: str = "default"
-    map_material_id: str = DEFAULT_MAP_MATERIAL_ID
-    input_hud_enabled: bool = True
-    input_hud_display_mode: str = "hybrid"
-    input_hud_scale_percent: int = 100
-    input_audio_enabled: bool = False
-    input_audio_volume_percent: int = 100
+class DemoPlaybackOptions:
+    """Native CS:GO playback controls."""
+
     player_aliases: dict[str, str] = field(default_factory=dict)
-    weather_effect_id: str = "default"
 
 
 @dataclass
@@ -69,21 +48,17 @@ class DemoPlaybackSession:
     process: Any
     copied_demo: Path
     copied_cfg: Optional[Path]
-    pov_manager: Optional[PovHudManager]
-    pov_enabled: bool
-    expected_gameinfo_sha256: Optional[str]
     player_config_snapshot: dict[Path, Optional[bytes]]
     started_at_monotonic: float
 
 
 class DemoPlaybackService:
-    """Own one direct-playback CS2 session and clean up after CS2 exits."""
+    """Own one direct-playback CS:GO session and restore player configs on exit."""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._active: Optional[DemoPlaybackSession] = None
         self._session_reports: dict[str, dict[str, Any]] = {}
-        self._session_verifiers: dict[str, tuple[PovHudManager, Optional[str]]] = {}
 
     def _set_session_report(self, session_id: str, **updates: Any) -> None:
         with self._lock:
@@ -91,101 +66,48 @@ class DemoPlaybackService:
             current.update(updates)
             self._session_reports[session_id] = current
             while len(self._session_reports) > 20:
-                expired_id = next(iter(self._session_reports))
-                self._session_reports.pop(expired_id)
-                self._session_verifiers.pop(expired_id, None)
+                self._session_reports.pop(next(iter(self._session_reports)), None)
 
     def session_status(self, session_id: str) -> dict[str, Any]:
         with self._lock:
             report = self._session_reports.get(str(session_id))
-            if report is None:
-                return {"found": False, "session_id": str(session_id)}
-            result = dict(report)
-            verifier = self._session_verifiers.get(str(session_id))
-        if verifier and result.get("state") in {"completed", "restore_failed"}:
-            manager, expected_sha = verifier
-            try:
-                fresh_restore = manager.verify_restoration(expected_sha)
-                previous_error = str((result.get("restore") or {}).get("error") or "")
-                fresh_restore["error"] = "" if fresh_restore.get("verified") else previous_error
-                result["restore"] = fresh_restore
-                player_restore = result.get("player_config_restore") or {}
-                player_ok = bool(player_restore.get("verified", True))
-                result["state"] = (
-                    "completed"
-                    if fresh_restore.get("verified") and player_ok
-                    else "restore_failed"
-                )
-                self._set_session_report(str(session_id), state=result["state"], restore=fresh_restore)
-            except Exception as exc:  # noqa: BLE001
-                result["state"] = "restore_failed"
-                result["restore"] = {"verified": False, "error": str(exc)}
+            active = self._active
+        if report is None:
+            return {"found": False, "session_id": str(session_id)}
+        result = dict(report)
         result["found"] = True
-        result["cs2_running"] = bool(is_cs2_running())
+        result["csgo_running"] = bool(is_csgo_running())
+        result["playback_active"] = active is not None and active.session_id == str(session_id)
         return result
 
     def preflight(self, config_like: Any) -> dict[str, Any]:
-        cs2_path = str(getattr(config_like, "cs2_path", "") or "").strip()
-        cs2_path_valid = bool(cs2_path and Path(cs2_path).is_file())
+        csgo_path = str(getattr(config_like, "csgo_path", "") or "").strip()
+        csgo_path_valid = bool(
+            csgo_path
+            and Path(csgo_path).is_file()
+            and Path(csgo_path).name.lower() == "csgo.exe"
+        )
         with self._lock:
             active = self._active is not None
-
-        running = bool(is_cs2_running())
-        needs_restore = False
-        warnings: list[str] = []
-        if cs2_path_valid:
-            try:
-                status = PovHudManager(config_like).status()
-                needs_restore = bool(status.get("needs_restore"))
-                warnings = [str(x) for x in status.get("warnings") or [] if str(x).strip()]
-            except PovHudError as exc:
-                warnings.append(str(exc))
-
+        running = bool(is_csgo_running())
         return {
-            "ok": cs2_path_valid and not active and not running,
-            "cs2_path_configured": cs2_path_valid,
-            "cs2_running": running,
+            "ok": csgo_path_valid and not active and not running,
+            "csgo_path_configured": csgo_path_valid,
+            "csgo_running": running,
             "playback_active": active,
-            "pov_needs_restore": needs_restore,
-            "warnings": warnings,
+            "warnings": [],
         }
 
     @staticmethod
-    def _resolve_game_paths(cs2_path: str) -> tuple[Path, Path]:
-        cs2_bin = Path(cs2_path)
-        if not cs2_path or not cs2_bin.is_file():
-            raise FileNotFoundError("CS2 path is not configured or cs2.exe does not exist")
-        try:
-            game_root = cs2_bin.parents[2]
-        except IndexError as exc:
-            raise FileNotFoundError("Unable to resolve the CS2 game directory from cs2.exe") from exc
+    def _resolve_game_paths(csgo_path: str) -> tuple[Path, Path]:
+        csgo_bin = Path(csgo_path)
+        if not csgo_path or not csgo_bin.is_file() or csgo_bin.name.lower() != "csgo.exe":
+            raise FileNotFoundError("CS:GO path is not configured or csgo.exe does not exist")
+        game_root = csgo_bin.parent
         csgo_dir = game_root / "csgo"
         if not csgo_dir.is_dir():
-            raise FileNotFoundError("Unable to find the CS2 game/csgo directory")
+            raise FileNotFoundError("Unable to find the CS:GO game/csgo directory")
         return game_root, csgo_dir
-
-    @staticmethod
-    def _write_pov_cfg(cfg_path: Path, demo_stem: str, options: DemoPlaybackPovOptions) -> None:
-        commands = [
-            "con_enable 1",
-            "sv_cheats 1",
-            *(
-                command
-                for command in visual_layer_console_commands(
-                    map_material_id=options.map_material_id,
-                    weather_effect_id=options.weather_effect_id,
-                )
-                if command != "sv_cheats 1"
-            ),
-            *POV_CORE_FORCED_COMMANDS,
-            *pov_tail_commands(
-                teamcounter_numeric=bool(options.teamcounter_numeric),
-                radar_mode=int(options.radar_mode),
-            ),
-            f'playdemo "{demo_stem}.dem"',
-            "demoui true",
-        ]
-        cfg_path.write_text("\n".join(commands) + "\n", encoding="ascii")
 
     @staticmethod
     def _cleanup_artifacts(session: DemoPlaybackSession) -> None:
@@ -197,29 +119,14 @@ class DemoPlaybackService:
                     logger.warning("Could not remove direct playback %s %s: %s", label, path, exc)
 
     @staticmethod
-    def _restore_pov_after_exit(
-        manager: PovHudManager,
-        expected_gameinfo_sha256: Optional[str],
-    ) -> dict[str, Any]:
-        return restore_pov_after_cs2_exit(
-            manager,
-            expected_gameinfo_sha256,
-            is_running=is_cs2_running,
-            sleep=time.sleep,
-            logger=logger,
-        )
-
-    @staticmethod
-    def _start_player_config_protection(cs2_path: str) -> dict[Path, Optional[bytes]]:
-        snapshot = snapshot_user_configs(cs2_path)
+    def _start_player_config_protection(csgo_path: str) -> dict[Path, Optional[bytes]]:
+        snapshot = snapshot_user_configs(csgo_path)
         if snapshot and write_persistent_backup_from_snap(snapshot) is None:
             raise RuntimeError("Unable to create the player config backup; playback was not started.")
         return snapshot
 
     @staticmethod
-    def _restore_player_configs(
-        snapshot: dict[Path, Optional[bytes]],
-    ) -> dict[str, Any]:
+    def _restore_player_configs(snapshot: dict[Path, Optional[bytes]]) -> dict[str, Any]:
         if not snapshot:
             return {
                 "ok": True,
@@ -231,216 +138,91 @@ class DemoPlaybackService:
                 "state": "not_needed",
             }
         result = restore_user_config_snapshot(snapshot)
-        return {
-            **result,
-            "state": "restored" if result.get("verified") else "restore_failed",
-        }
+        return {**result, "state": "restored" if result.get("verified") else "restore_failed"}
 
     def _monitor_session(self, session: DemoPlaybackSession) -> None:
         try:
             try:
                 session.process.wait()
             except Exception as exc:  # noqa: BLE001
-                logger.warning("Could not wait for direct playback CS2 process: %s", exc)
-
+                logger.warning("Could not wait for direct playback CS:GO process: %s", exc)
             runtime = time.monotonic() - session.started_at_monotonic
-            # A very short-lived child may be a Steam launcher. Give the real cs2.exe time to appear.
-            if runtime < 3.0 and not is_cs2_running():
+            if runtime < 3.0 and not is_csgo_running():
                 deadline = time.monotonic() + 12.0
-                while time.monotonic() < deadline and not is_cs2_running():
+                while time.monotonic() < deadline and not is_csgo_running():
                     time.sleep(0.5)
-
-            while is_cs2_running():
+            while is_csgo_running():
                 time.sleep(1.0)
-
-            player_restoration = self._restore_player_configs(session.player_config_snapshot)
-            if session.pov_enabled and session.pov_manager is not None:
-                self._set_session_report(session.session_id, state="restoring")
-                restoration = self._restore_pov_after_exit(
-                    session.pov_manager,
-                    session.expected_gameinfo_sha256,
-                )
-                self._set_session_report(
-                    session.session_id,
-                    state=(
-                        "completed"
-                        if restoration.get("verified") and player_restoration.get("verified")
-                        else "restore_failed"
-                    ),
-                    restore=restoration,
-                    player_config_restore=player_restoration,
-                )
-            else:
-                self._set_session_report(
-                    session.session_id,
-                    state="completed" if player_restoration.get("verified") else "restore_failed",
-                    restore=None,
-                    player_config_restore=player_restoration,
-                )
+            player_restore = self._restore_player_configs(session.player_config_snapshot)
+            self._set_session_report(
+                session.session_id,
+                state="completed" if player_restore.get("verified") else "restore_failed",
+                restore=None,
+                player_config_restore=player_restore,
+            )
         finally:
             self._cleanup_artifacts(session)
             with self._lock:
                 if self._active is session:
                     self._active = None
-                report = self._session_reports.get(session.session_id)
-                if report and report.get("state") not in {"completed", "restore_failed"}:
-                    report["state"] = "restore_failed"
-                    if session.pov_enabled and not report.get("restore"):
-                        report["restore"] = {
-                            "verified": False,
-                            "error": "Playback monitor ended before restoration could be verified.",
-                        }
-            logger.info("Direct playback session %s cleaned up", session.session_id)
-
-    @staticmethod
-    def _best_effort_restore(manager: Optional[PovHudManager], attempted: bool) -> None:
-        if not attempted or manager is None or is_cs2_running():
-            return
-        try:
-            if manager.status().get("needs_restore"):
-                manager.restore()
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Could not roll back POV HUD after playback launch failure: %s", exc)
+            logger.info("Direct CS:GO playback session %s cleaned up", session.session_id)
 
     def launch(
         self,
         dem_path: Path,
         config_like: Any,
-        pov_options: Optional[DemoPlaybackPovOptions] = None,
+        options: Optional[DemoPlaybackOptions] = None,
     ) -> dict[str, Any]:
-        options = pov_options or DemoPlaybackPovOptions()
+        options = options or DemoPlaybackOptions()
         dem_path = Path(dem_path)
 
         with self._lock:
             if self._active is not None:
                 raise DemoPlaybackBusyError("A direct playback session is already active")
-            if is_cs2_running():
-                raise DemoPlaybackCs2RunningError("CS2 is already running")
+            if is_csgo_running():
+                raise DemoPlaybackCSGORunningError("CS:GO is already running")
             if not dem_path.is_file():
                 raise FileNotFoundError(f"Demo file not found: {dem_path}")
+            require_csgo_demo(dem_path)
 
-            cs2_path = str(getattr(config_like, "cs2_path", "") or "").strip()
-            game_root, csgo_dir = self._resolve_game_paths(cs2_path)
-            cs2_bin = Path(cs2_path)
+            csgo_path = str(getattr(config_like, "csgo_path", "") or "").strip()
+            game_root, csgo_dir = self._resolve_game_paths(csgo_path)
+            csgo_bin = Path(csgo_path)
             session_id = uuid.uuid4().hex
-            stem = f"_insight_preview_{session_id}"
-            copied_demo = csgo_dir / f"{stem}.dem"
-            copied_cfg = csgo_dir / "cfg" / f"{stem}.cfg" if options.enabled else None
-            pov_manager = PovHudManager(config_like)
-            pov_install_attempted = False
-            expected_gameinfo_sha256: Optional[str] = None
+            copied_demo = csgo_dir / f"_insight_preview_{session_id}.dem"
+            copied_cfg: Optional[Path] = None
             player_config_snapshot: dict[Path, Optional[bytes]] = {}
             session: Optional[DemoPlaybackSession] = None
-
             try:
-                stale_status = pov_manager.status()
-                if stale_status.get("needs_restore"):
-                    if is_cs2_running():
-                        raise DemoPlaybackCs2RunningError("CS2 is already running")
-                    pov_manager.restore()
-
-                # POV and even normal playback launch cvars that CS2 can archive.
-                # Protect both local slot files and Steam's remote/cloud copies
-                # before any managed CS2 process is allowed to start.
-                player_config_snapshot = self._start_player_config_protection(cs2_path)
-
-                effective_demo_path = dem_path
+                player_config_snapshot = self._start_player_config_protection(csgo_path)
                 if options.player_aliases:
                     create_player_alias_copy(dem_path, copied_demo, options.player_aliases)
-                    effective_demo_path = copied_demo
-                compat = ensure_demo_compatible(effective_demo_path)
-                selected_skybox = str(options.skybox_id or "").strip().lower()
-                chroma_redirect_report = None
-                if options.enabled and selected_skybox in CHROMA_SKYBOX_IDS:
-                    demo_map_name = _detect_chroma_demo_map_name(effective_demo_path)
-                    chroma_output = (
-                        copied_demo.with_name(f"{stem}_chroma.dem")
-                        if options.player_aliases
-                        else copied_demo
-                    )
-                    try:
-                        chroma_copy_report = prepare_chroma_demo_copy(
-                            effective_demo_path,
-                            chroma_output,
-                            map_name=demo_map_name,
-                        )
-                        if options.player_aliases:
-                            os.replace(chroma_output, copied_demo)
-                    finally:
-                        if options.player_aliases:
-                            chroma_output.unlink(missing_ok=True)
-                    chroma_redirect_report = chroma_copy_report.manifest_report
-                    chroma_handle_report = chroma_copy_report.handle_report
-                    logger.info(
-                        "Direct playback chroma CEnvSky handle ready: "
-                        "rewritten=%d input_sha256=%s output_sha256=%s",
-                        chroma_handle_report.fields_rewritten,
-                        chroma_handle_report.input_sha256,
-                        chroma_handle_report.output_sha256,
-                    )
-                elif not options.player_aliases:
-                    shutil.copy2(dem_path, copied_demo)
-                logger.info(
-                    "Direct playback compatibility ready: cached=%s outcome=%s "
-                    "removed_type138=%d removed_win_panel=%d "
-                    "replaced_chroma_skybox_manifests=%d source=%s",
-                    compat.cached,
-                    compat.report.outcome,
-                    compat.report.removed_messages,
-                    getattr(compat.report, "removed_win_panel_events", 0),
-                    (
-                        chroma_redirect_report.rewritten_chroma_sky_references
-                        if chroma_redirect_report is not None
-                        else 0
-                    ),
-                    dem_path,
+                else:
+                    copied_demo.parent.mkdir(parents=True, exist_ok=True)
+                    copied_demo.write_bytes(dem_path.read_bytes())
+                # Keep direct playback on the same Source 1 cfg path as the
+                # recorder.  The cfg is intentionally private and removed by
+                # the monitor after csgo.exe exits.
+                cfg_dir = csgo_dir / "cfg"
+                cfg_dir.mkdir(parents=True, exist_ok=True)
+                copied_cfg = cfg_dir / f"_insight_preview_{session_id}.cfg"
+                copied_cfg.write_text(
+                    f'playdemo "{copied_demo.name}"\n',
+                    encoding="ascii",
                 )
-
-                if copied_cfg is not None:
-                    copied_cfg.parent.mkdir(parents=True, exist_ok=True)
-                    self._write_pov_cfg(copied_cfg, stem, options)
-
-                # Recheck immediately before modifying POV files / starting the process.
-                if is_cs2_running():
-                    raise DemoPlaybackCs2RunningError("CS2 started during playback preparation")
-
-                if options.enabled:
-                    pov_install_attempted = True
-                    pov_manager.install(
-                        demo_path=copied_demo if options.player_aliases else dem_path,
-                        advanced_playback_enabled=True,
-                        skybox_id=options.skybox_id,
-                        map_material_id=options.map_material_id,
-                        input_hud_enabled=options.input_hud_enabled,
-                        input_hud_display_mode=options.input_hud_display_mode,
-                        input_hud_scale_percent=options.input_hud_scale_percent,
-                        input_audio_enabled=options.input_audio_enabled,
-                        input_audio_volume_percent=options.input_audio_volume_percent,
-                        weather_effect_id=options.weather_effect_id,
-                    )
-                    installed_status = pov_manager.status()
-                    expected_gameinfo_sha256 = str(
-                        installed_status.get("original_gameinfo_sha256") or ""
-                    ).strip().lower() or None
-                    if not expected_gameinfo_sha256:
-                        raise PovHudError("POV HUD install manifest does not contain the original gameinfo.gi hash.")
-
-                if is_cs2_running():
-                    raise DemoPlaybackCs2RunningError("CS2 started during playback preparation")
+                if is_csgo_running():
+                    raise DemoPlaybackCSGORunningError("CS:GO started during playback preparation")
 
                 argv = [
-                    str(cs2_bin),
+                    str(csgo_bin),
                     "-steam",
                     "-insecure",
                     "-novid",
                     "-console",
                     *_DEMO_PLAYBACK_FORCED_ARGS,
+                    "+exec",
+                    copied_cfg.stem,
                 ]
-                if copied_cfg is not None:
-                    argv.extend(["+exec", stem])
-                else:
-                    argv.extend(["+playdemo", copied_demo.name])
-
                 child_env = os.environ.copy()
                 child_env["SteamAppId"] = "730"
                 child_env["SteamGameId"] = "730"
@@ -450,8 +232,7 @@ class DemoPlaybackService:
                         getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
                         | getattr(subprocess, "DETACHED_PROCESS", 0)
                     )
-
-                logger.info("Launch CS2 direct playback: cwd=%s cmd=%s", game_root, " ".join(argv))
+                logger.info("Launch CS:GO direct playback: cwd=%s cmd=%s", game_root, " ".join(argv))
                 process = subprocess.Popen(
                     argv,
                     cwd=str(game_root),
@@ -467,9 +248,6 @@ class DemoPlaybackService:
                     process=process,
                     copied_demo=copied_demo,
                     copied_cfg=copied_cfg,
-                    pov_manager=pov_manager if options.enabled else None,
-                    pov_enabled=bool(options.enabled),
-                    expected_gameinfo_sha256=expected_gameinfo_sha256,
                     player_config_snapshot=player_config_snapshot,
                     started_at_monotonic=time.monotonic(),
                 )
@@ -477,67 +255,33 @@ class DemoPlaybackService:
                 self._set_session_report(
                     session_id,
                     state="running",
-                    pov_hud_enabled=bool(options.enabled),
-                    recording_skybox_id=options.skybox_id,
-                    recording_map_material_id=options.map_material_id,
-                    input_hud_enabled=options.input_hud_enabled,
-                    input_hud_display_mode=options.input_hud_display_mode,
-                    input_hud_scale_percent=options.input_hud_scale_percent,
-                    input_audio_enabled=options.input_audio_enabled,
-                    input_audio_volume_percent=options.input_audio_volume_percent,
-                    weather_effect_id=options.weather_effect_id,
                     restore=None,
                     player_config_restore=None,
                 )
-                if options.enabled:
-                    self._session_verifiers[session_id] = (pov_manager, expected_gameinfo_sha256)
-                monitor = threading.Thread(
+                threading.Thread(
                     target=self._monitor_session,
                     args=(session,),
                     name=f"demo-playback-{session_id[:8]}",
                     daemon=True,
-                )
-                monitor.start()
-                return {
-                    "ok": True,
-                    "session_id": session_id,
-                    "pov_hud_enabled": bool(options.enabled),
-                    "recording_skybox_id": options.skybox_id,
-                    "recording_map_material_id": options.map_material_id,
-                    "input_hud_enabled": options.input_hud_enabled,
-                    "input_hud_display_mode": options.input_hud_display_mode,
-                    "input_hud_scale_percent": options.input_hud_scale_percent,
-                    "input_audio_enabled": options.input_audio_enabled,
-                    "input_audio_volume_percent": options.input_audio_volume_percent,
-                    "weather_effect_id": options.weather_effect_id,
-                }
+                ).start()
+                return {"ok": True, "session_id": session_id}
             except Exception:
                 if session is not None:
                     if self._active is session:
                         self._active = None
                     self._session_reports.pop(session_id, None)
-                    self._session_verifiers.pop(session_id, None)
                     try:
                         session.process.terminate()
                         session.process.wait(timeout=10)
                     except Exception as stop_exc:  # noqa: BLE001
-                        logger.error("Could not stop CS2 after playback monitor startup failure: %s", stop_exc)
+                        logger.error("Could not stop CS:GO after playback launch failure: %s", stop_exc)
                 if player_config_snapshot:
-                    player_restoration = self._restore_player_configs(player_config_snapshot)
-                    if not player_restoration.get("verified"):
-                        logger.error(
-                            "Could not restore player configs after playback launch failure: %s",
-                            player_restoration,
-                        )
-                self._best_effort_restore(pov_manager, pov_install_attempted)
+                    self._restore_player_configs(player_config_snapshot)
                 placeholder = session or DemoPlaybackSession(
                     session_id=session_id,
                     process=None,
                     copied_demo=copied_demo,
                     copied_cfg=copied_cfg,
-                    pov_manager=None,
-                    pov_enabled=False,
-                    expected_gameinfo_sha256=None,
                     player_config_snapshot=player_config_snapshot,
                     started_at_monotonic=time.monotonic(),
                 )

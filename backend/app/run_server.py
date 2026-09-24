@@ -20,7 +20,7 @@ def _install_windows_selector_loop() -> None:
     遇到 ``WinError 64 (ERROR_NETNAME_DELETED)`` 时把 listening socket
     直接关掉退出 accept loop 的内核级问题（症状：进程仍活、老 ESTABLISHED
     连接仍可继续、但 8000 不再 listen，新请求 connection refused）。
-    背景：录制流程会 ``subprocess.Popen`` 启动 CS2/Steam，子进程链路上
+    背景：录制流程会 ``subprocess.Popen`` 启动 CS:GO/Steam，子进程链路上
     handle 释放时 Windows TCP 栈会对 IOCP 队列里挂起的 accept 抛 WinError 64。
 
     必须在 ``uvicorn.run()`` 之前调用，且 **不能只靠 set_event_loop_policy**：
@@ -59,9 +59,9 @@ def main() -> None:
     backend = _backend_dir()
     if backend not in sys.path:
         sys.path.insert(0, backend)
-    host = os.environ.get("CS2_INSIGHT_HOST", "127.0.0.1")
+    host = os.environ.get("CSGO_INSIGHT_HOST", "127.0.0.1")
     try:
-        port = int(os.environ.get("CS2_INSIGHT_PORT", "19871"))
+        port = int(os.environ.get("CSGO_INSIGHT_PORT", "19871"))
     except ValueError:
         port = 19871
     from app.shutdown_state import register_server_shutdown

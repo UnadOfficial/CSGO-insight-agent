@@ -24,11 +24,11 @@ git checkout -b feat/my-change
 | Python 表数据 | 项目内置的轻量 `native_table`；生产依赖不包含 pandas、NumPy、Polars 或 PyArrow |
 | 包管理 | Python 使用 `uv` + 根目录 `uv.lock`；前端使用 `pnpm` + `frontend/pnpm-lock.yaml`；Rust 使用 Cargo + `frontend/src-tauri/Cargo.lock` |
 | AI 网关 | OpenAI 兼容 SDK（DeepSeek / Qwen / GLM / MiniMax / OpenAI / Ollama 等） |
-| 录制管线 | `RecordingRequestDTO` → `plan_builder` → `RecordingExecutor`；CS2 启停与批量队列由 `obs_director` 编排 |
+| 录制管线 | `RecordingRequestDTO` → `plan_builder` → `RecordingExecutor`；CS:GO 启停与批量队列由 `obs_director` 编排 |
 | OBS 控制 | obs-websocket-py（分段 `StartRecord` / `PauseRecord` jump-cut；可选场景转场淡入淡出） |
 | 合辑导出 | FFmpeg（`montage_encoder` 自动探测 NVENC / QSV / AMF / libx264） |
 | Demo 库 | aiosqlite + watchdog（目录监听 + SSE 推送） |
-| CS2 集成 | Game State Integration（录制就绪门控）+ `win_cs2_console` 控制台注入 |
+| CS:GO 集成 | Game State Integration（录制就绪门控）+ `win_csgo_console` 控制台注入 |
 
 ---
 
@@ -48,7 +48,7 @@ CS2-insight-agent/
 │       │   ├── postprocess/           # 末回合保护、段禁用与 warnings 汇总
 │       │   ├── executor/              # RecordingExecutor、OBS 控制、demo seek、GSI 观战校验
 │       │   └── services/              # 单次录制结果落盘
-│       ├── obs_director.py            # CS2 启停、GSI 门控、预热 cvar、批量队列 execute_plan_queue
+│       ├── obs_director.py            # CS:GO 启停、GSI 门控、预热 cvar、批量队列 execute_plan_queue
 │       ├── demo_parser.py             # 高光 / 下饭 / 梗死亡 / 合集判定入口
 │       ├── demo_parse_isolation.py    # Rust 解析子进程边界（parse_worker.py）
 │       ├── demoparser_runtime.py      # 校验定制 wheel 版本与必需的 Rust 接口
@@ -58,12 +58,12 @@ CS2-insight-agent/
 │       ├── montage_db.py              # 已录片段 & 合辑工程（SQLite recorded_clips / projects）
 │       ├── montage_encoder.py         # FFmpeg H.264 编码器探测
 │       ├── video_composer.py          # 合辑时间轴合成导出
-│       ├── win_cs2_console.py         # Windows CS2 控制台注入（SendInput / WM_CHAR）
+│       ├── win_csgo_console.py        # Windows CS:GO 控制台注入（SendInput / WM_CHAR）
 │       ├── gsi_ready.py               # GSI HTTP sink（录制就绪门控）
-│       ├── cs2_config_backup.py       # 玩家 config 备份与回滚
+│       ├── csgo_config_backup.py      # 玩家 config 备份与回滚
 │       ├── demo_db.py / demo_watcher.py / demo_library_hub.py
 │       ├── obs_config_center.py       # OBS 场景 / 源管理 API
-│       ├── env_utils.py               # 配置管理 & CS2 路径探测
+│       ├── env_utils.py               # 配置管理 & CS:GO 路径探测
 │       └── radar/                     # 回放时间线提取、地图与派生资源
 ├── frontend/
 │   ├── src-tauri/                     # Tauri 桌面壳（Python 生命周期 / NSIS resources）
@@ -81,7 +81,7 @@ CS2-insight-agent/
 │       │   ├── analysis/timeline/     # 回合时间轴与击杀 feed
 │       │   ├── SidebarNav.jsx         # 侧栏导航
 │       │   ├── ClipCard.jsx / ClipList.jsx
-│       │   ├── RecordWarmupModal.jsx  # 录制前观战预热 & POV HUD 选项
+│       │   ├── RecordWarmupModal.jsx  # CS:GO 录制前观战预热 & HLAE POV 选项
 │       │   └── RecordingBlockedDialog.jsx
 │       └── utils/                     # recordingBatch、timelineQueue、warmupDefaults 等
 └── README.md
@@ -93,7 +93,7 @@ CS2-insight-agent/
 前端队列项 → recording/buildDtoFromQueueItem → RecordingRequestDTO
     → POST /api/recording/queue
     → plan_builder（planners + postprocess）→ RecordingPlan[]
-    → obs_director.execute_plan_queue（按 demo 分组启 CS2、注入预热 cvar）
+    → obs_director.execute_plan_queue（按 demo 分组启 CS:GO、注入预热 cvar）
     → RecordingExecutor（逐段 seek / spec / OBS 录停 / jump-cut）
     → 成片重命名 + montage_db 入库（合辑工作台可选用）
 ```
@@ -178,7 +178,7 @@ GitHub Releases 同时保留可手动下载的安装包。
 | GET | `/api/health` | 健康检查 |
 | GET | `/api/config` | 获取配置 |
 | PUT | `/api/config` | 更新配置 |
-| POST | `/api/config/detect-cs2` | 自动探测 cs2.exe 路径 |
+| POST | `/api/config/detect-csgo` | 自动探测 csgo.exe 路径 |
 | POST | `/api/obs/test` | 测试 OBS WebSocket 连接 |
 | POST | `/api/demo/upload` | 单文件上传 |
 | POST | `/api/demo/upload-multiple` | 多文件上传 |
@@ -198,7 +198,7 @@ GitHub Releases 同时保留可手动下载的安装包。
 | GET | `/api/recorded-clips` | 已录片段列表（合辑工作台） |
 | POST | `/api/montage/projects` | 保存合辑工程 |
 | POST | `/api/montage/export` | FFmpeg 合辑导出 |
-| POST | `/api/gsi/cs2` | CS2 GSI Sink（录制就绪门控） |
+| POST | `/api/gsi/csgo` | CS:GO GSI Sink（录制就绪门控） |
 | GET | `/api/gsi/status` | 查看最近 GSI 状态 |
 
 ---

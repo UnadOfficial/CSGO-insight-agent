@@ -37,7 +37,7 @@ param(
     [switch]$SkipBundlePython,
     [string]$EmbeddedPythonVersion = "3.12.7",
     [switch]$ElectronStagePythonOnly,
-    [string]$DemoparserWheel = $env:CS2_INSIGHT_DEMOPARSER_WHEEL
+    [string]$DemoparserWheel = $env:CSGO_INSIGHT_DEMOPARSER_WHEEL
 )
 
 $ErrorActionPreference = "Stop"
@@ -355,12 +355,12 @@ $DestData = Join-Path $OutDir "data"
 if (Test-Path $DataSrc) {
     Write-Step "Copy data/ (templates; excluding db, user config, backups, logs)"
     robocopy $DataSrc $DestData /E /NFL /NDL /NJH /NJS /nc /ns /np `
-        /XD .cs2_config_backup .obs_config_backups logs `
-        /XF cs2-insight.config.json cs2-insight.db cs2-insight.db-wal cs2-insight.db-shm `
+        /XD .csgo_config_backup .obs_config_backups logs `
+        /XF csgo-insight.config.json csgo-insight.db csgo-insight.db-wal csgo-insight.db-shm `
         | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy data failed (exit $LASTEXITCODE)" }
-    if (-not (Test-Path (Join-Path $DestData "cs2-insight.config.example.json"))) {
-        Write-Host "警告：打包结果缺少 data/cs2-insight.config.example.json（仓库 data 目录是否齐全？）" -ForegroundColor Yellow
+    if (-not (Test-Path (Join-Path $DestData "csgo-insight.config.example.json"))) {
+        Write-Host "警告：打包结果缺少 data/csgo-insight.config.example.json（仓库 data 目录是否齐全？）" -ForegroundColor Yellow
     }
     if (-not (Test-Path (Join-Path $DestData "basic.ini"))) {
         Write-Host "警告：打包结果缺少 data/basic.ini（OBS 内置预设路径依赖该文件）。" -ForegroundColor Yellow
@@ -393,7 +393,7 @@ setlocal
 set "ROOT=%~dp0"
 
 rem ===== 后端 HTTP 端口（浏览器打开地址、uvicorn、CS2 GSI 均读取此变量；只改下一行）=====
-set "CS2_INSIGHT_PORT=19871"
+set "CSGO_INSIGHT_PORT=19871"
 rem ================================================================================
 
 if not exist "%ROOT%python\python.exe" (
@@ -410,16 +410,16 @@ if errorlevel 1 (
 )
 
 echo.
-echo CS2 Insight Agent
-echo Backend: http://127.0.0.1:%CS2_INSIGHT_PORT%
+echo CSGO Insight Agent
+echo Backend: http://127.0.0.1:%CSGO_INSIGHT_PORT%
 echo Press Ctrl+C to stop
 echo.
 
 set "PYTHONUNBUFFERED=1"
 set "PYTHONFAULTHANDLER=1"
-set "CS2_INSIGHT_LOG_DIR=%ROOT%logs"
+set "CSGO_INSIGHT_LOG_DIR=%ROOT%logs"
 
-start "" cmd /c "ping -n 3 127.0.0.1 >nul && start http://127.0.0.1:%CS2_INSIGHT_PORT%/"
+start "" cmd /c "ping -n 3 127.0.0.1 >nul && start http://127.0.0.1:%CSGO_INSIGHT_PORT%/"
 
 "%ROOT%python\python.exe" "%ROOT%backend\app\run_server.py"
 pause
@@ -459,24 +459,24 @@ exit /b 1
 '@
 
     $Readme = @"
-CS2 Insight Agent — 便携包使用说明
+CSGO Insight Agent — 便携包使用说明
 ================================
 
 本包已内置由 uv.lock 精确锁定的 Python 运行环境，无需再运行「安装依赖」。
 
 1. 首次使用（可选）
-   - 默认会从 data\cs2-insight.config.example.json 自动生成 data\cs2-insight.config.json；也可手动复制编辑。
+   - 默认会从 data\csgo-insight.config.example.json 自动生成 data\csgo-insight.config.json；也可手动复制编辑。
 
 2. 启动
    - 双击「启动.bat」
-   - 浏览器访问 http://127.0.0.1:（见启动.bat 中 CS2_INSIGHT_PORT）/
+   - 浏览器访问 http://127.0.0.1:（见启动.bat 中 CSGO_INSIGHT_PORT）/
 
 3. 若杀毒软件误删 python\ 下文件导致无法启动
    - 推荐重新安装完整发行包；也可在本机安装 uv 后双击「修复依赖.bat」按锁文件重建。
 
 4. 说明
    - 配置与数据库位于程序约定路径（见应用内说明）。
-   - 若默认端口被占用，请用记事本打开「启动.bat」，仅修改顶部的 set CS2_INSIGHT_PORT=… 一行。
+   - 若默认端口被占用，请用记事本打开「启动.bat」，仅修改顶部的 set CSGO_INSIGHT_PORT=… 一行。
 
 "@
     Set-Content -Path (Join-Path $OutDir "修复依赖.bat") -Value $RepairBat -Encoding Default
@@ -488,7 +488,7 @@ setlocal
 set "ROOT=%~dp0"
 
 rem ===== 后端 HTTP 端口（浏览器打开地址、uvicorn、CS2 GSI 均读取此变量；只改下一行）=====
-set "CS2_INSIGHT_PORT=19871"
+set "CSGO_INSIGHT_PORT=19871"
 rem ================================================================================
 
 cd /d "%ROOT%backend" 2>nul
@@ -520,16 +520,16 @@ exit /b 1
 
 :run
 echo.
-echo CS2 Insight Agent
-echo Backend: http://127.0.0.1:%CS2_INSIGHT_PORT%
+echo CSGO Insight Agent
+echo Backend: http://127.0.0.1:%CSGO_INSIGHT_PORT%
 echo Press Ctrl+C to stop
 echo.
 
 set "PYTHONUNBUFFERED=1"
 set "PYTHONFAULTHANDLER=1"
-set "CS2_INSIGHT_LOG_DIR=%ROOT%logs"
+set "CSGO_INSIGHT_LOG_DIR=%ROOT%logs"
 
-start "" cmd /c "ping -n 3 127.0.0.1 >nul && start http://127.0.0.1:%CS2_INSIGHT_PORT%/"
+start "" cmd /c "ping -n 3 127.0.0.1 >nul && start http://127.0.0.1:%CSGO_INSIGHT_PORT%/"
 
 if defined USEPYARGS (
   "%USEPY%" %USEPYARGS% "%ROOT%backend\app\run_server.py"
@@ -587,11 +587,11 @@ exit /b 1
 '@
 
     $Readme = @"
-CS2 Insight Agent — 便携包（精简：未内置 Python）
+CSGO Insight Agent — 便携包（精简：未内置 Python）
 ================================
 
 1. 请先双击「安装依赖.bat」安装 Python 依赖（需本机已安装 uv 与 64 位 Python 3.12）。
-2. 可选：将 data\cs2-insight.config.example.json 复制为 data\cs2-insight.config.json 并填写（多数情况首次启动会自动生成）。
+2. 可选：将 data\csgo-insight.config.example.json 复制为 data\csgo-insight.config.json 并填写（多数情况首次启动会自动生成）。
 3. 双击「启动.bat」。
 
 "@

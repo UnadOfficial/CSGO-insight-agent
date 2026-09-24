@@ -25,7 +25,7 @@ const ITEM = {
   custom_name: "全角，测试！",
 };
 
-describe("CS2 cosmetic inspect helpers", () => {
+describe("CS:GO cosmetic inspect helpers", () => {
   test("generates Valve's self-contained preview URL without normalizing Unicode name tags", () => {
     const link = buildCs2InspectLink(ITEM);
 

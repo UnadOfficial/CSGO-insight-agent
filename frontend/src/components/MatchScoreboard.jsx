@@ -38,8 +38,8 @@ export default function MatchScoreboard({ matchMeta, onPlay }) {
           type="button"
           onClick={onPlay}
           className="absolute left-2 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-md border border-cs2-emerald-surface bg-cs2-bg-overlay text-cs2-emerald-on-surface transition-all hover:bg-cs2-emerald-surface hover:text-cs2-text-primary sm:left-3 sm:top-3.5"
-          title={t("match.btnPlayCs2")}
-          aria-label={t("match.btnPlayCs2")}
+          title={t("match.btnPlayCsgo")}
+          aria-label={t("match.btnPlayCsgo")}
         >
           <Play className="h-4 w-4 fill-current" />
         </button>

@@ -258,7 +258,7 @@ def _extract_dems_from_zip_sync(zip_path: Path) -> list[Path]:
 
 
 def _demo_ingest_md5_enabled() -> bool:
-    v = (os.environ.get("CS2_INSIGHT_DISABLE_DEMO_MD5") or "").strip().lower()
+    v = (os.environ.get("CSGO_INSIGHT_DISABLE_DEMO_MD5") or "").strip().lower()
     return v not in ("1", "true", "yes")
 
 
@@ -634,7 +634,7 @@ class DemoWatcher:
 
     async def scan_existing(self) -> int:
         count = 0
-        raw_conc = (os.environ.get("CS2_INSIGHT_SCAN_CONCURRENCY") or "").strip()
+        raw_conc = (os.environ.get("CSGO_INSIGHT_SCAN_CONCURRENCY") or "").strip()
         try:
             max_conc = int(raw_conc) if raw_conc else 0
         except ValueError:

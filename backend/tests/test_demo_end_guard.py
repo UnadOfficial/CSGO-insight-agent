@@ -110,7 +110,7 @@ def test_normalizer_replaces_stale_request_end_with_real_demo_eof(tmp_path, monk
     demo_path = tmp_path / "source.dem"
     demo_path.write_bytes(b"placeholder")
     monkeypatch.setattr(
-        "app.recording.normalizer.read_demo_end_tick",
+        "app.recording.normalizer.read_csgo_demo_end_tick",
         lambda _path: 25_000,
     )
     base = _request(demo_end_tick=19_000)

@@ -126,8 +126,8 @@ if (-not $wheel) {
 }
 
 # Force a fresh, lean repo-root python\ runtime for the installer.
-$env:CS2_INSIGHT_DEMOPARSER_WHEEL = $wheel.FullName
-$env:CS2_INSIGHT_REFRESH_PYTHON = "1"
+$env:CSGO_INSIGHT_DEMOPARSER_WHEEL = $wheel.FullName
+$env:CSGO_INSIGHT_REFRESH_PYTHON = "1"
 
 Push-Location frontend
 try {
@@ -138,8 +138,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Desktop build failed." }
 } finally {
     Pop-Location
-    Remove-Item Env:CS2_INSIGHT_DEMOPARSER_WHEEL -ErrorAction SilentlyContinue
-    Remove-Item Env:CS2_INSIGHT_REFRESH_PYTHON -ErrorAction SilentlyContinue
+    Remove-Item Env:CSGO_INSIGHT_DEMOPARSER_WHEEL -ErrorAction SilentlyContinue
+    Remove-Item Env:CSGO_INSIGHT_REFRESH_PYTHON -ErrorAction SilentlyContinue
 }
 ```
 
@@ -148,8 +148,8 @@ Python runtime, compiles the Tauri executable, creates the NSIS installer, and
 validates the final Windows bundle. The outputs are:
 
 ```text
-frontend/src-tauri/target/release/bundle/nsis/CS2 Insight Agent_<version>_x64-setup.exe
-frontend/src-tauri/target/release/bundle/nsis/CS2 Insight Agent_<version>_x64-setup.exe.sig
+frontend/src-tauri/target/release/bundle/nsis/CSGO Insight Agent_<version>_x64-setup.exe
+frontend/src-tauri/target/release/bundle/nsis/CSGO Insight Agent_<version>_x64-setup.exe.sig
 ```
 
 The `.sig` updater signature is produced only when an updater private key is

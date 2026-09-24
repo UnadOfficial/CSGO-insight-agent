@@ -109,14 +109,14 @@ function Expand-ZipQuiet([string]$ZipPath, [string]$DestDir) {
 }
 
 try {
-  Write-Host "[CS2 Insight Agent] Downloading FFmpeg (optional) - watch the green progress bar at the top of this window."
+  Write-Host "[CSGO Insight Agent] Downloading FFmpeg (optional) - watch the green progress bar at the top of this window."
   Download-FileWithProgress -Uri $meta.zip_url -DestPath $zipPath
-  Write-Host "[CS2 Insight Agent] Verifying FFmpeg zip SHA256..."
+  Write-Host "[CSGO Insight Agent] Verifying FFmpeg zip SHA256..."
   $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($hash -ne $meta.sha256.ToLowerInvariant()) {
     throw "FFmpeg zip SHA256 mismatch: expected $($meta.sha256) got $hash"
   }
-  Write-Host "[CS2 Insight Agent] Extracting FFmpeg into app folder..."
+  Write-Host "[CSGO Insight Agent] Extracting FFmpeg into app folder..."
   $extractRoot = Join-Path $tmp "extract"
   New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
   Expand-ZipQuiet -ZipPath $zipPath -DestDir $extractRoot
@@ -131,4 +131,4 @@ try {
 } finally {
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
-Write-Host "[CS2 Insight Agent] FFmpeg installed to: $outDir"
+Write-Host "[CSGO Insight Agent] FFmpeg installed to: $outDir"

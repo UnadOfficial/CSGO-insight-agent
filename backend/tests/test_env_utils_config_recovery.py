@@ -7,13 +7,13 @@ from app.env_utils import AppConfig
 
 
 def _configure_paths(monkeypatch, tmp_path: Path) -> tuple[Path, Path]:
-    config_path = tmp_path / "profile" / "cs2-insight.config.json"
+    config_path = tmp_path / "profile" / "csgo-insight.config.json"
     bundle_dir = tmp_path / "bundle"
     bundle_dir.mkdir()
     config_path.parent.mkdir()
-    monkeypatch.setenv("CS2_INSIGHT_CONFIG", str(config_path))
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(config_path.parent))
-    monkeypatch.setenv("CS2_INSIGHT_BUNDLE_DATA_DIR", str(bundle_dir))
+    monkeypatch.setenv("CSGO_INSIGHT_CONFIG", str(config_path))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(config_path.parent))
+    monkeypatch.setenv("CSGO_INSIGHT_BUNDLE_DATA_DIR", str(bundle_dir))
     return config_path, bundle_dir
 
 
@@ -37,7 +37,7 @@ def test_load_config_quarantines_invalid_json_and_rebuilds(
     config_path, bundle_dir = _configure_paths(monkeypatch, tmp_path)
     invalid_text = "this is not JSON"
     config_path.write_text(invalid_text, encoding="utf-8")
-    (bundle_dir / "cs2-insight.config.example.json").write_text(
+    (bundle_dir / "csgo-insight.config.example.json").write_text(
         json.dumps({"match_count": 50}),
         encoding="utf-8",
     )

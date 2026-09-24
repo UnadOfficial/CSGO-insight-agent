@@ -47,7 +47,7 @@ class AIDirectorOutline(BaseModel):
     rationale: str = ""
 
 
-DIRECTOR_SYSTEM_PROMPT = """你是 CS2 击杀合辑 / 多杀高光的「导播 + 剪辑大纲」助手。
+DIRECTOR_SYSTEM_PROMPT = """你是 CS:GO 击杀合辑 / 多杀高光的「导播 + 剪辑大纲」助手。
 用户会给你按时间排序的击杀列表（含回合、间隔、受害者、武器、爆头、标签等），你要决定 OBS 录制顺序。
 
 当 enable_victim_pov=true 时，**每一杀都必须包含受害者视角**，但不能机械地 K→V→K→V。你要根据间隔和同回合连杀长度决定：
@@ -85,7 +85,7 @@ def _resolve_api_key(llm: LLMConfig) -> str:
     if key.startswith("****"):
         raise ValueError("LLM api_key is masked; paste full key in settings")
     if not key and llm_base_url_is_local_host(llm.base_url):
-        return (os.environ.get("CS2_INSIGHT_LOCAL_LLM_API_KEY") or "local").strip() or "local"
+        return (os.environ.get("CSGO_INSIGHT_LOCAL_LLM_API_KEY") or "local").strip() or "local"
     if not llm_api_key_configured(llm.api_key):
         raise ValueError("LLM api_key not configured")
     return key
@@ -605,12 +605,12 @@ def _load_match_clips_for_demo(
     target_player_name: str = "",
     target_steamid64: str = "",
 ) -> Optional[list[dict[str, Any]]]:
-    """Load parsed clips from cs2-insight.db (sync; for AI director enrichment)."""
+    """Load parsed clips from csgo-insight.db (sync; for AI director enrichment)."""
     import sqlite3
     raw = (demo_path or "").strip()
     if not raw:
         return None
-    db_path = resolve_config_path().parent / "cs2-insight.db"
+    db_path = resolve_config_path().parent / "csgo-insight.db"
     if not db_path.is_file():
         return None
 

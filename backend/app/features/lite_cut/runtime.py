@@ -106,7 +106,7 @@ preview_proxy_slots_loop: asyncio.AbstractEventLoop | None = None
 def get_lite_cut_db() -> LiteCutDB:
     global lite_cut_db
     if lite_cut_db is None:
-        db_path = resolve_config_path().parent / "cs2-insight.db"
+        db_path = resolve_config_path().parent / "csgo-insight.db"
         lite_cut_db = LiteCutDB(db_path)
     return lite_cut_db
 
@@ -114,7 +114,7 @@ def get_lite_cut_db() -> LiteCutDB:
 def get_montage_db() -> MontageDB:
     global montage_db
     if montage_db is None:
-        db_path = resolve_config_path().parent / "cs2-insight.db"
+        db_path = resolve_config_path().parent / "csgo-insight.db"
         montage_db = MontageDB(db_path)
     return montage_db
 

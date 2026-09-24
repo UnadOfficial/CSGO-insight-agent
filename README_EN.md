@@ -11,7 +11,7 @@
 </p>
 
 <h3 align="center"><b>CSGO Insight Agent: All-in-one CS:GO Creation Suite</b> </h3>
-<h4 align="center">Fork of CS2-insight-agent for Source 1 CS:GO (HL2DEMO)<br>Demo Analysis · OBS Auto-Recording · LiteCut · LLM Commentary<br>CS2 demos are rejected · Source 2 POV/skins/skyboxes are disabled</h4>
+<h4 align="center">CS:GO Insight Agent for Source 1 (HL2DEMO)<br>Demo Analysis · OBS Auto-Recording · LiteCut · LLM Commentary<br>CS2 demos are rejected · Source 2 recording overrides are disabled</h4>
 
 <p align="center">
   <a href="https://github.com/DrEAmSs59/CS2-insight-agent/releases">
@@ -77,7 +77,7 @@ A unified match-analysis workspace: loading a demo auto-parses all players; swit
 
 - **Highlights & Recording** — Batch-parse highlight moments; lock targets by Steam ID / platform ID / nickname; auto-categorize **Highlights** (multi-kills, one-taps, clutches, knife kills, jump shots, defuses), **Fails** (taser, Deagle, team kills, "human magnet", "human tracing", "shoulder-to-shoulder" moments), **Cross-round Compilations** (favorite victim, nemesis, kill/death montage, continuous round recording), and **Meme Rounds** (211/o/i/z series with optional AI round commentary), then queue them for recording. See [Clip Types & Tags](./docs/highlight_tags.md).
 - **Round Timeline / Weapon Kills** — Browse kill/death timelines by round and add a shot, a death, or an entire round to the queue. A full round records from freeze time until you die or the round ends; the Highlights **Round compilation** can still stitch multiple freeze-to-death windows.
-- **2D Replay** — High-speed local 2D replay for movement, fights, and round flow — no need to launch CS2 first.
+- **2D Replay** — High-speed local 2D replay for movement, fights, and round flow — no need to launch CS:GO first.
 - **Heatmaps** — Full-match movement density, combat hotspots, kill/death hotspots; filter by player, side, and map floor to study defaults, rotates, and failing positions.
 - **Overview / Players / Rounds / Economy** — Match overview, roster and personal stats, round-by-round flow, and economy context to grasp the match structure quickly.
 - **Cosmetics & Custom Skins** — On the Cosmetics tab, inspect weapons, knives, gloves, agents, and more that actually appeared in the demo; support 3D / in-game inspect. Enter Customize skins to pick replacements (wear, seed, etc.) and save a custom skin plan for later replay and recording.  
@@ -85,13 +85,13 @@ A unified match-analysis workspace: loading a demo auto-parses all players; swit
 
 ### Auto Recording
 
-- **Batch Recording Queue** — Queue multiple matches and clips; sequentially launch CS2 replay and drive OBS to produce videos; preview the plan before recording, with per-clip timing tweaks in the queue.
+- **Batch Recording Queue** — Queue multiple matches and clips; sequentially launch CS:GO replay and drive OBS to produce videos; preview the plan before recording, with per-clip timing tweaks in the queue.
 - **Pre-recording Spectator Settings** — One-click spectator HUD (death notices only, hide IDs/chat/demo bars), FOV and viewmodel, flash brightness, voice, resolution and aspect ratio, OBS transitions between clips; experimental POV first-person HUD can be enabled per match.
 - **Diverse Output Styles**:
   - Observer view or POV first-person HUD (toggle radar, adjust top player count display)
   - Clean spectator view, custom FOV, hide grenade trajectories
   - **Victim POV** — After highlight or multi-kill compilations, automatically append victim perspective clips
-  - **Built-in Keys + Input Visualization** — Display keyboard and mouse input directly inside CS2 through the recording VPK, with zero overlay latency
+  - **Optional HLAE POV** — Use HLAE `mirv_pov` for local CS:GO demos with `-insecure`; Source 2 VPK, skybox, material, weather, and POV HUD overrides are not part of the recording workflow
   - Fade in/out transitions between clips
 - **Safe Recording Solution**:
   - Controls recording via OBS and game state coordination, no injection or game hooking
@@ -129,7 +129,7 @@ Built-in lightweight NLE for multi-track finishing on top of Insight recordings,
 
 ## Installation
 
-Download the latest `CS2-Insight-Agent-Setup-x.x.x.exe` from the [Releases page](https://github.com/DrEAmSs59/CS2-insight-agent/releases), run the installer and follow the prompts.
+Download the latest `CSGO Insight Agent_x.x.x_x64-setup.exe` from the [Releases page](https://github.com/DrEAmSs59/CS2-insight-agent/releases), run the installer and follow the prompts.
 
 After installation, launch from desktop or start menu. **No browser or manual backend start is required.** The lightweight Tauri shell starts the bundled Python backend and renders the UI with the Windows system WebView2 runtime.
 
@@ -187,9 +187,9 @@ This project is not affiliated with, partnered with, sponsored by, authorized by
 
 ### Safe Usage Tips
 
-- **Default Recording Process** launches CS2 with `-insecure` for local demo playback only; no DLL injection or hooking; does not modify `.dem` files on disk, does not connect to, modify, or interfere with any official game servers, matchmaking services, or anti-cheat systems, nor does it provide any cheating, detection bypass, or fair-play disruption features. **Do not use in parallel with a CS2 client logged into matchmaking servers** to avoid triggering unnecessary anti-cheat warnings.
-- If you **actively enable POV** in "Common Parameters → Experimental Features", the program temporarily writes `pov.vpk` to CS2's `game/csgo` directory and **incrementally modifies** `gameinfo.gi`'s `SearchPaths` to load POV HUD resources; automatically restored after recording or abnormal termination. This mode also **forces** `-insecure` when launching CS2. **Do not use to connect to VAC-secured servers**.
-- Recording temporarily modifies several CS2 archive cvars and keybinds. This project automatically backs up your original `config.cfg` / `video.txt` / `user_convars_*.vcfg` to the program data directory's `.cs2_config_backup` when starting recording, and restores them afterward; if settings were overwritten due to abnormal exit, manually retrieve original files from that directory.
+- **Default Recording Process** launches `csgo.exe` with `-insecure` for local Source 1 demo playback only; no DLL injection or hooking; it does not modify `.dem` files on disk or connect to official game services.
+- HLAE `mirv_pov` is the only optional advanced POV path. It is intended for local CS:GO demos and also uses `-insecure`; normal playback and recording do not depend on HLAE.
+- Recording temporarily modifies Source 1 cvars and keybinds. The project backs up `config.cfg`, `autoexec.cfg`, `video.txt`, and related player files to `.csgo_config_backup`, then restores them after recording; if an abnormal exit leaves recovery pending, close CS:GO and use the in-app Restore action.
 
 ---
 

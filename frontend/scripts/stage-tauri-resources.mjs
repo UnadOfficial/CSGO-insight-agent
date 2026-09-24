@@ -8,7 +8,7 @@ const frontendRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(frontendRoot, "..");
 const destination = join(frontendRoot, "src-tauri", "bundle-resources");
 const packageVersion = JSON.parse(readFileSync(join(frontendRoot, "package.json"), "utf8")).version;
-const appVersion = process.env.CS2_INSIGHT_APP_VERSION?.trim() || packageVersion;
+const appVersion = process.env.CSGO_INSIGHT_APP_VERSION?.trim() || packageVersion;
 const finalRainMaps = [
   "de_dust2",
   "de_mirage",
@@ -172,7 +172,7 @@ for (const rel of finalRainRuntimePaths) {
 }
 const bundledDataFiles = new Set([
   "basic.ini",
-  "cs2-insight.config.example.json",
+  "csgo-insight.config.example.json",
 ]);
 copyFiltered("data", (rel) => bundledDataFiles.has(rel.toLowerCase()));
 

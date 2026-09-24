@@ -4,16 +4,16 @@ from app import demo_parse_isolation
 
 
 def test_metadata_inspection_has_a_shorter_deadline(monkeypatch):
-    monkeypatch.delenv("CS2_INSIGHT_DEMO_INSPECT_TIMEOUT_SEC", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_PARSE_WORKER_TIMEOUT_SEC", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_DEMO_INSPECT_TIMEOUT_SEC", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_PARSE_WORKER_TIMEOUT_SEC", raising=False)
 
     assert demo_parse_isolation._timeout_seconds("inspect") == 30.0
     assert demo_parse_isolation._timeout_seconds("analyze_batch") == 240.0
 
 
 def test_worker_deadlines_remain_developer_overridable(monkeypatch):
-    monkeypatch.setenv("CS2_INSIGHT_DEMO_INSPECT_TIMEOUT_SEC", "18")
-    monkeypatch.setenv("CS2_INSIGHT_PARSE_WORKER_TIMEOUT_SEC", "90")
+    monkeypatch.setenv("CSGO_INSIGHT_DEMO_INSPECT_TIMEOUT_SEC", "18")
+    monkeypatch.setenv("CSGO_INSIGHT_PARSE_WORKER_TIMEOUT_SEC", "90")
 
     assert demo_parse_isolation._timeout_seconds("players") == 18.0
     assert demo_parse_isolation._timeout_seconds("analyze") == 90.0
@@ -85,7 +85,7 @@ def test_replay_materialize_is_skipped_when_analysis_consumed_the_budget(monkeyp
 
 
 def test_parse_worker_scratch_dir_follows_data_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
 
     path = demo_parse_isolation._parse_worker_dir()

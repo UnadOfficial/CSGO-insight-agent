@@ -22,6 +22,20 @@ def bypass_demo_library_lookup(monkeypatch):
     monkeypatch.setattr(demo_replay_api.demo_db, "get_demo_by_cached_path", not_in_library)
 
 
+def _hl2demo_bytes(*, map_name: str = "de_dust2", ticks: int = 640, time_sec: float = 10.0) -> bytes:
+    """Minimal fixed Source 1 demo header accepted by require_csgo_demo()."""
+    import struct
+
+    buf = bytearray(1068)
+    buf[0:8] = b"HL2DEMO\\0"
+    struct.pack_into("<i", buf, 8, 4)
+    struct.pack_into("<i", buf, 12, 137)
+    buf[536:536 + len(map_name)] = map_name.encode("ascii")
+    struct.pack_into("<f", buf, 1056, time_sec)
+    struct.pack_into("<i", buf, 1060, ticks)
+    return bytes(buf)
+
+
 def _request(path: str) -> demo_replay_api.DemoReplayRequest:
     return demo_replay_api.DemoReplayRequest(
         path=path,
@@ -38,7 +52,7 @@ def test_binary_endpoint_repairs_cold_parquet_from_persisted_workspace(
     tmp_path,
 ):
     demo_path = tmp_path / "match.dem"
-    demo_path.write_bytes(b"demo")
+    demo_path.write_bytes(_hl2demo_bytes())
     load_calls = 0
     materialize_calls: list[dict] = []
 
@@ -85,8 +99,8 @@ def test_binary_endpoint_uses_original_library_path_when_working_copy_is_cached(
     cached_path = tmp_path / "demo-cache" / "cached.dem"
     original_path.parent.mkdir()
     cached_path.parent.mkdir()
-    original_path.write_bytes(b"original")
-    cached_path.write_bytes(b"cached")
+    original_path.write_bytes(_hl2demo_bytes())
+    cached_path.write_bytes(_hl2demo_bytes())
     load_calls = 0
     result_lookups: list[str] = []
 
@@ -135,7 +149,7 @@ def test_binary_endpoint_reports_reanalysis_when_workspace_is_unavailable(
     tmp_path,
 ):
     demo_path = tmp_path / "match.dem"
-    demo_path.write_bytes(b"demo")
+    demo_path.write_bytes(_hl2demo_bytes())
     monkeypatch.setattr(
         replay_match_cache,
         "load_match_replay_round_binary",
@@ -159,7 +173,7 @@ def test_concurrent_binary_cold_misses_share_one_materialization(
     tmp_path,
 ):
     demo_path = tmp_path / "match.dem"
-    demo_path.write_bytes(b"demo")
+    demo_path.write_bytes(_hl2demo_bytes())
     call_lock = threading.Lock()
     both_initial_loads = threading.Event()
     load_calls = 0

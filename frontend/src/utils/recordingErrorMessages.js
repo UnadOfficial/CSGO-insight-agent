@@ -21,8 +21,8 @@ export function recordingErrorMessage(result, t) {
   const segmentError = String(segment?.error || "").trim().toLowerCase();
   const combined = `${normalized} ${segmentError}`;
 
-  if (code === "RECORDING_CS2_EXITED" || normalized === "cs2_exited_unexpectedly") {
-    return t("queue.errorCs2Exited");
+  if (code === "RECORDING_CSGO_EXITED" || normalized === "csgo_exited_unexpectedly") {
+    return t("queue.errorCsgoExited");
   }
   if (
     combined.includes("voice isolation") ||

@@ -179,7 +179,7 @@ def _registry_install_candidates() -> list[Path]:
 
 def find_legacy_electron_executable() -> Optional[Path]:
     candidates: list[Path] = []
-    override = os.environ.get("CS2_INSIGHT_ELECTRON_EXE", "").strip()
+    override = os.environ.get("CSGO_INSIGHT_ELECTRON_EXE", "").strip()
     if override:
         candidates.append(Path(override))
     candidates.extend(_registry_install_candidates())
@@ -381,8 +381,8 @@ def export_ui_state_via_electron(executable: Path, timeout: float = 35.0) -> dic
     port = _available_local_port()
     report_path = Path(tempfile.gettempdir()) / f"cs2-electron-ui-export-{os.getpid()}.json"
     environment = os.environ.copy()
-    environment["CS2_INSIGHT_ELECTRON_SMOKE"] = "1"
-    environment["CS2_INSIGHT_ELECTRON_SMOKE_REPORT"] = str(report_path)
+    environment["CSGO_INSIGHT_ELECTRON_SMOKE"] = "1"
+    environment["CSGO_INSIGHT_ELECTRON_SMOKE_REPORT"] = str(report_path)
     environment["ELECTRON_NO_ATTACH_CONSOLE"] = "1"
     creation_flags = 0x08000000 if os.name == "nt" else 0
     process = subprocess.Popen(

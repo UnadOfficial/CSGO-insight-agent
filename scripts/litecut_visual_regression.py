@@ -99,7 +99,7 @@ def resolve_ffmpeg(explicit: Path | None = None) -> Path:
             return candidate
         raise FileNotFoundError(f"Requested FFmpeg does not exist: {candidate}")
     configured = ""
-    config_path = ROOT / "data" / "cs2-insight.config.json"
+    config_path = ROOT / "data" / "csgo-insight.config.json"
     if config_path.is_file():
         configured = str(load_json(config_path).get("ffmpeg_path") or "").strip()
     candidates = [configured, shutil.which("ffmpeg.exe") or "", shutil.which("ffmpeg") or ""]

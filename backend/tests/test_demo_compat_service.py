@@ -3,7 +3,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import pytest
+
 from app import demo_compat_service as service
+from app.csgo_demo_format import DemoFormatError
 from app.demo_playback_compat import PATCH_ID, PATCH_REVISION, PlaybackDemoReport
 
 
@@ -37,9 +40,23 @@ def _frame(command: int, tick: int, payload: bytes, *, declared_size=None) -> by
     return _varint(command) + _varint(tick) + _varint(size) + payload
 
 
+def _hl2demo_bytes(*, map_name: str = "de_dust2", ticks: int = 640, time_sec: float = 10.0) -> bytes:
+    """Minimal fixed Source 1 demo header accepted by require_csgo_demo()."""
+    import struct
+
+    buf = bytearray(1068)
+    buf[0:8] = b"HL2DEMO\\0"
+    struct.pack_into("<i", buf, 8, 4)
+    struct.pack_into("<i", buf, 12, 137)
+    buf[536:536 + len(map_name)] = map_name.encode("ascii")
+    struct.pack_into("<f", buf, 1056, time_sec)
+    struct.pack_into("<i", buf, 1060, ticks)
+    return bytes(buf)
+
+
 def test_ensure_demo_compatible_persists_and_reuses_fingerprint(monkeypatch, tmp_path: Path):
     source = tmp_path / "match.dem"
-    source.write_bytes(b"demo-bytes")
+    source.write_bytes(_hl2demo_bytes())
     cache = tmp_path / "compat-cache.json"
     calls: list[Path] = []
 
@@ -61,7 +78,7 @@ def test_ensure_demo_compatible_persists_and_reuses_fingerprint(monkeypatch, tmp
 
 def test_ensure_demo_compatible_invalidates_when_file_changes(monkeypatch, tmp_path: Path):
     source = tmp_path / "match.dem"
-    source.write_bytes(b"first")
+    source.write_bytes(_hl2demo_bytes(map_name="de_first"))
     calls = 0
 
     def fake_repair(_path, **_kwargs):
@@ -73,7 +90,7 @@ def test_ensure_demo_compatible_invalidates_when_file_changes(monkeypatch, tmp_p
     monkeypatch.setattr(service, "repair_demo_in_place", fake_repair)
 
     service.ensure_demo_compatible(source)
-    source.write_bytes(b"second-version")
+    source.write_bytes(_hl2demo_bytes(map_name="de_second"))
     result = service.ensure_demo_compatible(source)
 
     assert result.cached is False
@@ -82,7 +99,7 @@ def test_ensure_demo_compatible_invalidates_when_file_changes(monkeypatch, tmp_p
 
 def test_terminal_recovery_is_default_but_can_be_strict(monkeypatch, tmp_path: Path):
     source = tmp_path / "match.dem"
-    source.write_bytes(b"demo-bytes")
+    source.write_bytes(_hl2demo_bytes())
     ensure_options: list[bool] = []
 
     def fake_repair(_path, *, allow_truncated_packet_tail=False):
@@ -94,43 +111,33 @@ def test_terminal_recovery_is_default_but_can_be_strict(monkeypatch, tmp_path: P
 
     service.ensure_demo_compatible(source)
 
-    source.write_bytes(b"changed-demo-bytes")
+    source.write_bytes(_hl2demo_bytes(map_name="de_changed"))
     service.ensure_demo_compatible(source, allow_truncated_packet_tail=False)
 
     assert ensure_options == [True, False]
 
 
-def test_recovered_terminal_tail_is_cached_after_atomic_finalization(
+def test_source2_demo_is_rejected_before_any_compatibility_rewrite(
     monkeypatch,
     tmp_path: Path,
 ):
-    source = tmp_path / "unfinalized.dem"
-    recovery_message = b"\x12\x05spawn"
-    recovery_handle = b"\x0a\x04\x08\x01\x10\x01"
-    source_bytes = (
-        b"PBDEMS2\x00"
-        + b"\x00" * 8
-        + _frame(1, (1 << 32) - 1, b"header")
-        + _frame(18, (1 << 32) - 1, recovery_message)
-        + _frame(18, (1 << 32) - 1, recovery_handle)
-        + _frame(7, 42, b"")
-        + _frame(7, 43, b"partial", declared_size=12)
-    )
+    """CS:GO-only product: PBDEMS2 never enters the compatibility rewriter."""
+
+    source = tmp_path / "cs2.dem"
+    source_bytes = b"PBDEMS2\\x00" + b"\\x00" * 32
     source.write_bytes(source_bytes)
     monkeypatch.setattr(service, "_cache_path", lambda: tmp_path / "cache.json")
 
-    first = service.ensure_demo_compatible(
-        source,
-        allow_truncated_packet_tail=True,
-    )
-    second = service.ensure_demo_compatible(source)
+    def unexpected_repair(*_args, **_kwargs):
+        raise AssertionError("Source 2 demos must not reach the compatibility rewriter")
 
-    assert first.cached is False
-    assert first.report.outcome == "repaired"
-    assert first.report.recovered_unfinalized_demo is True
-    assert second.cached is True
-    assert second.report == first.report
-    assert source.read_bytes() != source_bytes
+    monkeypatch.setattr(service, "repair_demo_in_place", unexpected_repair)
+
+    with pytest.raises(DemoFormatError) as error:
+        service.ensure_demo_compatible(source)
+
+    assert error.value.code == "DEMO_NOT_CSGO"
+    assert source.read_bytes() == source_bytes
 
 
 def test_compatible_baseline_repairs_once_and_never_mutates_original(
@@ -139,7 +146,7 @@ def test_compatible_baseline_repairs_once_and_never_mutates_original(
 ):
     source = tmp_path / "library" / "match.dem"
     source.parent.mkdir()
-    source_bytes = b"ORIGINAL-DEMO"
+    source_bytes = _hl2demo_bytes(map_name="de_original")
     source.write_bytes(source_bytes)
     cache_dir = tmp_path / "cache"
     calls: list[Path] = []
@@ -166,7 +173,7 @@ def test_compatible_baseline_repairs_once_and_never_mutates_original(
 
 def test_compatible_baseline_invalidates_when_original_changes(monkeypatch, tmp_path: Path):
     source = tmp_path / "match.dem"
-    source.write_bytes(b"FIRST")
+    source.write_bytes(_hl2demo_bytes(map_name="de_first"))
     cache_dir = tmp_path / "cache"
     calls = 0
 
@@ -181,18 +188,18 @@ def test_compatible_baseline_invalidates_when_original_changes(monkeypatch, tmp_
     monkeypatch.setattr(service, "repair_demo_in_place", fake_repair)
 
     first = service.ensure_compatible_baseline(source, cache_dir)
-    source.write_bytes(b"SECOND-VERSION")
+    source.write_bytes(_hl2demo_bytes(map_name="de_second"))
     second = service.ensure_compatible_baseline(source, cache_dir)
 
     assert first != second
-    assert first.read_bytes() == b"FIRST-COMPAT"
-    assert second.read_bytes() == b"SECOND-VERSION-COMPAT"
+    assert first.read_bytes() == _hl2demo_bytes(map_name="de_first") + b"-COMPAT"
+    assert second.read_bytes() == _hl2demo_bytes(map_name="de_second") + b"-COMPAT"
     assert calls == 2
 
 
 def test_compatible_baseline_failure_publishes_nothing(monkeypatch, tmp_path: Path):
     source = tmp_path / "match.dem"
-    source_bytes = b"ORIGINAL"
+    source_bytes = _hl2demo_bytes(map_name="de_original")
     source.write_bytes(source_bytes)
     cache_dir = tmp_path / "cache"
 

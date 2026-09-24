@@ -26,7 +26,7 @@ _EXTRACTOR_NAMES = ("csgo-demo-extract.exe", "csgo-demo-extract")
 def resolve_extractor_path() -> Path | None:
     configured = (
         os.environ.get("CSGO_INSIGHT_DEMO_EXTRACT")
-        or os.environ.get("CS2_INSIGHT_DEMO_EXTRACT")
+        or os.environ.get("CSGO_INSIGHT_DEMO_EXTRACT")
         or ""
     ).strip()
     candidates: list[Path] = []
@@ -389,5 +389,4 @@ def _records_to_columns(rows: Iterable[dict[str, Any]]) -> dict[str, list[Any]]:
                 seen.add(name)
                 names.append(name)
     return {name: [row.get(name) for row in materialised] for name in names}
-
 

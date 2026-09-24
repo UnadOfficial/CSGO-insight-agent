@@ -7,7 +7,7 @@ _CHIEF_RD_BADGE = "👨‍🔬 首席研发工程师"
 
 
 def meme_series_badges_for_kd(kills: int, deaths: int) -> list[str]:
-    """本局 K/D 对应的 CS2 社区梗标签（o / i / z / 211 系列）。"""
+    """本局 K/D 对应的社区梗标签（o / i / z / 211 系列）。"""
     k, d = int(kills), int(deaths)
     if k == 2 and d == 11:
         return ["🎓 211高材生"]
@@ -31,7 +31,7 @@ class MatchMeta:
     target_player_key: Optional[str] = None
     # 解析侧的观战编号兜底；录制期以 GSI 校准出的 spec_player 槽位为准。
     target_player_user_id: Optional[int] = None
-    # Steam64 十进制字符串；观战仍靠昵称在 seek tick 上算槽位（CS2 无按 Steam 切 spec 的官方命令）
+    # Steam64 十进制字符串；观战仍靠昵称在 seek tick 上算槽位。
     target_steam_id: Optional[str] = None
     # player_death 汇总；meme 合集条数可能小于 target_deaths（与下饭去重）
     target_kills: int = 0
@@ -51,7 +51,7 @@ class MatchMeta:
     server_name: str = ""
     # 全员名单：[{name, steamid64, spec_slot, team_num}, ...]；spec_slot 为原始未校准值
     all_players: list = field(default_factory=list)
-    # PBDEMS2 最后外层帧 tick；录制只用它在真实 EOF 前停止，避免返回主菜单。
+    # HL2DEMO 最后外层帧 tick；录制只用它在真实 EOF 前停止，避免返回主菜单。
     demo_end_tick: int = 0
 
 
@@ -98,7 +98,7 @@ class Clip:
     clip_min_tick: Optional[int] = None
     # 目标玩家在本回合的死亡 tick（供"虽败犹荣"类片段延伸录制到结局画面；赢了的回合亦填充，但导播默认不延伸）
     death_tick: Optional[int] = None
-    # 本回合建议录制窗口的最晚 tick；最后一回合使用真实 PBDEMS2 结束 tick。
+    # 本回合建议录制窗口的最晚 tick；最后一回合使用真实 HL2DEMO 结束 tick。
     clip_max_tick: Optional[int] = None
     ai_score: Optional[float] = None
     ai_commentary: Optional[str] = None

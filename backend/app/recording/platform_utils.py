@@ -171,7 +171,7 @@ def select_voice_listen_mask(
 
 
 def split_voice_listen_mask(mask: int) -> tuple[int, int]:
-    """Split a 64-bit mask into the signed int32 values accepted by CS2 cvars."""
+    """Split a 64-bit mask into signed int32 values accepted by CS:GO cvars."""
     if isinstance(mask, bool) or not isinstance(mask, int):
         raise ValueError("voice listen mask must be an integer")
     if mask < 0 or mask > VOICE_LISTEN_MASK_ALL:

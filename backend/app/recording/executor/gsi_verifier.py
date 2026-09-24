@@ -17,7 +17,7 @@ async def get_current_player_steamid() -> Optional[str]:
     status = gsi_status()
     if not isinstance(status, dict):
         return None
-    # gsi_status() returns a wrapper dict; the actual CS2 payload is in "last_payload"
+    # gsi_status() returns a wrapper dict; the actual CSGO payload is in "last_payload"
     payload = status.get("last_payload", {})
     if not isinstance(payload, dict) or not payload:
         return None

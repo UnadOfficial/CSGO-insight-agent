@@ -29,7 +29,6 @@ export const BACKEND_DEFAULT_PACING = {
  * @property {string} id
  * @property {string} demoPath
  * @property {string} demoFilename
- * @property {boolean|null} demoHasPlayerKeyboardInput Demo 是否含局内 VPK 键鼠 HUD 所需输入数据
  * @property {string|null} targetPlayer
  * @property {number|null} targetPlayerUserId
  * @property {string|null} targetSteamId
@@ -292,7 +291,7 @@ export const useRecordingQueue = create((set, get) => ({
   },
 
   /**
-   * 从 data/cs2-insight.config.json / GET /api/config 一次性替换全局节奏（非合并）。
+   * 从 data/csgo-insight.config.json / GET /api/config 一次性替换全局节奏（非合并）。
    * @param {Record<string, unknown>} obj
    */
   hydrateGlobalPacing(obj) {

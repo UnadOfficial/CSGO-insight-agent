@@ -65,8 +65,8 @@ def require_csgo_demo(path: str | Path) -> bytes:
         return magic
     if kind == "pbdems2":
         raise DemoFormatError(
-            "This is a CS2 (PBDEMS2) demo. CSGO Insight Agent only parses Source 1 CS:GO demos.",
-            code="DEMO_CS2_NOT_SUPPORTED",
+            "This is a Source 2 demo (PBDEMS2). CS:GO Insight Agent only parses Source 1 HL2DEMO files.",
+            code="DEMO_NOT_CSGO",
         )
     raise DemoFormatError(
         f"{target} is not a CS:GO HL2DEMO file",
@@ -109,3 +109,12 @@ def read_hl2demo_header(path: str | Path) -> dict[str, object]:
         "tick_rate": tick_rate,
         "tickrate": tick_rate,
     }
+
+
+def read_csgo_demo_end_tick(path: str | Path) -> int:
+    """Return the Source 1 playback boundary from the HL2DEMO header."""
+    header = read_hl2demo_header(path)
+    ticks = int(header.get("playback_ticks") or 0)
+    if ticks <= 0:
+        raise DemoFormatError("HL2DEMO playback tick count is missing", code="DEMO_INSPECTION_FAILED")
+    return ticks

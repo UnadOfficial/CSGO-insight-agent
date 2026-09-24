@@ -1,12 +1,12 @@
-"""Windows-only: focus CS2 and inject lines into the developer console.
+"""Windows-only: focus CSGO and inject lines into the developer console.
 
-CS2 客户端播 demo 时 RCON 不可靠，故用前台窗口 + 模拟键盘输入执行命令；序列末尾会再执行 ``hideconsole``（可用环境变量改为 ``toggleconsole``）以关闭控制台。
-另提供 ``send_cs2_space_taps``：不下拉控制台，仅向前台 CS2 发空格（Demo UI「下一玩家视角」等）。
+CSGO 客户端播 demo 时 RCON 不可靠，故用前台窗口 + 模拟键盘输入执行命令；序列末尾会再执行 ``hideconsole``（可用环境变量改为 ``toggleconsole``）以关闭控制台。
+另提供 ``send_csgo_space_taps``：不下拉控制台，仅向前台 CSGO 发空格（Demo UI「下一玩家视角」等）。
 非 Windows 平台提供空实现以便统一 import。
 
 注入通道说明：
-- ``~``（控制台开关）与 Space（demo UI）使用 ``SendInput``，需要 CS2 在前台。
-- 控制台**文字字符与 Enter**使用 ``PostMessage(WM_CHAR)`` 直接投递到 CS2 消息队列，
+- ``~``（控制台开关）与 Space（demo UI）使用 ``SendInput``，需要 CSGO 在前台。
+- 控制台**文字字符与 Enter**使用 ``PostMessage(WM_CHAR)`` 直接投递到 CSGO 消息队列，
   绕过 Windows UIPI 对 ``SendInput`` 的静默拦截（症状：SendInput 返回 0/2，
   文字输入到一半卡住）。每条命令分别提交，保留 Demo 控制指令之间的处理间隔。
 """
@@ -20,27 +20,27 @@ import time
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "find_cs2_hwnd",
-    "ensure_cs2_foreground",
+    "find_csgo_hwnd",
+    "ensure_csgo_foreground",
     "inject_console_command",
     "inject_console_sequence",
-    "send_cs2_space_taps",
-    "send_cs2_vk_tap",
+    "send_csgo_space_taps",
+    "send_csgo_vk_tap",
 ]
 
 
 if sys.platform != "win32":
 
-    def find_cs2_hwnd() -> int:
+    def find_csgo_hwnd() -> int:
         return 0
 
-    def ensure_cs2_foreground(timeout: float = 3.0) -> bool:
+    def ensure_csgo_foreground(timeout: float = 3.0) -> bool:
         return False
 
     def inject_console_command(cmd: str, *, skip_console_toggle: bool = False) -> bool:
         return False
 
-    def send_cs2_space_taps(count: int) -> bool:
+    def send_csgo_space_taps(count: int) -> bool:
         return False
 
     def inject_console_sequence(
@@ -51,10 +51,10 @@ if sys.platform != "win32":
     ) -> bool:
         cmds = [str(ln).strip() for ln in lines if ln and str(ln).strip()]
         if cmds:
-            logger.info("[非Windows] 模拟 CS2 控制台逐条注入 %d 条指令: %s", len(cmds), cmds)
+            logger.info("[非Windows] 模拟 CSGO 控制台逐条注入 %d 条指令: %s", len(cmds), cmds)
         return False
 
-    def send_cs2_vk_tap(vk: int) -> bool:
+    def send_csgo_vk_tap(vk: int) -> bool:
         return False
 
 else:
@@ -150,7 +150,7 @@ else:
         _CONSOLE_TOGGLE_KEYS[f"F{_i}"] = (_vk, _scan)
 
     def _console_toggle_vk_scan() -> tuple[int, int]:
-        raw = (os.environ.get("CS2_INSIGHT_CONSOLE_TOGGLE_KEY") or "F10").strip().upper()
+        raw = (os.environ.get("CSGO_INSIGHT_CONSOLE_TOGGLE_KEY") or "F10").strip().upper()
         return _CONSOLE_TOGGLE_KEYS.get(raw, _CONSOLE_TOGGLE_KEYS["F10"])
 
     def _send_input(*inputs: INPUT) -> bool:
@@ -190,7 +190,7 @@ else:
         return INPUT(type=INPUT_KEYBOARD, u=INPUT_UNION(ki=ki))
 
     def _post_char(hwnd: int, code: int) -> None:
-        """PostMessage(WM_CHAR) 投递单字符到 CS2 消息队列（绕过 UIPI 对 SendInput 的拦截）。"""
+        """PostMessage(WM_CHAR) 投递单字符到 CSGO 消息队列（绕过 UIPI 对 SendInput 的拦截）。"""
         user32.PostMessageW(hwnd, WM_CHAR, code, 1)
 
     def _post_enter(hwnd: int) -> None:
@@ -221,8 +221,8 @@ else:
         user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
         user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags)
 
-    def find_cs2_hwnd() -> int:
-        """Locate a top-level CS2 window by title prefix, but require ``cs2.exe`` as the owner process.
+    def find_csgo_hwnd() -> int:
+        """Locate a top-level CSGO window by title prefix, but require ``csgo.exe`` as the owner process.
 
         Title-only matching falsely triggers on browsers / other apps whose window title
         contains ``Counter-Strike`` (e.g. Steam store, wiki, streams).
@@ -245,7 +245,7 @@ else:
             low = title.lower()
             if any(x in low for x in ("obs ", "obs studio", "streamlabs")):
                 return True
-            if _window_process_exe_basename(hwnd) not in {"csgo.exe", "cs2.exe"}:
+            if _window_process_exe_basename(hwnd) != "csgo.exe":
                 return True
             found = hwnd
             return False
@@ -254,12 +254,12 @@ else:
         return found
 
     def _focus_hwnd(hwnd: int) -> int:
-        """强制把 CS2 窗口置为前台，返回最终实际的前台 hwnd。
+        """强制把 CSGO 窗口置为前台，返回最终实际的前台 hwnd。
 
         Windows 前台锁定的正确绕法：用 ``AttachThreadInput`` 挂接**当前前台
         窗口所属线程**（而不是目标线程）。合并输入队列后，当前线程即视同持有
-        前台许可，``SetForegroundWindow(cs2)`` 才能真正生效。同时为稳妥也
-        挂接目标（CS2）线程。完成后撤销挂接，再短暂轮询 ``GetForegroundWindow``
+        前台许可，``SetForegroundWindow(csgo)`` 才能真正生效。同时为稳妥也
+        挂接目标（CSGO）线程。完成后撤销挂接，再短暂轮询 ``GetForegroundWindow``
         等待前台切换真正到位。
         """
         SW_RESTORE = 9
@@ -307,51 +307,51 @@ else:
                 return last_fg
             time.sleep(0.02)
         logger.warning(
-            "_focus_hwnd: CS2(hwnd=%s) 未成为前台，当前前台=%s（UIPI/FLP 限制）",
+            "_focus_hwnd: CSGO(hwnd=%s) 未成为前台，当前前台=%s（UIPI/FLP 限制）",
             hwnd, last_fg,
         )
         return last_fg
 
-    def ensure_cs2_foreground(timeout: float = 3.0) -> bool:
-        """Bring CS2 to the foreground and wait until Windows actually reports it focused."""
-        hwnd = find_cs2_hwnd()
+    def ensure_csgo_foreground(timeout: float = 3.0) -> bool:
+        """Bring CSGO to the foreground and wait until Windows actually reports it focused."""
+        hwnd = find_csgo_hwnd()
         if not hwnd:
             logger.error("未找到 Counter-Strike 窗口，无法切到前台")
             return False
         deadline = time.monotonic() + max(0.1, float(timeout))
         last_fg = 0
         while time.monotonic() < deadline:
-            hwnd = find_cs2_hwnd() or hwnd
+            hwnd = find_csgo_hwnd() or hwnd
             last_fg = _focus_hwnd(hwnd)
             if last_fg == hwnd or user32.GetForegroundWindow() == hwnd:
                 return True
             time.sleep(0.15)
-        logger.warning("CS2 前台确认超时: hwnd=%s current_fg=%s timeout=%.2fs", hwnd, last_fg, timeout)
+        logger.warning("CSGO 前台确认超时: hwnd=%s current_fg=%s timeout=%.2fs", hwnd, last_fg, timeout)
         return False
 
     VK_SPACE = 0x20
 
-    def send_cs2_space_taps(count: int) -> bool:
+    def send_csgo_space_taps(count: int) -> bool:
         """
-        向前台 CS2 窗口发送空格键（不下拉控制台），用于 Demo 右下角「下一个玩家视角」等 UI。
+        向前台 CSGO 窗口发送空格键（不下拉控制台），用于 Demo 右下角「下一个玩家视角」等 UI。
         ``count`` 为连按次数，每次之间短暂 sleep。
         """
         n = max(0, int(count))
         if n <= 0:
             return True
-        hwnd = find_cs2_hwnd()
+        hwnd = find_csgo_hwnd()
         if not hwnd:
             logger.error("未找到 Counter-Strike 窗口，无法发送空格 (demo UI)")
             return False
         try:
-            focus_timeout = max(0.2, float((os.environ.get("CS2_INSIGHT_FOREGROUND_TIMEOUT_SEC") or "4.0").strip()))
+            focus_timeout = max(0.2, float((os.environ.get("CSGO_INSIGHT_FOREGROUND_TIMEOUT_SEC") or "4.0").strip()))
         except ValueError:
             focus_timeout = 4.0
-        if not ensure_cs2_foreground(focus_timeout):
+        if not ensure_csgo_foreground(focus_timeout):
             return False
         time.sleep(0.15)
         try:
-            between = max(0.02, float((os.environ.get("CS2_INSIGHT_SPEC_PRIME_SPACE_GAP") or "0.09").strip()))
+            between = max(0.02, float((os.environ.get("CSGO_INSIGHT_SPEC_PRIME_SPACE_GAP") or "0.09").strip()))
         except ValueError:
             between = 0.09
         for _ in range(n):
@@ -359,20 +359,20 @@ else:
             time.sleep(between)
         return True
 
-    def send_cs2_vk_tap(vk: int) -> bool:
-        """Send a single VK key tap to CS2 without opening the console.
+    def send_csgo_vk_tap(vk: int) -> bool:
+        """Send a single VK key tap to CSGO without opening the console.
 
         Used for recording-time demo control (demo_pause / demo_resume via
         bound numpad keys) where opening the console would appear in the OBS capture.
         """
-        hwnd = find_cs2_hwnd()
+        hwnd = find_csgo_hwnd()
         if not hwnd:
-            logger.warning("send_cs2_vk_tap: CS2 window not found (vk=0x%02X)", vk)
+            logger.warning("send_csgo_vk_tap: CSGO window not found (vk=0x%02X)", vk)
             return False
         scan = int(user32.MapVirtualKeyW(vk, 0)) or 0
-        # Best-effort foreground (short timeout — CS2 should already be in front).
+        # Best-effort foreground (short timeout — CSGO should already be in front).
         if user32.GetForegroundWindow() != hwnd:
-            ensure_cs2_foreground(0.5)
+            ensure_csgo_foreground(0.5)
         _vk_tap_with_fallback(hwnd, vk, scan)
         time.sleep(0.05)
         return True
@@ -386,21 +386,21 @@ else:
         cmds = [str(ln).strip() for ln in lines if ln and str(ln).strip()]
         if not cmds:
             return True
-        logger.info("CS2 控制台逐条注入 %d 条指令: %s", len(cmds), cmds)
-        hwnd = find_cs2_hwnd()
+        logger.info("CSGO 控制台逐条注入 %d 条指令: %s", len(cmds), cmds)
+        hwnd = find_csgo_hwnd()
         if not hwnd:
             logger.error("未找到 Counter-Strike 窗口，无法注入控制台命令")
             return False
         try:
-            focus_timeout = max(0.2, float((os.environ.get("CS2_INSIGHT_FOREGROUND_TIMEOUT_SEC") or "4.0").strip()))
+            focus_timeout = max(0.2, float((os.environ.get("CSGO_INSIGHT_FOREGROUND_TIMEOUT_SEC") or "4.0").strip()))
         except ValueError:
             focus_timeout = 4.0
-        if not ensure_cs2_foreground(focus_timeout):
+        if not ensure_csgo_foreground(focus_timeout):
             return False
         time.sleep(0.12)
         if not skip_console_toggle:
             if user32.GetForegroundWindow() != hwnd:
-                ensure_cs2_foreground(0.8)
+                ensure_csgo_foreground(0.8)
             vk_toggle, scan_toggle = _console_toggle_vk_scan()
             _vk_tap_with_fallback(hwnd, vk_toggle, scan_toggle)
             time.sleep(0.18)
@@ -412,13 +412,13 @@ else:
             _post_enter(hwnd)
             time.sleep(0.1)
         # 用控制台命令关闭，避免键盘布局下 VK_OEM_3 与游戏绑定不一致导致关不掉
-        if close_console and not os.environ.get("CS2_INSIGHT_SKIP_CONSOLE_CLOSE", "").strip().lower() in (
+        if close_console and not os.environ.get("CSGO_INSIGHT_SKIP_CONSOLE_CLOSE", "").strip().lower() in (
             "1",
             "true",
             "yes",
         ):
             time.sleep(0.06)
-            close_cmd = (os.environ.get("CS2_INSIGHT_CONSOLE_CLOSE_CMD") or "hideconsole").strip() or "hideconsole"
+            close_cmd = (os.environ.get("CSGO_INSIGHT_CONSOLE_CLOSE_CMD") or "hideconsole").strip() or "hideconsole"
             for ch in close_cmd:
                 _post_char(hwnd, ord(ch))
                 time.sleep(0.002)

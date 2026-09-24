@@ -27,7 +27,6 @@ describe("recording aliases entry", () => {
     expect(screen.queryByRole("checkbox", { name: "启用改名" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "开始录制" }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
-      experimental_pov_enabled: false,
       player_aliases_by_demo: {},
     }));
     expect(API.post).not.toHaveBeenCalled();

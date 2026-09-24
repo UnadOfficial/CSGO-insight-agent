@@ -468,7 +468,7 @@ def _spec_player_id_offset(
     observed_user_ids: list[int] | tuple[int, ...] | set[int] | None = None,
 ) -> int:
     """parse_ticks 里每条玩家 user_id 与客户端 spec_player 编号之差。"""
-    raw_env = os.environ.get("CS2_SPEC_PLAYER_SLOT_OFFSET")
+    raw_env = os.environ.get("CSGO_SPEC_PLAYER_SLOT_OFFSET")
     if raw_env is None and observed_user_ids:
         vals = [int(v) for v in observed_user_ids if int(v) >= 0]
         if vals and min(vals) == 0:
@@ -611,7 +611,7 @@ def _compute_spec_slot_legacy_team_steam_sort(
             return None
         pos = mask.tolist().index(True)
         one_based = pos + 1
-        if os.environ.get("CS2_SPEC_SLOT_ZERO_BASED", "").strip().lower() in ("1", "true", "yes"):
+        if os.environ.get("CSGO_SPEC_SLOT_ZERO_BASED", "").strip().lower() in ("1", "true", "yes"):
             return pos
         return one_based if one_based > 0 else None
 

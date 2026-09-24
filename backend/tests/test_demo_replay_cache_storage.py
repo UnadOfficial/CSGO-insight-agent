@@ -53,7 +53,7 @@ def _write_round_entry(demo_path: Path) -> str:
 
 
 def test_replay_assets_are_persistent_managed_and_removed_per_demo(tmp_path, monkeypatch):
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
     demo_a = tmp_path / "a.dem"
     demo_b = tmp_path / "b.dem"
     demo_a.write_bytes(b"a")
@@ -85,7 +85,7 @@ def test_replay_assets_are_persistent_managed_and_removed_per_demo(tmp_path, mon
 
 
 def test_legacy_match_cache_remains_readable_and_global_clear_reclaims_it(tmp_path, monkeypatch):
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
     demo_path = tmp_path / "legacy.dem"
     demo_path.write_bytes(b"demo")
     cache_key = replay_match_cache.replay_match_cache_key(str(demo_path))
@@ -149,7 +149,7 @@ def test_library_delete_reclaims_replay_cache(monkeypatch, tmp_path):
 
 
 def test_remove_demo_row_caches_covers_working_copy(tmp_path, monkeypatch):
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
     original = tmp_path / "original.dem"
     cached = tmp_path / "demo-cache" / "working.dem"
     original.write_bytes(b"original")
@@ -174,7 +174,7 @@ def test_remove_demo_row_caches_bootstraps_all_paths_in_one_namespace_pass(
     tmp_path,
     monkeypatch,
 ):
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
     original = str(tmp_path / "original.dem")
     cached = str(tmp_path / "cached.dem")
     calls: list[tuple[str, ...]] = []
@@ -198,7 +198,7 @@ def test_remove_demo_row_caches_bootstraps_all_paths_in_one_namespace_pass(
 
 
 def test_ready_owner_index_deletes_directly_without_namespace_scan(tmp_path, monkeypatch):
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
     demo_path = tmp_path / "indexed.dem"
     demo_path.write_bytes(b"demo")
     match_root = replay_cache_storage.replay_cache_namespace_root("matches")
@@ -233,7 +233,7 @@ def test_owner_index_keeps_primary_and_legacy_entries_with_the_same_key(
     tmp_path,
     monkeypatch,
 ):
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
     demo_path = tmp_path / "duplicate-root.dem"
     demo_path.write_bytes(b"demo")
     primary = replay_cache_storage.replay_cache_namespace_root("matches")

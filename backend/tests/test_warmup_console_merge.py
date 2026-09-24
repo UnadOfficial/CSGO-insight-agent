@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import win_cs2_console
+from app import win_csgo_console as win_csgo_console
 from app.env_utils import OBSConfig
 from app.obs_director import (
     OBSDirector,
@@ -27,10 +27,22 @@ def _director(inject_lines: str) -> OBSDirector:
     return OBSDirector(OBSConfig(), "", record_inject_console_lines=inject_lines)
 
 
-def test_recording_warmup_defaults_virtual_key_sounds_off():
+def test_recording_warmup_has_no_source2_input_hud_fields():
+    """The retired POV HUD owned input/audio overlays; CS:GO must not carry them."""
     warmup = RecordingWarmupExtras()
-    assert warmup.input_hud_enabled is True
-    assert warmup.input_audio_enabled is False
+
+    for retired in (
+        "input_hud_enabled",
+        "input_hud_display_mode",
+        "input_audio_enabled",
+        "combat_stats_hud_enabled",
+        "pov_voice_disabled",
+        "recording_hud_enabled",
+        "skybox_id",
+        "map_material_id",
+        "weather_effect_id",
+    ):
+        assert not hasattr(warmup, retired), f"{retired} must be removed for CS:GO-only recording"
 
 
 def test_no_fixed_cvars_when_inject_lines_empty():
@@ -115,7 +127,7 @@ def test_pov_warmup_leaves_voice_to_pov_pipeline():
 
 def test_pov_voice_disable_mutes_after_pov_voice_enablement():
     director = _director("")
-    warmup = RecordingWarmupExtras(pov_voice_disabled=True)
+    warmup = RecordingWarmupExtras(pov_voice_mode="mute")
     lines = director._recording_warmup_console_lines(warmup, pov_enabled=True)
 
     assert _voice_lines(lines) == ["snd_voipvolume 0"]
@@ -124,7 +136,7 @@ def test_pov_voice_disable_mutes_after_pov_voice_enablement():
         *pov_tail_commands(
             teamcounter_numeric=False,
             radar_mode=0,
-            voice_disabled=True,
+            voice_mode="mute",
         ),
     ]
     assert commands.index("snd_voipvolume 0") > commands.index("snd_voipvolume 1")
@@ -179,21 +191,21 @@ def test_stale_client_voice_commands_cannot_override_non_pov_policy():
 @pytest.mark.skipif(sys.platform != "win32", reason="CS2 console injection is Windows-only")
 def test_demo_seek_commands_are_submitted_with_separate_enter_presses(monkeypatch):
     events: list[str | None] = []
-    monkeypatch.setattr(win_cs2_console, "find_cs2_hwnd", lambda: 123)
-    monkeypatch.setattr(win_cs2_console, "ensure_cs2_foreground", lambda _timeout: True)
+    monkeypatch.setattr(win_csgo_console, "find_csgo_hwnd", lambda: 123)
+    monkeypatch.setattr(win_csgo_console, "ensure_csgo_foreground", lambda _timeout: True)
     monkeypatch.setattr(
-        win_cs2_console,
+        win_csgo_console,
         "_post_char",
         lambda _hwnd, code: events.append(chr(code)),
     )
     monkeypatch.setattr(
-        win_cs2_console,
+        win_csgo_console,
         "_post_enter",
         lambda _hwnd: events.append(None),
     )
-    monkeypatch.setattr(win_cs2_console.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(win_csgo_console.time, "sleep", lambda _seconds: None)
 
-    assert win_cs2_console.inject_console_sequence(
+    assert win_csgo_console.inject_console_sequence(
         ["demo_pause", "demo_gototick 5745"],
         skip_console_toggle=True,
         close_console=False,

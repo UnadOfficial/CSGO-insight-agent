@@ -2,7 +2,7 @@
 
 [简体中文](./CONTRIBUTING.md) | English
 
-Thanks for contributing to CS2 Insight Agent. This is a concise guide to the branch and pull-request workflow.
+Thanks for contributing to CSGO Insight Agent. This is a concise guide to the branch and pull-request workflow.
 
 ## Branches
 

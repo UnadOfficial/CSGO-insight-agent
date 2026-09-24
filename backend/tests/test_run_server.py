@@ -25,7 +25,7 @@ def test_portable_launcher_uses_supported_uvicorn_config(monkeypatch):
         "app.shutdown_state.register_server_shutdown",
         shutdown_callbacks.append,
     )
-    monkeypatch.setenv("CS2_INSIGHT_PORT", "19871")
+    monkeypatch.setenv("CSGO_INSIGHT_PORT", "19871")
 
     run_server.main()
 

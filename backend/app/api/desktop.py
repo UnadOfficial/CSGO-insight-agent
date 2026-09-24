@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from ..win_cs2_console import find_cs2_hwnd
+from ..win_csgo_console import find_csgo_hwnd
 
 router = APIRouter(tags=["desktop"])
 
@@ -168,7 +168,7 @@ def _launch_cs2_inspect_url(inspect_url: str) -> None:
 async def _wait_for_cs2_window(timeout: float = 75.0) -> bool:
     deadline = asyncio.get_running_loop().time() + max(1.0, timeout)
     while asyncio.get_running_loop().time() < deadline:
-        if await asyncio.to_thread(find_cs2_hwnd):
+        if await asyncio.to_thread(find_csgo_hwnd):
             return True
         await asyncio.sleep(0.4)
     return False
@@ -182,7 +182,7 @@ async def _launch_and_deliver_cs2_inspect(payload: str) -> dict[str, bool]:
     window to settle, and only then send the `rungame` URI used by Steam item
     inspection. This path does not depend on keyboard focus or console binds.
     """
-    already_running = bool(await asyncio.to_thread(find_cs2_hwnd))
+    already_running = bool(await asyncio.to_thread(find_csgo_hwnd))
     if not already_running:
         await asyncio.to_thread(_launch_cs2_inspect_url, "steam://run/730")
         if not await _wait_for_cs2_window():
@@ -190,7 +190,7 @@ async def _launch_and_deliver_cs2_inspect(payload: str) -> dict[str, bool]:
         try:
             settle_seconds = max(
                 0.0,
-                float(os.environ.get("CS2_INSIGHT_INSPECT_STARTUP_SETTLE_SEC", "12")),
+                float(os.environ.get("CSGO_INSIGHT_INSPECT_STARTUP_SETTLE_SEC", "12")),
             )
         except ValueError:
             settle_seconds = 12.0

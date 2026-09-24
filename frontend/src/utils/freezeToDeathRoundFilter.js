@@ -22,7 +22,7 @@ function normalizePositiveIntRounds(arr, maxRounds = 64) {
 const POST_DEATH_AFTER_DEATH_SEC = 2;
 
 /**
- * 与 demo_parser `_FREEZE_TO_DEATH_PRE_FREEZE_SEC` / `CS2_INSIGHT_FREEZE_TO_DEATH_PRE_SEC` 默认 8s 一致。
+ * 与 demo_parser `_FREEZE_TO_DEATH_PRE_FREEZE_SEC` / `CSGO_INSIGHT_FREEZE_TO_DEATH_PRE_SEC` 默认 8s 一致。
  * 下回合 `start_tick` = 该回合 `freeze_end − pre`，仍在「下回合」时间线；有死亡回合再减 **一段 pre**：
  * `end <= next_start − pre − 1`。
  * **无死亡**回合在技术暂停 / 冻结期易出现 HUD 已切下回合而 tick 未到 `next_start`，再减 **一段 pre**：

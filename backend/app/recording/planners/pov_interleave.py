@@ -7,7 +7,7 @@ from ..normalizer import NormalizedRequest
 from ..platform_utils import platform_slot_offset, compute_voice_listen_mask, compute_voice_listen_mask_enemy
 
 PREPARE_PREROLL_SEC: float = 5.0
-# When V/K follows immediately, CS2 auto death-cam after the event — keep main POV tail minimal.
+# When V/K follows immediately, CS:GO auto death-cam after the event — keep main POV tail minimal.
 INTERLEAVE_KILLER_TAIL_SEC: float = 0.35
 INTERLEAVE_VICTIM_TAIL_SEC: float = 0.35
 

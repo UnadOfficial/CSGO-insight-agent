@@ -12,7 +12,7 @@ def apply_demo_end_guard(
 ) -> tuple[RecordingSegment, list[str]]:
     """Keep a segment before real demo EOF without special-casing rounds.
 
-    Reaching PBDEMS2 EOF makes CS2 finish playback and return to the main menu.
+    Reaching HL2DEMO EOF makes CS:GO finish playback and return to the main menu.
     This is the only remaining terminal-playback restriction: no scoreboard,
     round-end, panel, or seek ceiling is applied.
     """

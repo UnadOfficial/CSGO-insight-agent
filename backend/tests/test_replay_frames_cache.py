@@ -26,7 +26,7 @@ def test_demo_fingerprint(tmp_path: Path):
 def test_frames_cache_roundtrip(tmp_path: Path, monkeypatch):
     dem = tmp_path / "demo.dem"
     dem.write_bytes(b"demo")
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
     # Force cache root under tmp via monkeypatch of get_data_dir if needed
     import app.features.demo_analysis.replay_frames_cache as mod
 

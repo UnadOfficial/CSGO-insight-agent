@@ -21,7 +21,7 @@ describe("RecordingProgressModal", () => {
     );
 
     expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("正在准备所需的地图资源，稍后将自动进入CS2。")).toBeTruthy();
+    expect(screen.getByText("正在准备 CS:GO 录制会话…")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "中止录制" }));
     expect(onAbort).toHaveBeenCalledTimes(1);
   });

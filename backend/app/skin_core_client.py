@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENV_EXE = "CS2_SKIN_CORE_EXE"
 _ENV_DEV = "CS2_SKIN_CORE_DEV"
-_ENV_INSIGHT_DEV = "CS2_INSIGHT_DEV"
+_ENV_INSIGHT_DEV = "CSGO_INSIGHT_DEV"
 
 # Sibling closed-source repo layouts used for local/dev discovery.
 _DEV_ANYSKIN_ROOTS: tuple[Path, ...] = (

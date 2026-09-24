@@ -85,8 +85,8 @@
 
 ### 自动录制
 
-- **批量录制队列** — 多场比赛、多个片段排队；依次启动 CS2 回放并驱动 OBS 成片；录制前可预览计划，队列内可微调节奏。
-- **录制前观战设置** — 一键配置观战 HUD（仅死亡通知、隐藏 ID/聊天/Demo 条）、视野与持枪角度、闪光亮度、语音、分辨率与画幅、片段之间的 OBS 转场等；本场也可临时打开实验性 POV 第一人称 HUD。
+- **批量录制队列** — 多场比赛、多个片段排队；依次启动 CS:GO 回放并驱动 OBS 成片；录制前可预览计划，队列内可微调节奏。
+- **录制前观战设置** — 一键配置观战 HUD（仅死亡通知、隐藏 ID/聊天/Demo 条）、视野与持枪角度、闪光亮度、语音、分辨率与画幅、片段之间的 OBS 转场等；可选使用 HLAE `mirv_pov`（仅限本地 CS:GO Demo 与 `-insecure`）。
 - **多样化成片风格**：
   - 裁判视角或 POV 第一人称 HUD（可隐藏/显示雷达、调整正上方人数条）
   - 纯净观战画面、自定义 FOV、隐藏投掷物轨迹
@@ -130,7 +130,7 @@
 
 ## 安装
 
-前往 [Releases 页面](https://github.com/DrEAmSs59/CS2-insight-agent/releases) 下载最新的 `CS2-Insight-Agent-Setup-x.x.x.exe`，双击运行安装包，按提示完成安装。
+前往 [Releases 页面](https://github.com/DrEAmSs59/CS2-insight-agent/releases) 下载最新的 `CSGO Insight Agent_x.x.x_x64-setup.exe`，双击运行安装包，按提示完成安装。
 
 安装完成后从桌面或开始菜单启动程序，**无需打开浏览器，无需手动启动后端**。轻量 Tauri 桌面壳会自动启动内嵌 Python 后端，并使用 Windows 系统 WebView2 显示界面。
 
@@ -198,9 +198,9 @@ Counter-Strike 2、CS2、Counter-Strike、Steam、Valve 等名称、商标和标
 
 ### 安全使用提示
 
-- **默认录制流程**调用 CS2 时使用 `-insecure` 仅用于本地 Demo 回放，不存在 DLL 注入或 Hook；不会对磁盘上的 `.dem` 做修改，不连接、不修改、不干预任何官方游戏服务器、匹配服务或反作弊系统，也不提供任何作弊、绕过检测或破坏公平竞技的功能，**不要在已登录匹配服务器的 CS2 客户端中并行使用**，以免触发反作弊系统的不必要警示。
-- 若你在「常用参数管理 → 实验性功能」中**主动开启 POV**，程序会临时向 CS2 的 `game/csgo` 目录写入 `pov.vpk`，并**增量修改** `gameinfo.gi` 的 `SearchPaths` 以加载 POV HUD 资源；录制结束或异常收尾时会自动恢复。该模式同样**强制**使用 `-insecure` 启动 CS2，**不要用于连接 VAC 安全服务器**。
-- 录制期间会临时修改若干 CS2 archive cvar 与按键绑定。本项目会在启动录制时在程序数据目录的 `.cs2_config_backup` 中**自动备份**玩家原始的 `config.cfg` / `video.txt` / `user_convars_*.vcfg`，录制结束后会回滚；如遇异常退出导致设置被覆盖，可在该目录手动取回原始文件。
+- **默认录制流程**调用 CS:GO 时使用 `-insecure` 仅用于本地 `HL2DEMO` 回放，不存在 DLL 注入或 Hook；不会修改 Demo 或连接任何官方游戏服务器。
+- HLAE `mirv_pov` 是唯一可选的高级 POV 方案，仅用于本地 CS:GO Demo，并要求 `-insecure`；录制链路不会修改 `gameinfo.gi`、VPK 或其他 Source 2 资源。
+- 录制期间会临时修改若干 CS:GO cvar 与按键绑定。本项目会在启动录制时在程序数据目录的 `.csgo_config_backup` 中自动备份玩家原始的 `config.cfg` / `autoexec.cfg` / `video.txt`，录制结束后会回滚。
 
 ---
 

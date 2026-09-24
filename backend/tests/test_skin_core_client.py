@@ -55,14 +55,14 @@ def test_resolve_install_tools_without_using_data_dir(
     exe.write_bytes(b"MZ")
     monkeypatch.setattr("app.skin_core_client._REPO_ROOT", install_root)
     monkeypatch.setattr("app.skin_core_client._DEV_ANYSKIN_ROOTS", ())
-    monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path / "appdata" / "data"))
-    monkeypatch.setenv("CS2_INSIGHT_BUNDLE_DATA_DIR", str(tmp_path / "bundle-data"))
+    monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path / "appdata" / "data"))
+    monkeypatch.setenv("CSGO_INSIGHT_BUNDLE_DATA_DIR", str(tmp_path / "bundle-data"))
     assert resolve_skin_core_exe() == exe.resolve()
 
 
 def test_resolve_repo_bundle_resources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("CS2_SKIN_CORE_EXE", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_BUNDLE_DATA_DIR", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_BUNDLE_DATA_DIR", raising=False)
     repo = tmp_path / "repo"
     exe = repo / "frontend" / "src-tauri" / "bundle-resources" / "tools" / "skin-core.exe"
     exe.parent.mkdir(parents=True)
@@ -74,7 +74,7 @@ def test_resolve_repo_bundle_resources(tmp_path: Path, monkeypatch: pytest.Monke
 
 def test_resolve_dev_anyskin_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("CS2_SKIN_CORE_EXE", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_BUNDLE_DATA_DIR", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_BUNDLE_DATA_DIR", raising=False)
     repo = tmp_path / "insight"
     repo.mkdir()
     anyskin = tmp_path / "CS2-demo-anyskin"
@@ -88,7 +88,7 @@ def test_resolve_dev_anyskin_fallback(tmp_path: Path, monkeypatch: pytest.Monkey
 
 def test_resolve_raises_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("CS2_SKIN_CORE_EXE", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_BUNDLE_DATA_DIR", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_BUNDLE_DATA_DIR", raising=False)
     monkeypatch.setattr("app.skin_core_client._REPO_ROOT", tmp_path / "empty-repo")
     monkeypatch.setattr("app.skin_core_client._DEV_ANYSKIN_ROOTS", ())
     with pytest.raises(SkinCoreNotFound):
@@ -103,7 +103,7 @@ def test_run_rewrite_pipes_session_key_and_decrypts_response(
     exe.write_bytes(b"MZ")
     monkeypatch.setenv("CS2_SKIN_CORE_EXE", str(exe))
     monkeypatch.delenv("CS2_SKIN_CORE_DEV", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_DEV", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_DEV", raising=False)
 
     def fake_urandom(n: int) -> bytes:
         if n == 32:
@@ -200,7 +200,7 @@ def test_run_rewrite_pipes_session_key_and_decrypts_response(
 
 def test_should_set_dev_env_explicit_and_bundled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("CS2_SKIN_CORE_DEV", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_DEV", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_DEV", raising=False)
 
     bundled = tmp_path / "frontend" / "src-tauri" / "bundle-resources" / "tools" / "skin-core.exe"
     bundled.parent.mkdir(parents=True)
@@ -218,9 +218,9 @@ def test_should_set_dev_env_explicit_and_bundled(tmp_path: Path, monkeypatch: py
     assert _should_set_dev_env(bundled) is True
     monkeypatch.delenv("CS2_SKIN_CORE_DEV", raising=False)
 
-    monkeypatch.setenv("CS2_INSIGHT_DEV", "1")
+    monkeypatch.setenv("CSGO_INSIGHT_DEV", "1")
     assert _should_set_dev_env(bundled) is True
-    monkeypatch.delenv("CS2_INSIGHT_DEV", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_DEV", raising=False)
 
     anyskin = tmp_path / "CS2-demo-anyskin" / "dist" / "skin-core.exe"
     anyskin.parent.mkdir(parents=True)
@@ -235,9 +235,9 @@ def test_should_set_dev_env_explicit_and_bundled(tmp_path: Path, monkeypatch: py
 
 def test_run_sets_dev_env_for_anyskin_dist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("CS2_SKIN_CORE_EXE", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_BUNDLE_DATA_DIR", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_BUNDLE_DATA_DIR", raising=False)
     monkeypatch.delenv("CS2_SKIN_CORE_DEV", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_DEV", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_DEV", raising=False)
 
     anyskin = tmp_path / "CS2-demo-anyskin"
     exe = anyskin / "dist" / "skin-core.exe"
@@ -288,7 +288,7 @@ def test_run_sets_dev_env_for_anyskin_dist(tmp_path: Path, monkeypatch: pytest.M
 
 def test_run_raises_skin_core_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("CS2_SKIN_CORE_EXE", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_BUNDLE_DATA_DIR", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_BUNDLE_DATA_DIR", raising=False)
     monkeypatch.setattr("app.skin_core_client._REPO_ROOT", tmp_path / "empty")
     monkeypatch.setattr("app.skin_core_client._DEV_ANYSKIN_ROOTS", ())
     with pytest.raises(SkinCoreNotFound):

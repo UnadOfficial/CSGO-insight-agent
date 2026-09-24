@@ -23,6 +23,20 @@ def bypass_demo_library_lookup(monkeypatch):
     monkeypatch.setattr(demo_analysis_api.demo_db, "get_demo_by_cached_path", not_in_library)
 
 
+def _hl2demo_bytes(*, map_name: str = "de_dust2", ticks: int = 640, time_sec: float = 10.0) -> bytes:
+    """Minimal fixed Source 1 demo header accepted by require_csgo_demo()."""
+    import struct
+
+    buf = bytearray(1068)
+    buf[0:8] = b"HL2DEMO\\0"
+    struct.pack_into("<i", buf, 8, 4)
+    struct.pack_into("<i", buf, 12, 137)
+    buf[536:536 + len(map_name)] = map_name.encode("ascii")
+    struct.pack_into("<f", buf, 1056, time_sec)
+    struct.pack_into("<i", buf, 1060, ticks)
+    return bytes(buf)
+
+
 def _run_parse_multi(*, players: list[str], filename: str = "match.dem", locale: str = "zh") -> dict:
     request = demo_analysis_api.ParseMultiRequest(target_players=players, locale=locale)
     return asyncio.run(demo_analysis_api.parse_demo_multi(request, filename))
@@ -30,7 +44,7 @@ def _run_parse_multi(*, players: list[str], filename: str = "match.dem", locale:
 
 def test_parse_demo_multi_uses_one_shared_worker(monkeypatch, tmp_path):
     demo_path = tmp_path / "match.dem"
-    demo_path.write_bytes(b"demo")
+    demo_path.write_bytes(_hl2demo_bytes())
     monkeypatch.setattr(inspection, "UPLOAD_DIR", tmp_path)
     monkeypatch.setattr(demo_analysis_api, "load_config", AppConfig)
 
@@ -60,7 +74,7 @@ def test_parse_demo_multi_defers_ai_review_until_player_is_selected(monkeypatch,
     from app import ai_reviewer
 
     demo_path = tmp_path / "match.dem"
-    demo_path.write_bytes(b"demo")
+    demo_path.write_bytes(_hl2demo_bytes())
     monkeypatch.setattr(inspection, "UPLOAD_DIR", tmp_path)
     monkeypatch.setattr(
         demo_analysis_api,
@@ -101,7 +115,7 @@ def test_parse_demo_multi_defers_ai_review_until_player_is_selected(monkeypatch,
 
 def test_parse_demo_multi_extracts_shared_analysis_workspace(monkeypatch, tmp_path):
     demo_path = tmp_path / "match.dem"
-    demo_path.write_bytes(b"demo")
+    demo_path.write_bytes(_hl2demo_bytes())
     monkeypatch.setattr(inspection, "UPLOAD_DIR", tmp_path)
     monkeypatch.setattr(demo_analysis_api, "load_config", AppConfig)
     workspace = {"version": 1, "map_name": "de_mirage", "players": [], "rounds": []}
@@ -122,7 +136,7 @@ def test_parse_demo_multi_extracts_shared_analysis_workspace(monkeypatch, tmp_pa
 
 def test_parse_demo_multi_returns_stable_timeout_code(monkeypatch, tmp_path):
     demo_path = tmp_path / "match.dem"
-    demo_path.write_bytes(b"demo")
+    demo_path.write_bytes(_hl2demo_bytes())
     monkeypatch.setattr(inspection, "UPLOAD_DIR", tmp_path)
 
     def fake_analyze_multi(*_args):
@@ -151,7 +165,7 @@ def test_parse_demo_multi_returns_stable_missing_file_code(monkeypatch, tmp_path
 
 def test_parse_demo_multi_rejects_empty_success(monkeypatch, tmp_path):
     demo_path = tmp_path / "match.dem"
-    demo_path.write_bytes(b"demo")
+    demo_path.write_bytes(_hl2demo_bytes())
     monkeypatch.setattr(inspection, "UPLOAD_DIR", tmp_path)
     monkeypatch.setattr(demo_parse_isolation, "analyze_multi_isolated", lambda *_args: {})
 

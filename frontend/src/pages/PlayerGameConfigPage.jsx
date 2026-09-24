@@ -57,7 +57,7 @@ export default function PlayerGameConfigPage() {
             <p className="text-sm font-bold text-red-200">{t("playercfg.fetchFailTitle")}</p>
             <p className="mt-2 text-[12px] leading-relaxed text-red-100/85">{st.message}</p>
             <p className="mt-2 text-[11px] leading-relaxed text-cs2-text-muted">
-              {t("playercfg.fetchFailHint", { data: "data", data2: "data", backup: ".cs2_config_backup" })}
+              {t("playercfg.fetchFailHint", { data: "data", data2: "data", backup: ".csgo_config_backup" })}
             </p>
           </section>
         ) : st?.restore_required ? (
@@ -72,9 +72,9 @@ export default function PlayerGameConfigPage() {
                 <p className="text-[12px] leading-relaxed text-cs2-amber-on-surface/85">
                   {t("playercfg.restoreDesc")}
                 </p>
-                {typeof st.cs2_running === "boolean" && (
+                {typeof st.csgo_running === "boolean" && (
                   <p className="font-mono text-[12px] text-cs2-amber-on-surface">
-                    {st.cs2_running ? t("playercfg.cs2StatusRunning") : t("playercfg.cs2StatusStopped")}
+                    {st.csgo_running ? t("playercfg.csgoStatusRunning") : t("playercfg.csgoStatusStopped")}
                   </p>
                 )}
                 {st.backup_dir ? (

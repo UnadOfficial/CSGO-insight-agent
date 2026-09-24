@@ -5,114 +5,26 @@ import { useLocaleStore } from "../i18n/localeStore.js";
 import DemoPlaybackRestoreModal from "./DemoPlaybackRestoreModal.jsx";
 
 describe("DemoPlaybackRestoreModal", () => {
-  beforeEach(() => {
-    useLocaleStore.getState().hydrate("zh");
-  });
+  beforeEach(() => useLocaleStore.getState().hydrate("zh"));
 
-  it("shows success only when both disk facts are verified", () => {
+  it("confirms player settings restoration", () => {
     const onClose = vi.fn();
-    render(
-      <DemoPlaybackRestoreModal
-        open
-        status={{
-          state: "completed",
-          restore: {
-            verified: true,
-            gameinfo_restored: true,
-            pov_vpk_removed: true,
-            verification_mode: "strict",
-            byte_verified: true,
-            expected_gameinfo_sha256: "a".repeat(64),
-            actual_gameinfo_sha256: "a".repeat(64),
-          },
-        }}
-        onClose={onClose}
-      />,
-    );
-
-    expect(screen.getByText("POV 文件已按备份完整恢复")).toBeTruthy();
-    expect(screen.getByText(/SHA-256 一致/)).toBeTruthy();
-    expect(screen.getByText("临时文件已删除。")).toBeTruthy();
-    expect(screen.getByTestId("demo-playback-restore-content").className).toContain("space-y-3");
+    render(<DemoPlaybackRestoreModal open status={{ state: "completed", player_config_restore: { verified: true } }} onClose={onClose} />);
+    expect(screen.getByText("玩家设置已恢复")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "关闭" }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("describes semantic cleanup without claiming a backup hash match", () => {
-    render(
-      <DemoPlaybackRestoreModal
-        open
-        status={{
-          state: "completed",
-          restore: {
-            verified: true,
-            gameinfo_restored: true,
-            pov_vpk_removed: true,
-            verification_mode: "semantic",
-            byte_verified: false,
-            actual_gameinfo_sha256: "b".repeat(64),
-          },
-        }}
-        onClose={() => {}}
-      />,
-    );
-
-    expect(screen.getByText("POV 残留已安全清理")).toBeTruthy();
-    expect(screen.getByText(/其他现有内容保持不变/)).toBeTruthy();
-    expect(screen.queryByText(/启动前 SHA-256/)).toBeNull();
-    expect(screen.queryByText(/与启动前备份一致/)).toBeNull();
+  it("reports a failed player settings restoration", () => {
+    render(<DemoPlaybackRestoreModal open status={{ state: "restore_failed", player_config_restore: { verified: false } }} onClose={vi.fn()} onRetry={vi.fn()} />);
+    expect(screen.getByText("玩家设置未能确认恢复")).toBeTruthy();
+    expect(screen.getByText(/配置恢复失败/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "重新核验" })).toBeTruthy();
   });
 
-  it("shows the actual failed file facts without claiming restoration", () => {
-    render(
-      <DemoPlaybackRestoreModal
-        open
-        status={{
-          state: "restore_failed",
-          restore: {
-            verified: false,
-            gameinfo_restored: false,
-            pov_vpk_removed: false,
-            error: "hash mismatch",
-          },
-        }}
-        onClose={() => {}}
-        onRetry={() => {}}
-      />,
-    );
-
-    expect(screen.getByText("POV 文件或玩家设置未能确认恢复")).toBeTruthy();
-    expect(screen.getByText(/POV 加载项仍然存在/)).toBeTruthy();
-    expect(screen.getByText(/文件仍然存在/)).toBeTruthy();
-    expect(screen.getByText("hash mismatch")).toBeTruthy();
-    expect(screen.queryByText("POV 文件已确认恢复")).toBeNull();
-  });
-
-  it("does not claim success when player settings restoration failed", () => {
-    render(
-      <DemoPlaybackRestoreModal
-        open
-        status={{
-          state: "restore_failed",
-          restore: {
-            verified: true,
-            gameinfo_restored: true,
-            pov_vpk_removed: true,
-            verification_mode: "strict",
-            byte_verified: true,
-          },
-          player_config_restore: {
-            verified: false,
-            state: "restore_failed",
-          },
-        }}
-        onClose={() => {}}
-        onRetry={() => {}}
-      />,
-    );
-
-    expect(screen.getByText("POV 文件或玩家设置未能确认恢复")).toBeTruthy();
-    expect(screen.getByText("配置恢复失败，请使用“一键恢复玩家配置”。")).toBeTruthy();
-    expect(screen.queryByText("POV 文件已按备份完整恢复")).toBeNull();
+  it("waits for CS:GO to exit before reporting final status", () => {
+    render(<DemoPlaybackRestoreModal open status={{ state: "running" }} onClose={vi.fn()} />);
+    expect(screen.getByText(/等待 CS:GO 完全退出/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "关闭" })).toBeNull();
   });
 });

@@ -84,8 +84,8 @@ export const desktopBridge = isDesktopApp
       async chooseDemoFiles() {
         try {
           const selected = await open({
-            title: "选择 CS2 Demo",
-            filters: [{ name: "CS2 Demo", extensions: ["dem"] }],
+            title: "选择 CS:GO Demo",
+            filters: [{ name: "CS:GO Demo", extensions: ["dem"] }],
             multiple: true,
           });
           return selected == null ? [] : Array.isArray(selected) ? selected : [selected];

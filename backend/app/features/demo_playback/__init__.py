@@ -1,1 +1,1 @@
-"""Managed CS2 demo playback feature."""
+"""Managed CS:GO demo playback feature."""

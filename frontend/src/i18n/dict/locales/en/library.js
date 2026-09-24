@@ -120,7 +120,7 @@ export default {
   "library.renameDesc": "Saved in the local library only — does not rename the .dem file on disk. Leave blank to revert to the filename.",
   "library.renameCancel": "Cancel",
   "library.renameSave": "Save",
-  "library.playToastOk": "Launching CS2 to play demo",
+  "library.playToastOk": "Launching CS:GO to play demo",
   "library.playToastFail": "Launch failed",
   "library.openFileError": "Could not get the disk path for this demo.",
   "library.openFileFailPrefix": "Failed to open in Explorer: {msg}",

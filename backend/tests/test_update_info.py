@@ -34,7 +34,7 @@ def test_normalize_release_tag():
 def test_pick_download_urls():
     ver = "1.2.3"
     assets = [
-        {"name": f"CS2InsightAgent-{ver}-Setup.exe", "browser_download_url": "https://example/setup"},
+        {"name": f"CSGO Insight Agent_{ver}_x64-setup.exe", "browser_download_url": "https://example/setup"},
         {"name": f"CS2InsightAgent-{ver}-windows-amd64.zip", "browser_download_url": "https://example/zip"},
         {"name": "other.txt", "browser_download_url": "https://example/x"},
     ]
@@ -46,7 +46,7 @@ def test_pick_download_urls():
 def test_pick_download_urls_current_electron_asset():
     ver = "2.2.4"
     assets = [
-        {"name": f"CS2.Insight.Agent.Setup.{ver}.exe", "browser_download_url": "https://example/electron"},
+        {"name": f"CSGO Insight Agent_{ver}_x64-setup.exe", "browser_download_url": "https://example/electron"},
     ]
     setup, zip_url = pick_download_urls(assets, ver)
     assert setup == "https://example/electron"
@@ -55,12 +55,12 @@ def test_pick_download_urls_current_electron_asset():
 
 def test_redirect_fallback_guesses_current_electron_asset():
     setup, zip_url = _guess_download_urls("V2.2.4", "2.2.4")
-    assert setup.endswith("/V2.2.4/CS2.Insight.Agent.Setup.2.2.4.exe")
+    assert setup.endswith("/V2.2.4/CSGO%20Insight%20Agent_2.2.4_x64-setup.exe")
     assert zip_url is None
 
 
 def test_pick_download_urls_partial():
-    assets = [{"name": "CS2InsightAgent-1.0.0-Setup.exe", "browser_download_url": "https://a"}]
+    assets = [{"name": "CSGO Insight Agent_1.0.0_x64-setup.exe", "browser_download_url": "https://a"}]
     setup, zip_url = pick_download_urls(assets, "1.0.0")
     assert setup == "https://a"
     assert zip_url is None
@@ -97,7 +97,7 @@ def test_build_update_payload_upgrade():
         "html_url": "https://github.com/o/r/releases/tag/v2.0.0",
         "body": "## Notes\n\nhello",
         "assets": [
-            {"name": "CS2InsightAgent-2.0.0-Setup.exe", "browser_download_url": "https://dl/setup"},
+            {"name": "CSGO Insight Agent_2.0.0_x64-setup.exe", "browser_download_url": "https://dl/setup"},
             {"name": "CS2InsightAgent-2.0.0-windows-amd64.zip", "browser_download_url": "https://dl/zip"},
         ],
     }
@@ -136,7 +136,7 @@ def test_auto_mode_uses_mirror_when_direct_fails(monkeypatch):
         "body": "",
         "assets": [],
     }
-    monkeypatch.setenv("CS2_INSIGHT_UPDATE_MIRROR", "auto")
+    monkeypatch.setenv("CSGO_INSIGHT_UPDATE_MIRROR", "auto")
 
     def fake_mirror(prefix: str) -> dict:
         if prefix != "https://ghfast.top":
@@ -160,7 +160,7 @@ def test_auto_mode_uses_direct_when_direct_is_fast(monkeypatch):
         "body": "",
         "assets": [],
     }
-    monkeypatch.setenv("CS2_INSIGHT_UPDATE_MIRROR", "auto")
+    monkeypatch.setenv("CSGO_INSIGHT_UPDATE_MIRROR", "auto")
 
     def fake_mirror(_prefix: str) -> dict:
         raise TimeoutError("mirror slow")
@@ -182,7 +182,7 @@ def test_on_mode_uses_mirror_only(monkeypatch):
         "body": "",
         "assets": [],
     }
-    monkeypatch.setenv("CS2_INSIGHT_UPDATE_MIRROR", "on")
+    monkeypatch.setenv("CSGO_INSIGHT_UPDATE_MIRROR", "on")
 
     with patch.object(update_info, "_fetch_mirror_release", return_value=payload):
         with patch.object(update_info, "_fetch_direct_release", side_effect=AssertionError("direct should not run")):
@@ -204,7 +204,7 @@ def test_build_update_payload_rate_limit_falls_back_to_redirect():
         "html_url": "https://github.com/o/r/releases/tag/v2.0.0",
         "body": "",
         "assets": [
-            {"name": "CS2InsightAgent-2.0.0-Setup.exe", "browser_download_url": "https://dl/setup"},
+            {"name": "CSGO Insight Agent_2.0.0_x64-setup.exe", "browser_download_url": "https://dl/setup"},
             {"name": "CS2InsightAgent-2.0.0-windows-amd64.zip", "browser_download_url": "https://dl/zip"},
         ],
     }
@@ -245,30 +245,30 @@ def test_build_update_payload_no_upgrade_when_local_newer():
 
 
 def test_github_token_env_overrides_file(monkeypatch, tmp_path):
-    monkeypatch.delenv("CS2_INSIGHT_GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_GITHUB_TOKEN_FILE", raising=False)
-    tok_file = tmp_path / ".cs2-insight-github-token"
+    monkeypatch.delenv("CSGO_INSIGHT_GITHUB_TOKEN_FILE", raising=False)
+    tok_file = tmp_path / ".csgo-insight-github-token"
     tok_file.write_text("from-file\n", encoding="utf-8")
     monkeypatch.setattr(update_info, "_TOKEN_FILE_DEFAULT", tok_file)
-    monkeypatch.setenv("CS2_INSIGHT_GITHUB_TOKEN", "from-env")
+    monkeypatch.setenv("CSGO_INSIGHT_GITHUB_TOKEN", "from-env")
     assert _github_api_token() == "from-env"
 
 
 def test_github_token_from_default_file(monkeypatch, tmp_path):
-    monkeypatch.delenv("CS2_INSIGHT_GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    monkeypatch.delenv("CS2_INSIGHT_GITHUB_TOKEN_FILE", raising=False)
-    tok_file = tmp_path / ".cs2-insight-github-token"
+    monkeypatch.delenv("CSGO_INSIGHT_GITHUB_TOKEN_FILE", raising=False)
+    tok_file = tmp_path / ".csgo-insight-github-token"
     tok_file.write_text("# comment\n\ngithub_pat_abc\n", encoding="utf-8")
     monkeypatch.setattr(update_info, "_TOKEN_FILE_DEFAULT", tok_file)
     assert _github_api_token() == "github_pat_abc"
 
 
 def test_github_token_from_token_file_env(monkeypatch, tmp_path):
-    monkeypatch.delenv("CS2_INSIGHT_GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("CSGO_INSIGHT_GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     custom = tmp_path / "secret.txt"
     custom.write_text("tok_line2\n", encoding="utf-8")
-    monkeypatch.setenv("CS2_INSIGHT_GITHUB_TOKEN_FILE", str(custom))
+    monkeypatch.setenv("CSGO_INSIGHT_GITHUB_TOKEN_FILE", str(custom))
     assert _github_api_token() == "tok_line2"

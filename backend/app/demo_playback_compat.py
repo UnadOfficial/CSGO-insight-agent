@@ -2311,7 +2311,7 @@ def _files_equal(left: Path, right: Path) -> bool:
 
 
 def read_demo_end_tick(source_path: os.PathLike[str] | str) -> int:
-    """Return the maximum PBDEMS2 outer-frame tick without decoding payloads.
+    """Deprecated Source 2 EOF scanner; CS:GO callers use ``read_csgo_demo_end_tick``.
 
     This is the file's playback boundary, unlike event-derived maxima such as
     the last death or round-end tick.  Recording uses it only to stop before
@@ -2324,6 +2324,7 @@ def read_demo_end_tick(source_path: os.PathLike[str] | str) -> int:
     path; malformed metadata and other corruption remain hard failures.
     """
 
+    raise ValueError("PBDEMS2 playback boundary is unsupported for CS:GO-only workflows")
     source = Path(source_path)
     file_size = source.stat().st_size
     with source.open("rb") as reader:

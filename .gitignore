@@ -78,6 +78,12 @@ dev.sh
 
 # --- CS2 Insight local data (SQLite / player cfg backup / secrets — do not push) ---
 backend/config.json
+**/csgo-insight.config.json
+csgo-insight.db
+csgo-insight.db-wal
+csgo-insight.db-shm
+.csgo_config_backup/
+# Keep pre-migration local files ignored; the runtime never reads these names.
 **/cs2-insight.config.json
 cs2-insight.db
 cs2-insight.db-wal
@@ -86,7 +92,7 @@ cs2-insight.db-shm
 
 # Everything under data/ except the versioned example template
 data/**
-!data/cs2-insight.config.example.json
+!data/csgo-insight.config.example.json
 !data/basic.ini
 
 # Alternate local data root used by development/testing

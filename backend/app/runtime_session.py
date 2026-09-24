@@ -1,4 +1,4 @@
-"""Process-wide ownership guard for CS2/OBS mutating operations."""
+"""Process-wide ownership guard for CS:GO/OBS mutating operations."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ async def runtime_session_dependency(request: Request) -> AsyncIterator[None]:
                 status_code=409,
                 detail={
                     "code": "RUNTIME_SESSION_BUSY",
-                    "message": "Another CS2/OBS operation is already running.",
+                    "message": "Another CS:GO/OBS operation is already running.",
                     "owner": dict(_owner),
                 },
             )

@@ -17,15 +17,15 @@ def test_ready_log_is_emitted_only_on_state_transition(caplog):
         notify_gsi_payload(payload)
         notify_gsi_payload(payload)
         notify_gsi_payload(payload)
-    assert sum("CS2 GSI ready" in row.message for row in caplog.records) == 1
+    assert sum("CSGO GSI ready" in row.message for row in caplog.records) == 1
 
 
 def test_access_filter_hides_only_successful_gsi_posts():
     access_filter = GSIEndpointAccessFilter()
     successful = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, "%s", (), None)
-    successful.args = ("127.0.0.1:1234", "POST", "/api/gsi/cs2", "1.1", 200)
+    successful.args = ("127.0.0.1:1234", "POST", "/api/gsi/csgo", "1.1", 200)
     failed = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, "%s", (), None)
-    failed.args = ("127.0.0.1:1234", "POST", "/api/gsi/cs2", "1.1", 500)
+    failed.args = ("127.0.0.1:1234", "POST", "/api/gsi/csgo", "1.1", 500)
     other = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, "%s", (), None)
     other.args = ("127.0.0.1:1234", "GET", "/api/health", "1.1", 200)
     assert access_filter.filter(successful) is False

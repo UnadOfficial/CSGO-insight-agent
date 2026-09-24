@@ -609,7 +609,7 @@ def build_rival_compilations(
     _done_rounds, _final_line = match_metrics_from_round_scores(round_team_score_map)
 
     _last_compilation_event_buf_ticks = int(float(
-        os.environ.get("CS2_INSIGHT_LAST_ROUND_KILL_BUFFER_SEC", "0.70") or "0.70"
+        os.environ.get("CSGO_INSIGHT_LAST_ROUND_KILL_BUFFER_SEC", "0.70") or "0.70"
     ) * TICK_RATE)
 
     def _segment_around_tick(

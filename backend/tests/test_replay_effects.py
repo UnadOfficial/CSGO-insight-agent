@@ -455,7 +455,7 @@ class TestExtractDynamicEffectTracks:
         assert any("failed" in w for w in out["warnings"])
 
     def test_disabled_by_env(self, monkeypatch):
-        monkeypatch.setenv("CS2_INSIGHT_DYNAMIC_UTILITY_EFFECTS", "0")
+        monkeypatch.setenv("CSGO_INSIGHT_DYNAMIC_UTILITY_EFFECTS", "0")
 
         class Ok:
             pass

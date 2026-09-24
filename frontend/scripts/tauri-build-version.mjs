@@ -14,7 +14,7 @@ const frontendRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === "path") || "PATH";
 const buildEnv = {
   ...process.env,
-  CS2_INSIGHT_APP_VERSION: version,
+  CSGO_INSIGHT_APP_VERSION: version,
   [pathKey]: [dirname(process.execPath), process.env[pathKey] || ""]
     .filter(Boolean)
     .join(delimiter),
@@ -68,7 +68,7 @@ if (!hasUpdaterSigningKey) {
   buildConfig.bundle = { createUpdaterArtifacts: false };
   console.warn("[desktop] updater private key not found — building an unsigned local installer");
 }
-const certificateThumbprint = buildEnv.CS2_INSIGHT_WINDOWS_CERTIFICATE_THUMBPRINT?.replaceAll(/\s/g, "");
+const certificateThumbprint = buildEnv.CSGO_INSIGHT_WINDOWS_CERTIFICATE_THUMBPRINT?.replaceAll(/\s/g, "");
 if (certificateThumbprint) {
   buildConfig.bundle = {
     ...buildConfig.bundle,

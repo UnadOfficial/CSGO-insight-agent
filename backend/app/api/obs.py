@@ -19,7 +19,7 @@ from ..env_utils import (
     AppConfig,
     OBSConfig,
     detect_obs_path,
-    ensure_cs2_path,
+    ensure_csgo_path,
     llm_api_key_configured,
     llm_base_url_is_local_host,
     load_config,
@@ -78,7 +78,7 @@ def _normalize_obs_path_auto_detect(cfg: AppConfig) -> None:
 
 
 def _setup_status_obs_handshake_timeout_sec() -> float:
-    raw = (os.environ.get("CS2_INSIGHT_SETUP_OBS_PROBE_SEC") or "").strip()
+    raw = (os.environ.get("CSGO_INSIGHT_SETUP_OBS_PROBE_SEC") or "").strip()
     if raw:
         try:
             return max(0.5, min(float(raw), 60.0))
@@ -129,24 +129,24 @@ def _configured_ffmpeg_toolkit_report(raw_path: str) -> dict[str, object]:
 @router.get("/api/config/quick-check")
 def config_quick_check():
     """Return setup flags without opening an OBS WebSocket connection."""
-    cfg = ensure_cs2_path(load_config())
+    cfg = ensure_csgo_path(load_config())
     obs_path = str(cfg.obs.obs_path or "").strip()
     obs_configured = bool(
         cfg.obs.obs_config_verified
         and obs_path
         and Path(obs_path).is_file()
     )
-    cs2_path_ok = bool(cfg.cs2_path and Path(cfg.cs2_path).is_file())
+    csgo_path_ok = bool(cfg.csgo_path and Path(cfg.csgo_path).is_file())
     ffmpeg_ok = bool(_configured_ffmpeg_toolkit_report(cfg.ffmpeg_path).get("ok"))
     ai_key_ok = llm_api_key_configured(cfg.llm.api_key) or llm_base_url_is_local_host(
         cfg.llm.base_url
     )
     return {
         "obs_configured": obs_configured,
-        "cs2_path_ok": cs2_path_ok,
+        "csgo_path_ok": csgo_path_ok,
         "ffmpeg_ok": ffmpeg_ok,
         "ai_key_ok": ai_key_ok,
-        "cs2_path": cfg.cs2_path or "",
+        "csgo_path": cfg.csgo_path or "",
         "ffmpeg_path": cfg.ffmpeg_path or "",
     }
 
@@ -160,8 +160,8 @@ def ffmpeg_montage_gate_check():
 def setup_status():
     """Run the full setup check, including a real OBS WebSocket handshake."""
     from ..obs_director import OBSDirector
-    cfg = ensure_cs2_path(load_config())
-    cs2_path_ok = bool(cfg.cs2_path and Path(cfg.cs2_path).is_file())
+    cfg = ensure_csgo_path(load_config())
+    csgo_path_ok = bool(cfg.csgo_path and Path(cfg.csgo_path).is_file())
     ffmpeg_ok = bool(_configured_ffmpeg_toolkit_report(cfg.ffmpeg_path).get("ok"))
     ai_key_ok = llm_api_key_configured(cfg.llm.api_key) or llm_base_url_is_local_host(
         cfg.llm.base_url
@@ -171,8 +171,8 @@ def setup_status():
     try:
         director = OBSDirector(
             cfg.obs,
-            cfg.cs2_path,
-            cs2_extra_launch_args=cfg.cs2_extra_launch_args,
+            cfg.csgo_path,
+            csgo_extra_launch_args=cfg.csgo_extra_launch_args,
             record_inject_console_lines=cfg.record_inject_console_lines,
         )
         result = director.test_obs_connection(
@@ -188,10 +188,10 @@ def setup_status():
 
     return {
         "obs_connected": obs_connected,
-        "cs2_path_ok": cs2_path_ok,
+        "csgo_path_ok": csgo_path_ok,
         "ffmpeg_ok": ffmpeg_ok,
         "ai_key_ok": ai_key_ok,
-        "cs2_path": cfg.cs2_path or "",
+        "csgo_path": cfg.csgo_path or "",
         "ffmpeg_path": cfg.ffmpeg_path or "",
     }
 
@@ -239,7 +239,7 @@ def obs_config_check(payload: OBSConfig | None = Body(default=None)):
     try:
         from ..obs_director import OBSDirector
 
-        director = OBSDirector(obs_use, cfg.cs2_path)
+        director = OBSDirector(obs_use, cfg.csgo_path)
         for _attempt in range(15):
             result = director.test_obs_connection()
             if result.get("ok"):

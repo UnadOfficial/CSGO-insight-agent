@@ -60,12 +60,12 @@ class TestWriteResult:
 class TestDefaultResultsDir:
     def test_follows_the_data_dir_override(self, tmp_path, monkeypatch):
         """安装版的 resources 目录不可写，产物必须跟着可写数据目录走。"""
-        monkeypatch.setenv("CS2_INSIGHT_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("CSGO_INSIGHT_DATA_DIR", str(tmp_path))
 
         assert default_results_dir() == tmp_path.resolve() / "recording_results"
 
     def test_defaults_under_the_repo_data_dir(self, monkeypatch):
-        monkeypatch.delenv("CS2_INSIGHT_DATA_DIR", raising=False)
+        monkeypatch.delenv("CSGO_INSIGHT_DATA_DIR", raising=False)
 
         resolved = default_results_dir()
 

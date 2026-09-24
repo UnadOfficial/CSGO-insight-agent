@@ -37,7 +37,7 @@ import {
   workshopSchemeSelectionForItem,
 } from "../../cosmetics-workshop/workshopSchemeStorage.js";
 
-const SKIN_CORE_FORCED_CUSTOM_NAME = "CS2 INSIGHT AGENT";
+const SKIN_CORE_FORCED_CUSTOM_NAME = "CS:GO INSIGHT AGENT";
 
 function sameCosmeticIdentity(item, replacement) {
   if (!item || !replacement) return false;
@@ -296,7 +296,7 @@ function localized(item, field, locale) {
 }
 
 function displayName(item, locale) {
-  return localized(item, "name", locale) || String(item?.model || "CS2");
+  return localized(item, "name", locale) || String(item?.model || "CS:GO");
 }
 
 function rewriteOperationRows(replacements, originals, inventory, locale) {
@@ -1194,7 +1194,7 @@ export default function CosmeticsView({ workspace, selectedPlayer, locale = "zh"
         : "analysis.cosmetics.inspectCommandCopied";
       setInspectFeedback({ tone: "success", text: t(messageKey) });
     } catch (error) {
-      console.warn("Failed to launch CS2 inspect", error);
+      console.warn("Failed to launch CS:GO inspect", error);
       setInspectFeedback({ tone: "error", text: t("analysis.cosmetics.inspectFailed") });
     } finally {
       setInspectBusy(false);

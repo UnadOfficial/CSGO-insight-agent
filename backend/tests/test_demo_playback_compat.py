@@ -160,22 +160,8 @@ def _first_packet_message_types(data: bytes) -> list[int]:
     ]
 
 
-def test_reads_real_outer_frame_end_tick_without_decoding_payloads(tmp_path: Path):
-    first = _frame(7, 42, _packet_proto(_packet_data([(76, b"first")])))
-    last = _frame(7, 9_999, _packet_proto(_packet_data([(76, b"last")])))
-    sentinel = _frame(0, compat._U32_MAX, b"stop")
-    source = _write(
-        tmp_path / "source.dem",
-        b"PBDEMS2\x00" + (0).to_bytes(8, "little") + first + last + sentinel,
-    )
-    original = source.read_bytes()
-    original_sha256 = hashlib.sha256(original).hexdigest()
-    original_stat = compat._stat_fingerprint(source.stat())
 
-    assert compat.read_demo_end_tick(source) == 9_999
-    assert source.read_bytes() == original
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == original_sha256
-    assert compat._stat_fingerprint(source.stat()) == original_stat
+
 
 
 def _recovery_frames(messages: list[bytes]) -> bytes:
@@ -214,64 +200,6 @@ def _unfinalized_demo(
         + b"".join(complete_frames)
         + terminal[:-missing_tail_bytes]
     )
-
-
-def test_read_end_tick_tolerates_terminal_packet_without_modifying_file(
-    tmp_path: Path,
-):
-    first = _frame(7, 42, _packet_proto(_packet_data([(76, b"complete")])))
-    terminal = _frame(7, 43, _packet_proto(_packet_data([(76, b"partial-tail")])))
-    source_bytes = b"PBDEMS2\x00" + (0).to_bytes(8, "little") + first + terminal[:-3]
-    source = _write(tmp_path / "source.dem", source_bytes)
-    original_sha256 = hashlib.sha256(source_bytes).hexdigest()
-    original_stat = compat._stat_fingerprint(source.stat())
-
-    assert compat.read_demo_end_tick(source) == 42
-    assert source.read_bytes() == source_bytes
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == original_sha256
-    assert compat._stat_fingerprint(source.stat()) == original_stat
-
-
-def test_read_end_tick_rejects_incomplete_metadata_without_modifying_file(
-    tmp_path: Path,
-):
-    first = _frame(7, 42, _packet_proto(_packet_data([(76, b"complete")])))
-    terminal_metadata = _frame(2, 43, b"partial-file-info")
-    source_bytes = (
-        b"PBDEMS2\x00"
-        + (0).to_bytes(8, "little")
-        + first
-        + terminal_metadata[:-3]
-    )
-    source = _write(tmp_path / "source.dem", source_bytes)
-    original_stat = compat._stat_fingerprint(source.stat())
-
-    with pytest.raises(
-        compat.DemoPlaybackCompatibilityError,
-        match="not a packet",
-    ):
-        compat.read_demo_end_tick(source)
-
-    assert source.read_bytes() == source_bytes
-    assert compat._stat_fingerprint(source.stat()) == original_stat
-
-
-def test_opt_in_tail_repair_discards_only_incomplete_final_packet(tmp_path: Path):
-    first = _frame(7, 42, _packet_proto(_packet_data([(76, b"complete")])))
-    terminal = _frame(7, 43, _packet_proto(_packet_data([(76, b"partial-tail")])))
-    retained = b"PBDEMS2\x00" + (0).to_bytes(8, "little") + first
-    source = _write(tmp_path / "source.dem", retained + terminal[:-3])
-
-    repair = compat.repair_truncated_packet_tail_in_place(source)
-
-    assert repair is not None
-    assert repair.frame_offset == len(retained)
-    assert repair.tick == 43
-    assert repair.missing_payload_bytes == 3
-    assert repair.discarded_bytes == len(terminal) - 3
-    assert source.read_bytes() == retained
-    assert compat.read_demo_end_tick(source) == 42
-    assert not list(tmp_path.glob(".source.dem.tail-*.tmp"))
 
 
 def test_opt_in_tail_repair_keeps_clean_demo_byte_identical(tmp_path: Path):
@@ -322,71 +250,6 @@ def test_persistent_repair_does_not_implicitly_discard_truncated_tail(tmp_path: 
 
     assert source.read_bytes() == source_bytes
 
-
-def test_unfinalized_demo_recovery_rebuilds_terminal_metadata_atomically(
-    tmp_path: Path,
-):
-    complete = _frame(7, 42, _packet_proto(_packet_data([(76, b"complete")])))
-    source_bytes = _unfinalized_demo(
-        [complete],
-        terminal_tick=43,
-        recovery_messages=[b"spawn-one", b"spawn-two"],
-    )
-    source = _write(tmp_path / "source.dem", source_bytes)
-
-    report = compat.repair_demo_in_place(
-        source,
-        allow_truncated_packet_tail=True,
-    )
-
-    assert report.outcome == "repaired"
-    assert report.recovered_unfinalized_demo is True
-    assert report.tolerated_truncated_packet_tail is False
-    assert report.discarded_truncated_packet_bytes > 0
-    assert source.read_bytes() != source_bytes
-    assert compat.read_demo_end_tick(source) == 42
-
-    recovered = source.read_bytes()
-    file_info_offset = int.from_bytes(recovered[8:12], "little")
-    spawn_groups_offset = int.from_bytes(recovered[12:16], "little")
-    assert _command_at(recovered, file_info_offset) == 2
-    assert _command_at(recovered, spawn_groups_offset) == 15
-
-    first_command, pos = _read_varint_at(recovered, 16)
-    first_tick, _pos = _read_varint_at(recovered, pos)
-    assert first_command == 1
-    assert first_tick == 0
-
-    recovered_stat = compat._stat_fingerprint(source.stat())
-    second_report = compat.repair_demo_in_place(
-        source,
-        allow_truncated_packet_tail=True,
-    )
-    assert second_report.outcome == "clean"
-    assert second_report.recovered_unfinalized_demo is False
-    assert source.read_bytes() == recovered
-    assert compat._stat_fingerprint(source.stat()) == recovered_stat
-    assert not list(tmp_path.glob(".source.dem.compat-*.tmp"))
-
-
-def test_analysis_tolerance_rejects_truncated_metadata_without_modifying_source(
-    tmp_path: Path,
-):
-    first = _frame(1, 0, b"file-header")
-    terminal = _frame(2, 43, b"partial-file-info")
-    source_bytes = b"PBDEMS2\x00" + (0).to_bytes(8, "little") + first + terminal[:-3]
-    source = _write(tmp_path / "source.dem", source_bytes)
-
-    with pytest.raises(
-        compat.DemoPlaybackCompatibilityError,
-        match="not a packet",
-    ):
-        compat.repair_demo_in_place(
-            source,
-            allow_truncated_packet_tail=True,
-        )
-
-    assert source.read_bytes() == source_bytes
 
 
 def test_unfinalized_recovery_runs_138_and_win_panel_patches_before_finalization(

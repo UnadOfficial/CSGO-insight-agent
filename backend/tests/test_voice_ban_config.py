@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app import cs2_config_backup, obs_director
+from app import csgo_config_backup, obs_director
 from app.obs_director import OBSDirector, _empty_voice_ban_payload
 
 
@@ -28,7 +28,7 @@ def _modern_voice_ban(steam_id: int = 76561198386265483) -> bytes:
 
 def _bare_director() -> OBSDirector:
     director = OBSDirector.__new__(OBSDirector)
-    director.cs2_path = ""
+    director.csgo_path = ""
     director._user_config_snapshot = {}
     director._candidate_user_config_dirs = lambda: []
     return director
@@ -73,7 +73,7 @@ def test_voice_ban_is_snapshotted_cleared_and_restored(monkeypatch, tmp_path: Pa
         "write_persistent_backup_from_snap",
         lambda snap: captured.update(snap),
     )
-    monkeypatch.setattr(cs2_config_backup, "is_restore_required", lambda: False)
+    monkeypatch.setattr(csgo_config_backup, "is_restore_required", lambda: False)
 
     director._snapshot_user_configs()
     director._clear_voice_ban_files()

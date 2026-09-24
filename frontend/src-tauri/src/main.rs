@@ -14,7 +14,10 @@ fn install_panic_log() {
         let Some(app_data) = std::env::var_os("APPDATA").map(PathBuf::from) else {
             return;
         };
-        let logs = app_data.join("CS2 Insight Agent").join("data").join("logs");
+        let logs = app_data
+            .join("CSGO Insight Agent")
+            .join("data")
+            .join("logs");
         if fs::create_dir_all(&logs).is_err() {
             return;
         }

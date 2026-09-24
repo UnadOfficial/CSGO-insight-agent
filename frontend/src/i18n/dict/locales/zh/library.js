@@ -120,7 +120,7 @@ export default {
   "library.renameDesc": "仅保存在本地库中，不修改磁盘上的 .dem 文件名。留空并保存则恢复为文件名显示。",
   "library.renameCancel": "取消",
   "library.renameSave": "保存",
-  "library.playToastOk": "正在启动 CS2 播放 Demo",
+  "library.playToastOk": "正在启动 CS:GO 播放 Demo",
   "library.playToastFail": "启动失败",
   "library.openFileError": "无法获取该 Demo 的磁盘路径。",
   "library.openFileFailPrefix": "在资源管理器中打开失败: {msg}",

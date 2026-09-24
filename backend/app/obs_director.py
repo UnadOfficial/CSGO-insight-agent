@@ -1,4 +1,4 @@
-"""自动化导播控制 - OBS 录制 & CS2 Demo 回放控制"""
+"""自动化导播控制 - OBS 录制 & CSGO Demo 回放控制"""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from obswebsocket import obsws, requests as obs_requests
 from obswebsocket.core import RecvThread, ReconnectThread
 
 from .demo_parse_isolation import IsolatedParseError, get_demo_match_summary_isolated
-from .chroma_demo_copy import ChromaDemoCopyReport, prepare_chroma_demo_copy
+from .csgo_demo_format import require_csgo_demo
 from .demo_parser import (
     BUFFER_SECONDS_AFTER,
     BUFFER_SECONDS_BEFORE,
@@ -36,12 +36,12 @@ from .demo_parser import (
     get_player_list,
     spec_player_extra_offset_for_gsi_failure,
 )
-from .cs2_config_backup import (
+from .csgo_config_backup import (
     USER_CONFIG_FILENAMES,
     USER_CONFIG_GLOB_PATTERNS,
     _atomic_write_bytes,
     candidate_user_config_dirs,
-    is_cs2_running,
+    is_csgo_running,
     restore_user_config_snapshot,
     snapshot_user_configs,
     write_persistent_backup_from_snap,
@@ -60,9 +60,7 @@ from .gsi_ready import (
     wait_gsi_payload_after,
 )
 from .pov_constants import (
-    POV_CORE_FORCED_COMMANDS,
     normalize_pov_voice_mode,
-    pov_tail_commands,
 )
 from .mirv_pov import (
     HLAE_ENTITY_MISSING_MSG,
@@ -77,27 +75,9 @@ from .mirv_pov import (
     mirv_pov_cfg_lines,
     resolve_mirv_pov_entity_index,
 )
-from .win_cs2_console import ensure_cs2_foreground, find_cs2_hwnd, inject_console_sequence, send_cs2_space_taps
+from .win_csgo_console import ensure_csgo_foreground, find_csgo_hwnd, inject_console_sequence, send_csgo_space_taps
 
 logger = logging.getLogger(__name__)
-
-
-def _prepare_recording_playback_demo_copy(
-    source: Path,
-    destination: Path,
-    *,
-    chroma_demo_map_name: Optional[str] = None,
-) -> ChromaDemoCopyReport | None:
-    """Create only the disposable Demo that CS2 will play for recording."""
-
-    if chroma_demo_map_name:
-        return prepare_chroma_demo_copy(
-            source,
-            destination,
-            map_name=chroma_demo_map_name,
-        )
-    shutil.copy2(source, destination)
-    return None
 
 
 def _empty_voice_ban_payload(original: bytes) -> bytes:
@@ -260,7 +240,6 @@ _RECORDING_RESULT_CLIP_META_KEYS: tuple[str, ...] = (
     "pov_steamid64",
     "timeline_source",
     "timeline_event_id",
-    "pov_hud_enabled",
     "recording_perspective",
     "victim_pov_segments",
     "death_tick",
@@ -449,41 +428,41 @@ def _recording_debug_log_probe_summary(
 
 def _resolve_gsi_sink_url() -> str:
     """URI written into ``gamestate_integration_*.cfg``; must match the backend listen port."""
-    explicit = os.environ.get("CS2_INSIGHT_GSI_URL") or os.environ.get("CS2_INSIGHT_BACKEND_GSI_URL")
+    explicit = os.environ.get("CSGO_INSIGHT_GSI_URL") or os.environ.get("CSGO_INSIGHT_BACKEND_GSI_URL")
     if explicit:
         return explicit.strip()
     try:
-        port = int(os.environ.get("CS2_INSIGHT_PORT", "8000") or "8000")
+        port = int(os.environ.get("CSGO_INSIGHT_PORT", "8000") or "8000")
     except ValueError:
         port = 8000
-    # CS2 POSTs from the same machine; mirror CS2_INSIGHT_PORT so a non-default
+    # CSGO POSTs from the same machine; mirror CSGO_INSIGHT_PORT so a non-default
     # uvicorn port still receives GSI (previously defaulted to :8000 only).
-    return f"http://127.0.0.1:{port}/api/gsi/cs2"
+    return f"http://127.0.0.1:{port}/api/gsi/csgo"
 
 
 class RecordingAborted(Exception):
     """用户请求中止录制（中途退出批量/单次任务）。"""
 
 
-class CS2UnexpectedExitError(RuntimeError):
-    """Insight 管理的录制会话中，CS2 在清理阶段前自行退出。"""
+class CSGOUnexpectedExitError(RuntimeError):
+    """Insight 管理的录制会话中，CSGO 在清理阶段前自行退出。"""
 
 
 class _SpecVerifyAbort(Exception):
     """spec_player GSI 验证耗尽所有重试次数，中止当前录制 pipeline。"""
 
 
-CS2_RUNNING_MESSAGE = "检测到 CS2 正在运行。为避免踢出对局或污染设置，请先手动退出 CS2 后再开始录制。"
+CSGO_RUNNING_MESSAGE = "检测到 CS:GO 正在运行。为避免踢出对局或污染设置，请先手动退出 CS:GO 后再开始录制。"
 
 
-class CS2AlreadyRunningError(RuntimeError):
-    """Raised when recording would have to take over a user-owned CS2 session."""
+class CSGOAlreadyRunningError(RuntimeError):
+    """Raised when recording would have to take over a user-owned CSGO session."""
 
 
-class CS2NotReadyError(RuntimeError):
-    """Raised when CS2 fails to enter an in-game state (GSI never ready) within the
+class CSGONotReadyError(RuntimeError):
+    """Raised when CSGO fails to enter an in-game state (GSI never ready) within the
     recording startup timeout window. Surfaced to frontend as HTTP 409 so the user
-    sees the same warning-dialog style as the "CS2 already running" case instead
+    sees the same warning-dialog style as the "CSGO already running" case instead
     of being silently kicked back to the queue with no feedback.
     """
 
@@ -493,10 +472,10 @@ PRE_ROLL_TICKS = 300  # ~5 seconds of pre-roll（无 kill_ticks 时的传统 see
 # 智能跳跃分段阈值见 ``build_smart_jump_segments`` 内 _env_int 默认值。
 
 # 录制开始时把玩家所有按键解绑并恢复到一组最小默认绑定。配合下面的「文件级用户配置
-# 快照 + 恢复」机制使用：本次 CS2 进程内按键还原为下方默认，让玩家自定义的奇葩 bind
+# 快照 + 恢复」机制使用：本次 CSGO 进程内按键还原为下方默认，让玩家自定义的奇葩 bind
 # 不会在 demo 回放/控制台注入期间触发；录制结束（或异常杀进程后下次启动）时再用
 # 磁盘备份把用户原配置整体回滚。bind 顺序中 toggleconsole / space 必须保留，否则
-# `inject_console_sequence` 与 `send_cs2_space_taps` 会失效。
+# `inject_console_sequence` 与 `send_csgo_space_taps` 会失效。
 _RECORDING_KEYBIND_RESET_LINES: tuple[str, ...] = (
     "unbindall",
     "bind F10 toggleconsole",
@@ -512,7 +491,7 @@ _RECORDING_KEYBIND_RESET_LINES: tuple[str, ...] = (
 _RECORDING_VIDEO_EXTENSIONS = {".mkv", ".mp4", ".mov", ".flv", ".ts", ".m2ts", ".avi"}
 
 
-# 用户配置磁盘备份 / ``recording_state.json`` 见 ``cs2_config_backup`` 模块；
+# 用户配置磁盘备份 / ``recording_state.json`` 见 ``csgo_config_backup`` 模块；
 # 运行期仍靠 ``_user_config_snapshot`` 在 taskkill 后配合 manifest 恢复。
 
 def _clip_kill_ticks_sorted(clip: dict) -> list[int]:
@@ -910,7 +889,7 @@ def _pacing_pre_first_sec_effective(clip: dict) -> float:
                 return max(0.0, float(v))
             except (TypeError, ValueError):
                 pass
-    ticks = _env_int("CS2_INSIGHT_SMART_PRE_FIRST_TICKS", int(float(DEMO_TICK_RATE) * 2))
+    ticks = _env_int("CSGO_INSIGHT_SMART_PRE_FIRST_TICKS", int(float(DEMO_TICK_RATE) * 2))
     return max(0.0, float(ticks)) / float(DEMO_TICK_RATE)
 
 
@@ -924,7 +903,7 @@ def _pacing_post_last_sec_effective(clip: dict) -> float:
                 return max(0.0, float(v))
             except (TypeError, ValueError):
                 pass
-    ticks = _env_int("CS2_INSIGHT_SMART_POST_LAST_TICKS", int(float(DEMO_TICK_RATE) * 1))
+    ticks = _env_int("CSGO_INSIGHT_SMART_POST_LAST_TICKS", int(float(DEMO_TICK_RATE) * 1))
     return max(0.0, float(ticks)) / float(DEMO_TICK_RATE)
 
 
@@ -977,7 +956,7 @@ def _build_all_kills_windows(
 
     if merge_gap_ticks is None:
         try:
-            merge_gap_sec = float(os.getenv("CS2_INSIGHT_ALL_KILLS_WINDOW_MERGE_GAP_SEC", "0.15"))
+            merge_gap_sec = float(os.getenv("CSGO_INSIGHT_ALL_KILLS_WINDOW_MERGE_GAP_SEC", "0.15"))
         except (TypeError, ValueError):
             merge_gap_sec = 0.15
         merge_gap_ticks = max(0, int(merge_gap_sec * demo_tick_rate))
@@ -1178,7 +1157,7 @@ def _build_death_compilation_windows(
     ordered = sorted(by_tick.items(), key=lambda it: (it[1], it[0]))
 
     merge_gap_ticks = _env_int(
-        "CS2_INSIGHT_DEATH_WINDOW_MERGE_GAP_TICKS",
+        "CSGO_INSIGHT_DEATH_WINDOW_MERGE_GAP_TICKS",
         int(float(DEMO_TICK_RATE) * 0.15),
     )
 
@@ -1221,14 +1200,14 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
        - **``freeze_to_death``** 且 ``fixed_segment_pacing``：仅信任 ``source_ticks`` 硬窗，
          不因 ``kill_ticks`` / ``death_tick`` / pacing 重算（见 ``_is_freeze_to_death_clip`` 早退）。
        - **死亡类合集**（``_is_death_compilation``）：``_build_death_compilation_windows``，
-         按死亡点 + 回合合并窗；pre/post 读 ``pacing_override`` / ``CS2_INSIGHT_SMART_*``。
+         按死亡点 + 回合合并窗；pre/post 读 ``pacing_override`` / ``CSGO_INSIGHT_SMART_*``。
        - **``compilation_kind == all_kills``**：``_build_all_kills_windows``，
          每杀 ``[kill−pre, kill+post]`` 再按重叠与 ``max_gap`` 合并；**不是**高光那种「锚点 tick 聚类」。
        - **其它合集**：直接用 ``source_ticks`` 的 ``(ss, ee)``，不在此函数里按 pre/post 重算窗。
 
     2. **无 ``kill_ticks``**（纯死亡锚点、时间线死亡等）：单段 ``death_tick ± pre/post``，
        其中 ``round_timeline_event`` 且未写 ``post_last_sec`` 时死后留白默认走
-       ``CS2_INSIGHT_TIMELINE_DEATH_POST_TICKS``（默认 2s）。
+       ``CSGO_INSIGHT_TIMELINE_DEATH_POST_TICKS``（默认 2s）。
 
     3. **高光 / 时间线击杀 / 多杀非合集**（默认）：``kill_ticks`` 按 ``MAX_GAP`` 聚类，
        每簇 ``首杀−PRE_FIRST`` … ``末杀+POST_LAST``，并可能按 ``clip.start/end_tick`` 扩窗。
@@ -1254,14 +1233,14 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
             return max(0, int(float(val) * DEMO_TICK_RATE))
         return _env_int(default_env_key, int(DEMO_TICK_RATE * default_sec))
 
-    PRE_FIRST = _get_override_ticks("pre_first_sec", "CS2_INSIGHT_SMART_PRE_FIRST_TICKS", 2.0)
-    POST_LAST = _get_override_ticks("post_last_sec", "CS2_INSIGHT_SMART_POST_LAST_TICKS", 1.0)
-    MAX_GAP = max(1, _get_override_ticks("max_gap_sec", "CS2_INSIGHT_SMART_MAX_GAP_TICKS", 12.0))
+    PRE_FIRST = _get_override_ticks("pre_first_sec", "CSGO_INSIGHT_SMART_PRE_FIRST_TICKS", 2.0)
+    POST_LAST = _get_override_ticks("post_last_sec", "CSGO_INSIGHT_SMART_POST_LAST_TICKS", 1.0)
+    MAX_GAP = max(1, _get_override_ticks("max_gap_sec", "CSGO_INSIGHT_SMART_MAX_GAP_TICKS", 12.0))
 
     clip_min_tick = max(0, int(clip.get("clip_min_tick") or 0))
     clip_min_guard_ticks = _get_override_ticks(
         "clip_min_guard_sec",
-        "CS2_INSIGHT_SMART_CLIP_MIN_GUARD_TICKS",
+        "CSGO_INSIGHT_SMART_CLIP_MIN_GUARD_TICKS",
         0.35,
     )
     clip_min_start_tick = clip_min_tick + clip_min_guard_ticks if clip_min_tick > 0 else 0
@@ -1360,12 +1339,12 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
 
             pre_ticks = _death_comp_ov_ticks(
                 "pre_first_sec",
-                "CS2_INSIGHT_SMART_PRE_FIRST_TICKS",
+                "CSGO_INSIGHT_SMART_PRE_FIRST_TICKS",
                 2.0,
             )
             post_ticks = _death_comp_ov_ticks(
                 "post_last_sec",
-                "CS2_INSIGHT_SMART_POST_LAST_TICKS",
+                "CSGO_INSIGHT_SMART_POST_LAST_TICKS",
                 1.0,
             )
 
@@ -1428,16 +1407,16 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
                 return _env_int(default_env_key, int(DEMO_TICK_RATE * default_sec))
 
             pre_first_ticks = _all_kills_ov_ticks(
-                "pre_first_sec", "CS2_INSIGHT_SMART_PRE_FIRST_TICKS", 2.0
+                "pre_first_sec", "CSGO_INSIGHT_SMART_PRE_FIRST_TICKS", 2.0
             )
             post_last_ticks = _all_kills_ov_ticks(
-                "post_last_sec", "CS2_INSIGHT_SMART_POST_LAST_TICKS", 1.0
+                "post_last_sec", "CSGO_INSIGHT_SMART_POST_LAST_TICKS", 1.0
             )
             pre_first_sec = pre_first_ticks / float(DEMO_TICK_RATE)
             post_last_sec = post_last_ticks / float(DEMO_TICK_RATE)
 
             try:
-                merge_gap_sec = float(os.getenv("CS2_INSIGHT_ALL_KILLS_WINDOW_MERGE_GAP_SEC", "0.15"))
+                merge_gap_sec = float(os.getenv("CSGO_INSIGHT_ALL_KILLS_WINDOW_MERGE_GAP_SEC", "0.15"))
             except (TypeError, ValueError):
                 merge_gap_sec = 0.15
             merge_gap_ticks = max(0, int(merge_gap_sec * DEMO_TICK_RATE))
@@ -1448,11 +1427,11 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
                     all_kills_max_gap_ticks = max(0, int(float(raw_gap) * DEMO_TICK_RATE))
                 except (TypeError, ValueError):
                     all_kills_max_gap_ticks = _env_int(
-                        "CS2_INSIGHT_SMART_MAX_GAP_TICKS", int(float(DEMO_TICK_RATE) * 12.0)
+                        "CSGO_INSIGHT_SMART_MAX_GAP_TICKS", int(float(DEMO_TICK_RATE) * 12.0)
                     )
             else:
                 all_kills_max_gap_ticks = _env_int(
-                    "CS2_INSIGHT_SMART_MAX_GAP_TICKS", int(float(DEMO_TICK_RATE) * 12.0)
+                    "CSGO_INSIGHT_SMART_MAX_GAP_TICKS", int(float(DEMO_TICK_RATE) * 12.0)
                 )
 
             # 与 source_ticks 索引对齐的击杀 + 回合（source_rounds）；优于仅 clip.kill_ticks 整数列表
@@ -1589,7 +1568,7 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
             and "post_last_sec" not in override
         ):
             post_for_anchor = _env_int(
-                "CS2_INSIGHT_TIMELINE_DEATH_POST_TICKS",
+                "CSGO_INSIGHT_TIMELINE_DEATH_POST_TICKS",
                 int(DEMO_TICK_RATE * 2.0),
             )
         post_sec_for_log = post_for_anchor / float(DEMO_TICK_RATE)
@@ -1626,7 +1605,7 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
             k in override for k in ("pre_first_sec", "post_last_sec")
         )
         # 纯死亡锚点（含回合时间线 death 事件）：必须压在 death_tick 附近结束。
-        # 若沿用片段整体 end_tick（建议窗 often 为死亡 +4s），CS2 死亡视角约 2s 后会把观战切到
+        # 若沿用片段整体 end_tick（建议窗 often 为死亡 +4s），CSGO 死亡视角约 2s 后会把观战切到
         # 他人，后半段录到的已不是目标画面。
         clip_min_floor = (
             clip_min_tick
@@ -1644,10 +1623,10 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
                 post_ticks = max(0, int(float(val_po) * DEMO_TICK_RATE))
             else:
                 # round_timeline_event 死亡：与高光同源走本函数，但未显式 post_last 时死后留白默认 2s
-                # （CS2_INSIGHT_TIMELINE_DEATH_POST_TICKS，观战易在 ~2s 内切走）；其它纯死亡锚点用 POST_LAST。
+                # （CSGO_INSIGHT_TIMELINE_DEATH_POST_TICKS，观战易在 ~2s 内切走）；其它纯死亡锚点用 POST_LAST。
                 if str(clip.get("timeline_source") or "").strip() == "round_timeline_event":
                     post_ticks = _env_int(
-                        "CS2_INSIGHT_TIMELINE_DEATH_POST_TICKS",
+                        "CSGO_INSIGHT_TIMELINE_DEATH_POST_TICKS",
                         int(DEMO_TICK_RATE * 2.0),
                     )
                 else:
@@ -1747,7 +1726,7 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
             raw_start = max(raw_start, clip_min_start_tick)
         seg_start = raw_start
         seg_end = cl[-1] + POST_LAST
-        # 裁剪到回合安全上限：超出后 CS2 进入结算界面，倒退 seek 无法恢复画面
+        # 裁剪到回合安全上限：超出后 CSGO 进入结算界面，倒退 seek 无法恢复画面
         if clip_max_tick > 0:
             seg_end = min(seg_end, clip_max_tick)
         if seg_end <= seg_start:
@@ -1768,7 +1747,7 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
     # 扩展最后一段以覆盖 clip.end_tick（极限拆包等：末段需长于「末杀 + post_last」）。
     # 若 end_tick 仅落在解析器为高光写的「末杀 + BUFFER_SECONDS_AFTER」典型窗内，而用户已通过 pacing
     # 把 post_last 缩得比该窗更短，则不得再拉长。注意：典型窗必须与 demo_parser 的 BUFFER_SECONDS_AFTER
-    # 一致，且不得复用 CS2_INSIGHT_SMART_POST_LAST_TICKS 环境变量 —— 否则用户把 env 调小后
+    # 一致，且不得复用 CSGO_INSIGHT_SMART_POST_LAST_TICKS 环境变量 —— 否则用户把 env 调小后
     # end_tick <= last_kill + env_ticks 恒为假，会误判为「拆包」而再次拉长到 clip.end_tick（约 3s）。
     _parser_default_tail_ticks = int(float(BUFFER_SECONDS_AFTER) * float(DEMO_TICK_RATE))
     _parser_default_head_ticks = int(float(BUFFER_SECONDS_BEFORE) * float(DEMO_TICK_RATE))
@@ -1816,7 +1795,7 @@ def build_smart_jump_segments(clip: dict) -> list[tuple[int, int]]:
 
 class DirectorState(str, Enum):
     IDLE = "idle"
-    LAUNCHING_CS2 = "launching_cs2"
+    LAUNCHING_CSGO = "launching_csgo"
     LOADING_DEMO = "loading_demo"
     SEEKING = "seeking"
     RECORDING = "recording"
@@ -1835,7 +1814,7 @@ class RecordingTask:
 
 @dataclass
 class RecordingWarmupExtras:
-    """一键录制前预热阶段注入的观战相关 cvar，及本次 CS2 启动分辨率。"""
+    """一键录制前预热阶段注入的观战相关 cvar，及本次 CSGO 启动分辨率。"""
 
     cl_draw_only_deathnotices: bool = True
     spec_show_xray: int = 0  # 0 或 1
@@ -1853,46 +1832,22 @@ class RecordingWarmupExtras:
     hide_demo_playback_ui: bool = True
     # 投掷物抛物线 + 画中窗预览
     hide_grenade_trajectory_pip: bool = True
-    # 与 cs2_video.txt / video.cfg 中 setting.aspectratiomode 一致：0=4:3，1=16:9，2=16:10
+    # 与 csgo_video.txt / video.cfg 中 setting.aspectratiomode 一致：0=4:3，1=16:9，2=16:10
     aspect_ratio: Optional[Literal["4:3", "16:9", "16:10"]] = None
     # 若前端传入非空列表，则优先使用该顺序注入（须已含各 cvar）；否则由静态方法从布尔字段拼装
     console_cmds: Optional[tuple[str, ...]] = None
-    # 实验性 POV：与 pov_tail_commands 对应（仅 pov_enabled 时注入末尾）
-    pov_radar_mode: int = 0  # cl_drawhud_force_radar：-1 隐藏，0 显示
-    pov_teamcounter_numeric: bool = False  # cl_teamcounter_playercount_instead_of_avatars
-    # Fixed recording voice audience; None lets old pov_voice_disabled migrate.
+    # Fixed recording voice audience for the optional HLAE POV path.
     pov_voice_mode: Optional[str] = None
-    # Legacy compatibility for saved presets/older clients.
-    pov_voice_disabled: bool = False
-    # RecordingV3 queue: enable POV HUD lifecycle (install vpk + patch gameinfo.gi)
-    pov_hud_enabled: bool = False
-    # Build the demo-specific in-game voice/input VPK independently of POV mode.
-    recording_hud_enabled: bool = False
-    # Authoritative in-game input visualization. Presentation size and audio
-    # gain are fixed product presets; only visibility policy and sound on/off
-    # are session choices.
-    input_hud_enabled: bool = True
-    input_hud_display_mode: Literal["hybrid", "always", "active"] = "hybrid"
-    input_audio_enabled: bool = False
-    # Presentation-only switch. The authoritative combat track remains in the
-    # demo-specific payload so this never changes truth extraction or Pawn switching.
-    combat_stats_hud_enabled: bool = True
-    # Independent recording preset. Non-default values install a sky-only VPK
-    # in ordinary mode, or merge the same layer into the POV package.
-    skybox_id: str = "default"
-    # Independent recording map-material preset. Non-default values merge only
-    # the current demo map's verified material entries into the temporary VPK.
-    map_material_id: str = "default"
-    # Independent weather category. Rain may provide a bundled default sky,
-    # while an explicitly selected skybox remains the final override.
-    weather_effect_id: str = "default"
+    # Optional advanced Source 1 POV path.  When enabled the launcher is
+    # delegated to HLAE's ``mirv_pov``; no VPK or gameinfo.gi mutation is used.
+    hlae_mirv_pov: bool = False
 
 
-# CS2 视频设置「宽高比」下拉与 setting.aspectratiomode 枚举（社区常用映射）。
+# CSGO 视频设置「宽高比」下拉与 setting.aspectratiomode 枚举（社区常用映射）。
 _ASPECT_RATIO_VIDEOCFG_MODE: dict[str, int] = {"4:3": 0, "16:9": 1, "16:10": 2}
 
 
-def _parse_cs2_extra_launch_argv(raw: str) -> tuple[str, ...]:
+def _parse_csgo_extra_launch_argv(raw: str) -> tuple[str, ...]:
     """前端按「一条一行」写入；旧配置可为单行整段 shlex。每行单独 shlex 后拼成 argv。"""
     text = raw or ""
     out: list[str] = []
@@ -1904,7 +1859,7 @@ def _parse_cs2_extra_launch_argv(raw: str) -> tuple[str, ...]:
             try:
                 parts = shlex.split(s, posix=False)
             except ValueError:
-                logger.warning("cs2_extra_launch_args line shlex failed, skip: %r", s[:120])
+                logger.warning("csgo_extra_launch_args line shlex failed, skip: %r", s[:120])
                 continue
             for p in parts:
                 t = str(p).strip()
@@ -1919,7 +1874,7 @@ def _parse_cs2_extra_launch_argv(raw: str) -> tuple[str, ...]:
     try:
         parts = shlex.split(s, posix=False)
     except ValueError:
-        logger.warning("cs2_extra_launch_args shlex parse failed, ignoring: %r", s[:160])
+        logger.warning("csgo_extra_launch_args shlex parse failed, ignoring: %r", s[:160])
         return ()
     for p in parts:
         t = str(p).strip()
@@ -2050,7 +2005,6 @@ def _apply_recording_voice_policy(
     *,
     pov_enabled: bool,
     pov_voice_mode: Optional[str] = None,
-    pov_voice_disabled: bool = False,
 ) -> list[str]:
     """Apply the sole recording voice policy after removing stale client settings.
 
@@ -2062,7 +2016,6 @@ def _apply_recording_voice_policy(
     clean = _without_voice_console_lines(lines)
     voice_mode = normalize_pov_voice_mode(
         pov_voice_mode,
-        legacy_voice_disabled=pov_voice_disabled,
     )
     if pov_enabled and voice_mode != "mute":
         return clean
@@ -2076,26 +2029,26 @@ def _disable_backend_voice_masks(plan) -> None:
 
 
 class OBSDirector:
-    """Controls OBS recording and CS2 demo playback for automated clip capture."""
+    """Controls OBS recording and CSGO demo playback for automated clip capture."""
 
     def __init__(
         self,
         obs_config: OBSConfig,
-        cs2_path: str,
+        csgo_path: str,
         on_state_change: Optional[Callable[[DirectorState, str], None]] = None,
         abort_event: Optional[asyncio.Event] = None,
         *,
-        cs2_extra_launch_args: str = "",
+        csgo_extra_launch_args: str = "",
         record_inject_console_lines: str = "",
         spec_player_verify: Optional[SpecPlayerVerifyConfig] = None,
     ):
         self.obs_config = obs_config
-        self.cs2_path = cs2_path
-        self._extra_launch_argv = _parse_cs2_extra_launch_argv(cs2_extra_launch_args)
+        self.csgo_path = csgo_path
+        self._extra_launch_argv = _parse_csgo_extra_launch_argv(csgo_extra_launch_args)
         self._extra_warmup_console_lines = _parse_record_inject_console_lines(record_inject_console_lines)
         self._spec_player_verify = spec_player_verify or SpecPlayerVerifyConfig()
         self._ws: Optional[obsws] = None
-        self._cs2_process: Optional[subprocess.Popen] = None
+        self._csgo_process: Optional[subprocess.Popen] = None
         self._on_state_change = on_state_change
         self._state = DirectorState.IDLE
         self._copied_demo: Optional[Path] = None
@@ -2105,17 +2058,16 @@ class OBSDirector:
         self._spec_parse_fallback_offset_by_demo: dict[str, int] = {}
         self._demo_steam_by_name_cache: dict[str, dict[str, str]] = {}
         self._abort_event = abort_event
-        self._cs2_exit_monitor_task: Optional[asyncio.Task] = None
-        self._cs2_exit_monitor_stop: Optional[asyncio.Event] = None
-        self._cs2_shutdown_expected = False
-        self._cs2_exited_unexpectedly = False
+        self._csgo_exit_monitor_task: Optional[asyncio.Task] = None
+        self._csgo_exit_monitor_stop: Optional[asyncio.Event] = None
+        self._csgo_shutdown_expected = False
+        self._csgo_exited_unexpectedly = False
         self._last_player_config_restore_result: Optional[dict[str, Any]] = None
         self._player_config_restore_results: list[dict[str, Any]] = []
         self._player_config_snapshot_attempted = False
         # 实验性 POV：在首次片段预热注入末尾追加强制 cvar
-        self._pov_enabled = False
-        # 启动 CS2 前对用户配置文件做的字节级快照：{Path: bytes | None}。
-        # value=None 代表该文件原本不存在，restore 时需要删除 CS2 新建的同名文件。
+        # 启动 CSGO 前对用户配置文件做的字节级快照：{Path: bytes | None}。
+        # value=None 代表该文件原本不存在，restore 时需要删除 CSGO 新建的同名文件。
         self._user_config_snapshot: dict[Path, Optional[bytes]] = {}
 
     def _set_state(self, state: DirectorState, detail: str = ""):
@@ -2128,8 +2080,8 @@ class OBSDirector:
         return self._abort_event is not None and self._abort_event.is_set()
 
     def _check_abort(self) -> None:
-        if self._cs2_exited_unexpectedly:
-            raise CS2UnexpectedExitError("CS2 exited unexpectedly during recording")
+        if self._csgo_exited_unexpectedly:
+            raise CSGOUnexpectedExitError("CSGO exited unexpectedly during recording")
         if self._abort_requested():
             raise RecordingAborted()
 
@@ -2145,10 +2097,10 @@ class OBSDirector:
                 self._check_abort()
             await asyncio.sleep(min(step, deadline - time.monotonic()))
 
-    def _is_managed_cs2_alive(self) -> bool:
-        """Check both the launch handle and the real cs2.exe process/window."""
+    def _is_managed_csgo_alive(self) -> bool:
+        """Check both the launch handle and the real csgo.exe process/window."""
         process_alive = False
-        process = self._cs2_process
+        process = self._csgo_process
         if process is not None:
             try:
                 process_alive = process.poll() is None
@@ -2156,31 +2108,31 @@ class OBSDirector:
                 pass
         if sys.platform == "win32":
             # On Windows the Popen handle can belong to a short-lived Steam
-            # launcher, so cs2.exe/window discovery is the authoritative source.
-            return is_cs2_running()
-        return process_alive or is_cs2_running()
+            # launcher, so csgo.exe/window discovery is the authoritative source.
+            return is_csgo_running()
+        return process_alive or is_csgo_running()
 
-    async def _monitor_cs2_exit(self, poll_interval: float = 0.5) -> None:
-        """Signal the recording abort path when a running managed CS2 disappears."""
+    async def _monitor_csgo_exit(self, poll_interval: float = 0.5) -> None:
+        """Signal the recording abort path when a running managed CSGO disappears."""
         seen_alive = False
-        stop_event = self._cs2_exit_monitor_stop
+        stop_event = self._csgo_exit_monitor_stop
         if stop_event is None:
             return
 
         try:
-            while not self._cs2_shutdown_expected and not stop_event.is_set():
+            while not self._csgo_shutdown_expected and not stop_event.is_set():
                 # A user-requested Insight abort owns the shutdown from this point on;
                 # do not misclassify the following process termination as an external exit.
-                if self._abort_requested() and not self._cs2_exited_unexpectedly:
+                if self._abort_requested() and not self._csgo_exited_unexpectedly:
                     return
 
-                alive = await asyncio.to_thread(self._is_managed_cs2_alive)
+                alive = await asyncio.to_thread(self._is_managed_csgo_alive)
                 if alive:
                     seen_alive = True
-                elif seen_alive and not self._cs2_shutdown_expected:
-                    self._cs2_exited_unexpectedly = True
+                elif seen_alive and not self._csgo_shutdown_expected:
+                    self._csgo_exited_unexpectedly = True
                     logger.error(
-                        "[RecordingV3] managed CS2 exited before Insight cleanup; "
+                        "[RecordingV3] managed CSGO exited before Insight cleanup; "
                         "stopping OBS and restoring player/POV files"
                     )
                     if self._abort_event is not None:
@@ -2194,27 +2146,27 @@ class OBSDirector:
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - monitoring must not crash recording
-            logger.warning("[RecordingV3] CS2 exit monitor failed: %s", exc)
+            logger.warning("[RecordingV3] CSGO exit monitor failed: %s", exc)
 
-    async def _start_cs2_exit_monitor(self) -> None:
-        await self._stop_cs2_exit_monitor(expected=True)
-        self._cs2_shutdown_expected = False
-        self._cs2_exited_unexpectedly = False
-        self._cs2_exit_monitor_stop = asyncio.Event()
-        self._cs2_exit_monitor_task = asyncio.create_task(
-            self._monitor_cs2_exit(),
-            name="cs2-recording-exit-monitor",
+    async def _start_csgo_exit_monitor(self) -> None:
+        await self._stop_csgo_exit_monitor(expected=True)
+        self._csgo_shutdown_expected = False
+        self._csgo_exited_unexpectedly = False
+        self._csgo_exit_monitor_stop = asyncio.Event()
+        self._csgo_exit_monitor_task = asyncio.create_task(
+            self._monitor_csgo_exit(),
+            name="csgo-recording-exit-monitor",
         )
 
-    async def _stop_cs2_exit_monitor(self, *, expected: bool) -> None:
+    async def _stop_csgo_exit_monitor(self, *, expected: bool) -> None:
         if expected:
-            self._cs2_shutdown_expected = True
-        stop_event = self._cs2_exit_monitor_stop
+            self._csgo_shutdown_expected = True
+        stop_event = self._csgo_exit_monitor_stop
         if stop_event is not None:
             stop_event.set()
-        task = self._cs2_exit_monitor_task
-        self._cs2_exit_monitor_task = None
-        self._cs2_exit_monitor_stop = None
+        task = self._csgo_exit_monitor_task
+        self._csgo_exit_monitor_task = None
+        self._csgo_exit_monitor_stop = None
         if task is not None and task is not asyncio.current_task():
             task.cancel()
             try:
@@ -2247,8 +2199,8 @@ class OBSDirector:
 
     async def _cleanup_recording_session(self) -> None:
         await self._run_cleanup_step("OBS disconnect", self.disconnect_obs, timeout=8.0)
-        await self._run_cleanup_step("CS2 shutdown", self._kill_cs2, timeout=30.0)
-        await self._run_cleanup_step("CS2 artifact cleanup", self._cleanup_cs2_artifacts, timeout=8.0)
+        await self._run_cleanup_step("CSGO shutdown", self._kill_csgo, timeout=30.0)
+        await self._run_cleanup_step("CSGO artifact cleanup", self._cleanup_csgo_artifacts, timeout=8.0)
 
     @property
     def state(self) -> DirectorState:
@@ -2336,13 +2288,13 @@ class OBSDirector:
         return str(demo_abs.resolve()).replace("\\", "/")
 
     @staticmethod
-    def _game_root_from_cs2_exe(cs2: Path) -> Optional[Path]:
+    def _game_root_from_csgo_exe(csgo: Path) -> Optional[Path]:
         """
         从 csgo.exe 解析出安装根目录（内含 csgo/）。
         Source 对 Temp 等目录外的绝对路径 +playdemo 支持很差，应把 .dem 放进 csgo/ 再播。
         """
         try:
-            c = cs2.resolve()
+            c = csgo.resolve()
             if c.name.lower() != "csgo.exe":
                 return None
             root = c.parent
@@ -2352,7 +2304,7 @@ class OBSDirector:
             return None
         return None
 
-    def _cleanup_cs2_artifacts(self) -> None:
+    def _cleanup_csgo_artifacts(self) -> None:
         for label, p in (
             ("demo", self._copied_demo),
             ("cfg", self._copied_cfg),
@@ -2367,12 +2319,11 @@ class OBSDirector:
         self._copied_cfg = None
         self._copied_gsi_cfg = None
 
-    def _launch_cs2(
+    def _launch_csgo(
         self,
         demo_abs: Path,
         warmup: Optional[RecordingWarmupExtras] = None,
         *,
-        chroma_demo_map_name: Optional[str] = None,
         mirv_pov_entity_index: Optional[int] = None,
         hlae_path: Optional[str] = None,
     ) -> None:
@@ -2382,27 +2333,31 @@ class OBSDirector:
         """
         if not demo_abs.is_file():
             raise FileNotFoundError(f"Demo file not found: {demo_abs}")
-        cs2 = Path(self.cs2_path)
-        if not cs2.exists():
-            raise FileNotFoundError(f"csgo.exe not found at {self.cs2_path}")
+        # Keep the low-level launcher CS:GO-only as well as the HTTP boundary:
+        # callers that construct an OBSDirector directly must not be able to
+        # send a Source 2 PBDEMS2 file into the Source 1 process.
+        require_csgo_demo(demo_abs)
+        csgo = Path(self.csgo_path)
+        if not csgo.is_file() or csgo.name.lower() != "csgo.exe":
+            raise FileNotFoundError(f"csgo.exe not found at {self.csgo_path}")
 
-        if is_cs2_running():
-            logger.warning("Recording blocked because CS2 is already running")
-            raise CS2AlreadyRunningError(CS2_RUNNING_MESSAGE)
+        if is_csgo_running():
+            logger.warning("Recording blocked because CSGO is already running")
+            raise CSGOAlreadyRunningError(CSGO_RUNNING_MESSAGE)
 
-        game_root = self._game_root_from_cs2_exe(cs2)
+        game_root = self._game_root_from_csgo_exe(csgo)
         if not game_root:
             raise FileNotFoundError(
                 "无法从 csgo.exe 推断安装目录（应为 .../Counter-Strike Global Offensive/csgo.exe）。请检查设置中的 CS:GO 路径。",
             )
 
-        # 启动 CS2 前先对用户配置做快照；CS2 运行期的 archive cvar 写入在
-        # _kill_cs2 末尾会被整段回滚，保护用户自定义设置不受录制影响。
+        # 启动 CSGO 前先对用户配置做快照；CSGO 运行期的 archive cvar 写入在
+        # _kill_csgo 末尾会被整段回滚，保护用户自定义设置不受录制影响。
         self._snapshot_user_configs()
-        self._cleanup_cs2_artifacts()
+        self._cleanup_csgo_artifacts()
         self._clear_voice_ban_files()
 
-        # CS2 读取 video.txt 的优先级高于 -w/-h 启动参数，在快照后立即 patch
+        # CSGO 读取 video.txt 的优先级高于 -w/-h 启动参数，在快照后立即 patch
         # 磁盘文件，确保录制分辨率真正生效；结束后由 _restore_user_configs 还原。
         if warmup is not None:
             _w, _h = warmup.resolution_width, warmup.resolution_height
@@ -2414,31 +2369,18 @@ class OBSDirector:
         csgo_dir = game_root / "csgo"
         dest_name = f"_insight_{uuid.uuid4().hex}.dem"
         dest = csgo_dir / dest_name
-        chroma_report = _prepare_recording_playback_demo_copy(
-            demo_abs,
-            dest,
-            chroma_demo_map_name=chroma_demo_map_name,
-        )
-        if chroma_report is not None:
-            logger.info(
-                "[RecordingV3][CHROMA] disposable Demo ready: map=%s "
-                "manifests=%d handles=%d output_sha256=%s",
-                chroma_report.map_name,
-                chroma_report.manifest_report.rewritten_chroma_sky_references,
-                chroma_report.handle_report.fields_rewritten,
-                chroma_report.handle_report.output_sha256,
-            )
+        shutil.copy2(demo_abs, dest)
         self._copied_demo = dest
 
         cfg_dir = csgo_dir / "cfg"
         cfg_dir.mkdir(parents=True, exist_ok=True)
-        removed_gsi_configs = cleanup_stale_gsi_configs(cs2)
+        removed_gsi_configs = cleanup_stale_gsi_configs(csgo)
         if removed_gsi_configs:
-            logger.info("Removed %d stale CS2 Insight GSI config(s) before launch", len(removed_gsi_configs))
+            logger.info("Removed %d stale CSGO Insight GSI config(s) before launch", len(removed_gsi_configs))
         stem = dest.stem  # _insight_<uuid>
         cfg_path = cfg_dir / f"{stem}.cfg"
-        # 用 cfg 里 playdemo 比单独 +playdemo 在 CS2 上更稳；路径仅 ASCII
-        console_toggle_key = (os.environ.get("CS2_INSIGHT_CONSOLE_TOGGLE_KEY") or "F10").strip().upper()
+        # 用 cfg 里 playdemo 比单独 +playdemo 在 CSGO 上更稳；路径仅 ASCII
+        console_toggle_key = (os.environ.get("CSGO_INSIGHT_CONSOLE_TOGGLE_KEY") or "F10").strip().upper()
         if console_toggle_key in {"~", "OEM_3"}:
             console_toggle_key = "`"
         elif console_toggle_key not in {"`", *{f"F{i}" for i in range(1, 13)}}:
@@ -2495,8 +2437,8 @@ class OBSDirector:
         child_env["SteamAppId"] = "730"
         child_env["SteamGameId"] = "730"
         # 默认继承玩家当前的视频模式，不强制切到独占全屏；否则会把原本的
-        # 「全屏窗口 / 窗口化」录制会话硬改成 fullscreen，并可能被 CS2 持久化。
-        # 若调用方确实想强制独占全屏，可经 cs2_extra_launch_args 显式追加。
+        # 「全屏窗口 / 窗口化」录制会话硬改成 fullscreen，并可能被 CSGO 持久化。
+        # 若调用方确实想强制独占全屏，可经 csgo_extra_launch_args 显式追加。
         launch_bits: List[str] = [
             "-steam", "-console", "-novid", "-insecure",
         ]
@@ -2521,11 +2463,11 @@ class OBSDirector:
             resolved_hlae = (hlae_path or "").strip() or (detect_hlae_path() or "")
             if not is_hlae_exe(resolved_hlae):
                 raise MirvPovError(HLAE_MISSING_MSG)
-            argv = build_hlae_launch_argv(resolved_hlae, cs2, launch_bits)
+            argv = build_hlae_launch_argv(resolved_hlae, csgo, launch_bits)
             logger.info("Launch CS:GO via HLAE mirv_pov=%s cwd=%s cmd=%s", mirv_pov_entity_index, cwd, " ".join(argv))
         else:
-            argv = [str(cs2), *launch_bits]
-            logger.info("Launch CS2 cwd=%s cmd=%s", cwd, " ".join(argv))
+            argv = [str(csgo), *launch_bits]
+            logger.info("Launch CSGO cwd=%s cmd=%s", cwd, " ".join(argv))
         creationflags = 0
         stdin = stdout = stderr = None
         if sys.platform == "win32":
@@ -2536,7 +2478,7 @@ class OBSDirector:
             stdin = subprocess.DEVNULL
             stdout = subprocess.DEVNULL
             stderr = subprocess.DEVNULL
-        self._cs2_process = subprocess.Popen(
+        self._csgo_process = subprocess.Popen(
             argv,
             cwd=cwd,
             env=child_env,
@@ -2548,38 +2490,38 @@ class OBSDirector:
         )
 
     async def _await_gsi_startup_gate(self) -> bool:
-        """等待 CS2 真正进入游戏画面（GSI 上报 map/round 等"非 menu/loading"状态）。
+        """等待 CSGO 真正进入游戏画面（GSI 上报 map/round 等"非 menu/loading"状态）。
 
         历史上默认 25s 超时后 **静默继续**，玩家若机器较慢仍卡在读条页，
         我们会在加载界面注入控制台命令导致命令丢失/录制失败。现改为：
-        1) 默认超时拉长到 ``CS2_INSIGHT_GSI_READY_TIMEOUT_SEC``（默认 120s）；
+        1) 默认超时拉长到 ``CSGO_INSIGHT_GSI_READY_TIMEOUT_SEC``（默认 120s）；
         2) 超时后 **抛 RuntimeError 中止本次录制**，由上层 finally 走标准
-           cleanup（包含 _kill_cs2 → _restore_user_configs → 删除磁盘备份）。
-        如需老的"超时仍继续"宽松行为，可设 ``CS2_INSIGHT_GSI_TIMEOUT_FATAL=0``。
+           cleanup（包含 _kill_csgo → _restore_user_configs → 删除磁盘备份）。
+        如需老的"超时仍继续"宽松行为，可设 ``CSGO_INSIGHT_GSI_TIMEOUT_FATAL=0``。
         """
-        gsi_timeout = self._env_float("CS2_INSIGHT_GSI_READY_TIMEOUT_SEC", "120.0")
-        logger.info("Waiting up to %.1fs for CS2 GSI ready before normal recording startup", gsi_timeout)
+        gsi_timeout = self._env_float("CSGO_INSIGHT_GSI_READY_TIMEOUT_SEC", "120.0")
+        logger.info("Waiting up to %.1fs for CSGO GSI ready before normal recording startup", gsi_timeout)
         deadline = time.monotonic() + max(0.0, gsi_timeout)
         while time.monotonic() < deadline:
             self._check_abort()
             if is_gsi_ready():
-                logger.info("CS2 GSI ready before timeout; continuing recording startup")
+                logger.info("CSGO GSI ready before timeout; continuing recording startup")
                 return True
             await asyncio.sleep(0.2)
         if is_gsi_ready():
-            logger.info("CS2 GSI ready at timeout boundary; continuing recording startup")
+            logger.info("CSGO GSI ready at timeout boundary; continuing recording startup")
             return True
-        fatal = (os.environ.get("CS2_INSIGHT_GSI_TIMEOUT_FATAL", "1") or "1").strip().lower() not in (
+        fatal = (os.environ.get("CSGO_INSIGHT_GSI_TIMEOUT_FATAL", "1") or "1").strip().lower() not in (
             "0", "false", "no", "off",
         )
         msg = (
-            f"CS2 GSI 在 {gsi_timeout:.0f}s 内未就绪：CS2 仍在加载/未进入游戏画面。"
+            f"CS:GO GSI 在 {gsi_timeout:.0f}s 内未就绪：CS:GO 仍在加载/未进入游戏画面。"
             "已中止本次录制以避免在读条页面注入控制台命令。"
         )
         if fatal:
             logger.error(msg)
-            raise CS2NotReadyError(msg)
-        logger.warning("CS2 GSI ready timeout after %.1fs; continuing (FATAL=0)", gsi_timeout)
+            raise CSGONotReadyError(msg)
+        logger.warning("CSGO GSI ready timeout after %.1fs; continuing (FATAL=0)", gsi_timeout)
         return False
 
     @staticmethod
@@ -2851,7 +2793,7 @@ class OBSDirector:
         if demo_key in self._spec_calibration_by_demo:
             return self._spec_calibration_by_demo[demo_key]
         self._spec_calibration_by_demo[demo_key] = {}
-        if os.environ.get("CS2_INSIGHT_SPEC_CALIBRATION", "1").strip().lower() in ("0", "false", "no"):
+        if os.environ.get("CSGO_INSIGHT_SPEC_CALIBRATION", "1").strip().lower() in ("0", "false", "no"):
             return {}
 
         known_steams = set(self._demo_steam_by_name(demo_abs).values())
@@ -2861,19 +2803,19 @@ class OBSDirector:
         name_by_steam = {sid: name for name, sid in self._demo_steam_by_name(demo_abs).items()}
 
         default_max_slot = 16
-        max_slot = _env_int("CS2_INSIGHT_SPEC_CALIBRATION_MAX_SLOT", default_max_slot)
-        per_slot_timeout = self._env_float("CS2_INSIGHT_SPEC_CALIBRATION_SLOT_TIMEOUT", "0.55")
-        settle = self._env_float("CS2_INSIGHT_SPEC_CALIBRATION_SETTLE", "0.12")
-        raw_mode = (os.environ.get("CS2_SPEC_MODE") or "5").strip()
+        max_slot = _env_int("CSGO_INSIGHT_SPEC_CALIBRATION_MAX_SLOT", default_max_slot)
+        per_slot_timeout = self._env_float("CSGO_INSIGHT_SPEC_CALIBRATION_SLOT_TIMEOUT", "0.55")
+        settle = self._env_float("CSGO_INSIGHT_SPEC_CALIBRATION_SETTLE", "0.12")
+        raw_mode = (os.environ.get("CSGO_SPEC_MODE") or "5").strip()
         try:
             mode = int(raw_mode)
         except ValueError:
             mode = 5
 
         cal_tick = get_demo_spec_calibration_tick(demo_abs)
-        goto_wait = self._env_float("CS2_INSIGHT_SPEC_CALIBRATION_GOTO_DELAY", "2.0")
-        resume_wait = self._env_float("CS2_INSIGHT_SPEC_CALIBRATION_RESUME_DELAY", "4.0")
-        calibration_timescale = self._env_float("CS2_INSIGHT_SPEC_CALIBRATION_TIMESCALE", "0.05")
+        goto_wait = self._env_float("CSGO_INSIGHT_SPEC_CALIBRATION_GOTO_DELAY", "2.0")
+        resume_wait = self._env_float("CSGO_INSIGHT_SPEC_CALIBRATION_RESUME_DELAY", "4.0")
+        calibration_timescale = self._env_float("CSGO_INSIGHT_SPEC_CALIBRATION_TIMESCALE", "0.05")
         if calibration_timescale <= 0:
             calibration_timescale = 0.05
         logger.info(
@@ -2883,7 +2825,7 @@ class OBSDirector:
             calibration_timescale,
         )
         before_seek = float((gsi_status() or {}).get("last_payload_at") or 0.0)
-        freeze_playback = os.environ.get("CS2_INSIGHT_SPEC_CALIBRATION_FREEZE_PLAYBACK", "1").strip().lower() not in (
+        freeze_playback = os.environ.get("CSGO_INSIGHT_SPEC_CALIBRATION_FREEZE_PLAYBACK", "1").strip().lower() not in (
             "0",
             "false",
             "no",
@@ -3048,36 +2990,36 @@ class OBSDirector:
         return out
 
     # ── 用户配置保护 ────────────────────────────────────────────
-    # 录制期间 CS2 会把被修改的 archive cvar（fps_max / hud_showtargetid /
+    # 录制期间 CSGO 会把被修改的 archive cvar（fps_max / hud_showtargetid /
     # viewmodel_fov / snd_voipvolume / cl_hud_telemetry_frametime_show 等）
     # 定期自动持久化到以下文件；``taskkill /F`` 只能阻止此后的写入，已经落盘的
-    # 脏值会被下一次启动（如 5E 拉起的竞技 CS2）读回。
+    # 脏值会被下一次启动（如 5E 拉起的竞技 CSGO）读回。
     #
-    # 方案：发射 CS2 前对这些文件做**字节级快照**；强杀 CS2 后若文件内容发生
+    # 方案：发射 CSGO 前对这些文件做**字节级快照**；强杀 CSGO 后若文件内容发生
     # 变化，直接从快照恢复。这样无论用户原先的 fps_max 是 120/250/400/unlimited，
     # viewmodel_fov 是 54/60/68，都不会被我们覆盖。
 
-    # CS2 仅对以下文件写入 archive cvar（命名在不同版本可能微调，用 glob 兜底）。
+    # CSGO 仅对以下文件写入 archive cvar（命名在不同版本可能微调，用 glob 兜底）。
     _USER_CONFIG_FILENAMES = USER_CONFIG_FILENAMES
     _USER_CONFIG_GLOB_PATTERNS = USER_CONFIG_GLOB_PATTERNS
 
     def _candidate_user_config_dirs(self) -> list[Path]:
-        """返回本机所有 CS2 本地、Steam Cloud 和兼容配置目录。"""
-        return candidate_user_config_dirs(self.cs2_path)
+        """返回本机所有 CSGO 本地、Steam Cloud 和兼容配置目录。"""
+        return candidate_user_config_dirs(self.csgo_path)
 
     def _snapshot_user_configs(self) -> None:
-        """对用户 CS2 配置文件做字节级快照，存到 ``self._user_config_snapshot``。
-        启动 CS2 之前调用；跳过我们自己写的 ``_insight_<uuid>.cfg``。"""
+        """对用户 CSGO 配置文件做字节级快照，存到 ``self._user_config_snapshot``。
+        启动 CSGO 之前调用；跳过我们自己写的 ``_insight_<uuid>.cfg``。"""
         self._player_config_snapshot_attempted = True
         self._last_player_config_restore_result = None
         snap = snapshot_user_configs(
-            self.cs2_path,
+            self.csgo_path,
             config_dirs=self._candidate_user_config_dirs(),
             extra_paths=self._voice_ban_paths(),
         )
         self._user_config_snapshot = snap
         if snap:
-            # 同步把磁盘上的玩家配置原样拷到 ``<repo>/data/.cs2_config_backup/``，每次录制
+            # 同步把磁盘上的玩家配置原样拷到 ``<repo>/data/.csgo_config_backup/``，每次录制
             # 启动会清空目录再重写，项目里只保留"最近一次录制前"的玩家原始 cfg。
             # 玩家事后可以在该目录翻出 config.cfg / video.txt 自行覆盖回去。
             try:
@@ -3086,11 +3028,11 @@ class OBSDirector:
                 logger.warning("Persistent disk backup failed (in-memory still active): %s", e)
 
     def _restore_user_configs(self) -> dict[str, Any]:
-        """强杀 CS2 后：若 ``recording_state`` 为 ``recording`` 则按 manifest 原子恢复；
+        """强杀 CSGO 后：若 ``recording_state`` 为 ``recording`` 则按 manifest 原子恢复；
         否则回退为内存快照对比（例如持久化备份未写入 state 的边缘情况）。"""
         result = restore_user_config_snapshot(
             self._user_config_snapshot,
-            skip_cs2_running_check=True,
+            skip_csgo_running_check=True,
         )
         self._user_config_snapshot = {}
         return result
@@ -3172,7 +3114,7 @@ class OBSDirector:
         return paths
 
     def _clear_voice_ban_files(self) -> None:
-        """CS2 启动前临时清空 voice_ban.dt，确保无人被本地持久静音。
+        """CSGO 启动前临时清空 voice_ban.dt，确保无人被本地持久静音。
         tv_listen_voice_indices 在 demo 层做队伍过滤，dt 文件仅需保持全开。
         结束后由 _restore_user_configs 自动还原原始文件。
         """
@@ -3195,15 +3137,15 @@ class OBSDirector:
         height: int,
         aspect_ratio_mode: Optional[int] = None,
     ) -> None:
-        """CS2 启动前把快照中的 video.txt / cs2_video.txt 改为录制分辨率。
+        """CSGO 启动前把快照中的 video.txt / csgo_video.txt 改为录制分辨率。
 
-        CS2 读取 video.txt 的优先级高于 -w/-h 命令行参数，所以仅靠启动参数
+        CSGO 读取 video.txt 的优先级高于 -w/-h 命令行参数，所以仅靠启动参数
         不足以改变渲染分辨率。这里直接 patch 磁盘文件；录制结束后
         _restore_user_configs 会把文件还原为玩家原始内容。
         """
         patched = 0
         for p, original in self._user_config_snapshot.items():
-            if p.name not in ("video.txt", "cs2_video.txt"):
+            if p.name not in ("video.txt", "csgo_video.txt"):
                 continue
             if original is None:
                 continue  # 文件原本不存在，跳过
@@ -3237,31 +3179,31 @@ class OBSDirector:
             logger.info("Patched %d video config file(s) for %dx%d recording", patched, width, height)
         else:
             logger.warning(
-                "No video.txt / cs2_video.txt found in snapshot to patch for %dx%d "
+                "No video.txt / csgo_video.txt found in snapshot to patch for %dx%d "
                 "(snapshot keys: %s)",
                 width, height,
                 [p.name for p in self._user_config_snapshot],
             )
 
-    def _kill_cs2(self) -> None:
-        """强杀整棵 CS2 进程树并等待窗口真正消失。
+    def _kill_csgo(self) -> None:
+        """强杀整棵 CSGO 进程树并等待窗口真正消失。
 
         仅 ``Popen.terminate()`` 存在两个致命缺陷：
-        1) Steam/启动器链路下 ``self._cs2_process`` 可能是短命 launcher，
-           真正的 cs2.exe 根本没被杀 → 下一轮 ``find_cs2_hwnd`` 会命中
+        1) Steam/启动器链路下 ``self._csgo_process`` 可能是短命 launcher，
+           真正的 csgo.exe 根本没被杀 → 下一轮 ``find_csgo_hwnd`` 会命中
            上一次遗留的僵尸窗口；
         2) 即便杀到本体，窗口从"进程退出"到"hwnd 被销毁"仍有数百毫秒
            延迟。此期间 ``EnumWindows`` 仍可枚举到旧 hwnd，``PostMessage``
            向旧队列灌字符 → 表现为第二次录制"龟速输入 / 命令缺字符"。
         这里用 ``taskkill /F /T`` 递归结束进程树，再轮询确认窗口消失。
 
-        等窗口彻底消失后调用 ``_restore_user_configs``，把录制期可能被 CS2
+        等窗口彻底消失后调用 ``_restore_user_configs``，把录制期可能被 CSGO
         auto-save 到用户 config 文件里的脏 archive cvar 全部回滚回录制前的样子。
         """
         # Set this before the first taskkill call so the parallel process monitor
         # never classifies an Insight-owned teardown as a player-forced exit.
-        self._cs2_shutdown_expected = True
-        pid = self._cs2_process.pid if self._cs2_process else 0
+        self._csgo_shutdown_expected = True
+        pid = self._csgo_process.pid if self._csgo_process else 0
         if sys.platform == "win32":
             if pid:
                 try:
@@ -3275,12 +3217,12 @@ class OBSDirector:
                     logger.warning("taskkill /PID %s 失败: %s", pid, e)
                 deadline = time.monotonic() + 8.0
                 while time.monotonic() < deadline:
-                    if not find_cs2_hwnd():
+                    if not find_csgo_hwnd():
                         break
                     time.sleep(0.15)
 
-                if find_cs2_hwnd() or is_cs2_running():
-                    logger.info("Cleaning recorder-owned CS2 residual process before next launch")
+                if find_csgo_hwnd() or is_csgo_running():
+                    logger.info("Cleaning recorder-owned CSGO residual process before next launch")
                     try:
                         subprocess.run(
                             ["taskkill", "/F", "/IM", "csgo.exe"],
@@ -3291,29 +3233,29 @@ class OBSDirector:
                     except Exception as e:  # noqa: BLE001
                         logger.warning("taskkill /IM csgo.exe 兜底失败: %s", e)
                     deadline2 = time.monotonic() + 4.0
-                    while time.monotonic() < deadline2 and is_cs2_running():
+                    while time.monotonic() < deadline2 and is_csgo_running():
                         time.sleep(0.15)
 
                 # hwnd / 进程均已消失，但 Windows 内核还可能短暂持有 cfg 文件句柄
-                # （CS2 exit autosave、Steam Cloud 初始上传），等待释放再恢复。
+                # （CSGO exit autosave、Steam Cloud 初始上传），等待释放再恢复。
                 time.sleep(1.5)
             else:
-                logger.info("Skip CS2 shutdown: no recorder-owned CS2 process")
-        elif self._cs2_process:
+                logger.info("Skip CSGO shutdown: no recorder-owned CSGO process")
+        elif self._csgo_process:
             try:
-                self._cs2_process.terminate()
-                self._cs2_process.wait(timeout=10)
+                self._csgo_process.terminate()
+                self._csgo_process.wait(timeout=10)
             except Exception:
-                self._cs2_process.kill()
+                self._csgo_process.kill()
 
-        if self._cs2_process:
+        if self._csgo_process:
             try:
-                self._cs2_process.wait(timeout=1)
+                self._csgo_process.wait(timeout=1)
             except Exception:
                 pass
-            self._cs2_process = None
+            self._csgo_process = None
 
-        # CS2 进程已结束，文件锁已释放。此时回滚用户配置，确保我们的 archive cvar
+        # CSGO 进程已结束，文件锁已释放。此时回滚用户配置，确保我们的 archive cvar
         # 修改不会泄漏到用户下一次启动（包括 5E / 竞技服的正式对局）。
         try:
             restore_result = self._restore_user_configs()
@@ -3337,23 +3279,23 @@ class OBSDirector:
                 )
                 self._player_config_snapshot_attempted = False
 
-    async def _await_cs2_window(self, timeout: float = 45.0) -> bool:
-        """录制前等待 CS2 主窗口出现（便于后续 SendInput 注入 demo_gototick）。"""
+    async def _await_csgo_window(self, timeout: float = 45.0) -> bool:
+        """录制前等待 CSGO 主窗口出现（便于后续 SendInput 注入 demo_gototick）。"""
         if sys.platform != "win32":
             logger.warning("非 Windows 无法自动注入 demo_gototick，tick 跳转已跳过")
             return True
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             self._check_abort()
-            if find_cs2_hwnd():
-                focus_timeout = self._env_float("CS2_INSIGHT_FOREGROUND_TIMEOUT_SEC", "4.0")
-                if not await asyncio.to_thread(ensure_cs2_foreground, focus_timeout):
-                    logger.warning("CS2 窗口已出现，但未能切到前台；继续等待")
+            if find_csgo_hwnd():
+                focus_timeout = self._env_float("CSGO_INSIGHT_FOREGROUND_TIMEOUT_SEC", "4.0")
+                if not await asyncio.to_thread(ensure_csgo_foreground, focus_timeout):
+                    logger.warning("CSGO 窗口已出现，但未能切到前台；继续等待")
                     await asyncio.sleep(0.4)
                     continue
                 return True
             await asyncio.sleep(0.4)
-        logger.error("等待 CS2 窗口超时，无法注入 demo_gototick")
+        logger.error("等待 CSGO 窗口超时，无法注入 demo_gototick")
         return False
 
     def _env_float(self, key: str, default: str) -> float:
@@ -3487,7 +3429,7 @@ class OBSDirector:
             if ji > 0:
                 parts.append(f"jc{ji}")
         stem = "_".join(p for p in parts if p)
-        return stem[:180].strip(" ._-") or "cs2_clip"
+        return stem[:180].strip(" ._-") or "csgo_clip"
 
     @staticmethod
     def _unique_recording_target(source: Path, stem: str) -> Path:
@@ -3553,7 +3495,7 @@ class OBSDirector:
         """录制会话首次 seek 前注入的观战 cvar（与空格预热后的控制台批次合并）。
 
         在所有 cvar 之前注入 ``unbindall`` + 一组最小默认绑定，把玩家自定义
-        按键统一恢复为安全默认；用户原 ``config.cfg`` / ``cs2_user_keys.cfg`` 等
+        按键统一恢复为安全默认；用户原 ``config.cfg`` / ``csgo_user_keys.cfg`` 等
         已被 ``_snapshot_user_configs`` 落盘，录制结束 / 进程崩溃后都能完整还原。
         ``unbindall`` 必须在第一行：避免玩家把 toggleconsole 改绑到非常规键时，
         我们 SendInput 投到默认 F10 / ``~`` 失效。
@@ -3567,7 +3509,6 @@ class OBSDirector:
                 lines,
                 pov_enabled=pov_enabled,
                 pov_voice_mode=getattr(w, "pov_voice_mode", None),
-                pov_voice_disabled=bool(getattr(w, "pov_voice_disabled", False)),
             )
         lines: list[str] = []
         lines.extend(_RECORDING_KEYBIND_RESET_LINES)
@@ -3614,7 +3555,6 @@ class OBSDirector:
             lines,
             pov_enabled=pov_enabled,
             pov_voice_mode=getattr(w, "pov_voice_mode", None),
-            pov_voice_disabled=bool(getattr(w, "pov_voice_disabled", False)),
         )
 
     async def execute_plan_queue(
@@ -3625,7 +3565,7 @@ class OBSDirector:
     ) -> "list[dict]":
         """
         [RecordingV3] Execute a list of RecordingRequestDTOs using the new
-        build_plan → RecordingExecutor pipeline. CS2 launch/GSI/cleanup are
+        build_plan → RecordingExecutor pipeline. CSGO launch/GSI/cleanup are
         handled by the same battle-tested OBSDirector infrastructure as the
         legacy pipeline; only the per-segment recording loop is new.
         """
@@ -3634,28 +3574,6 @@ class OBSDirector:
         from .recording.executor.obs_client import OBSClient, OBSConnectionError
         from .recording.services.result_writer import write_result
         from .recording.normalizer import NormalizationError
-        from .pov_hud_manager import (
-            PovHudError,
-            PovHudManager,
-            _detect_chroma_demo_map_name,
-            restore_pov_after_cs2_exit,
-        )
-        from .pov_constants import POV_CORE_FORCED_COMMANDS, pov_tail_commands
-        from .map_material_vpk import (
-            DEFAULT_MAP_MATERIAL_ID,
-            normalize_map_material_id,
-        )
-        from .skybox_vpk import (
-            CHROMA_SKYBOX_IDS,
-            DEFAULT_SKYBOX_ID,
-            normalize_skybox_id,
-            normalize_skybox_map_name,
-        )
-        from .weather_effects import (
-            DEFAULT_WEATHER_EFFECT_ID,
-            normalize_weather_effect_id,
-            visual_layer_console_commands,
-        )
 
         logger.info("[RecordingV3] execute_plan_queue: %d requests", len(requests))
 
@@ -3663,7 +3581,7 @@ class OBSDirector:
         if not requests:
             return all_results
 
-        # Group requests by demo path so each unique demo = one CS2 session.
+        # Group requests by demo path so each unique demo = one CSGO session.
         demo_groups: dict[str, list] = {}
         demo_abs_map: dict[str, Path] = {}
         for dto in requests:
@@ -3673,62 +3591,30 @@ class OBSDirector:
                 demo_abs_map[key] = Path(dto.demo.demo_path or dto.demo.demo_filename)
 
         # OBSClient is created here but connected lazily (right before the executor starts)
-        # so the WebSocket receive thread does not die during the ~60s CS2 warmup window.
+        # so the WebSocket receive thread does not die during the ~60s CSGO warmup window.
         obs_client = OBSClient(self.obs_config)
 
-        pov_mgr_v3: "Optional[PovHudManager]" = None
-        pov_on_v3 = bool(warmup and getattr(warmup, "pov_hud_enabled", False))
-        recording_hud_on_v3 = bool(
-            pov_on_v3
-            or (warmup and getattr(warmup, "recording_hud_enabled", False))
+        # Source 2 visual layers and HUD/VPK options are not valid in CS:GO.
+        # Reject stale clients before any game directory is touched.
+        if warmup is not None:
+            unsupported = {
+                "recording_hud_enabled": bool(getattr(warmup, "recording_hud_enabled", False)),
+                "skybox_id": str(getattr(warmup, "skybox_id", "default") or "default") != "default",
+                "map_material_id": str(getattr(warmup, "map_material_id", "default") or "default") != "default",
+                "weather_effect_id": str(getattr(warmup, "weather_effect_id", "default") or "default") != "default",
+                # HLAE mirv_pov is the only supported advanced POV path.  Do
+                # not read or emit the retired Source 2 POV HUD fields.
+            }
+            if any(unsupported.values()):
+                raise RuntimeError("CSGO_UNSUPPORTED_FEATURE: Source 2 visual layers and POV HUD are unavailable in CS:GO mode")
+
+        # HLAE is the sole optional advanced POV implementation for CS:GO.
+        hlae_mirv_pov_requested = bool(
+            warmup and getattr(warmup, "hlae_mirv_pov", False)
         )
-        pov_voice_mode_v3 = normalize_pov_voice_mode(
-            getattr(warmup, "pov_voice_mode", None) if warmup else None,
-            legacy_voice_disabled=bool(
-                warmup and getattr(warmup, "pov_voice_disabled", False)
-            ),
-        )
-        input_hud_enabled_v3 = bool(
-            getattr(warmup, "input_hud_enabled", True) if warmup else True
-        )
-        # Recording exposes a binary show/hide choice. A visible input HUD
-        # always uses the high-frequency resident (hybrid) presentation.
-        input_hud_display_mode_v3 = "hybrid"
-        input_audio_enabled_v3 = bool(
-            getattr(warmup, "input_audio_enabled", False) if warmup else False
-        )
-        combat_stats_hud_enabled_v3 = bool(
-            getattr(warmup, "combat_stats_hud_enabled", True) if warmup else True
-        )
-        skybox_id_v3 = normalize_skybox_id(
-            getattr(warmup, "skybox_id", DEFAULT_SKYBOX_ID) if warmup else DEFAULT_SKYBOX_ID
-        )
-        skybox_on_v3 = skybox_id_v3 != DEFAULT_SKYBOX_ID
-        map_material_id_v3 = normalize_map_material_id(
-            getattr(warmup, "map_material_id", DEFAULT_MAP_MATERIAL_ID)
-            if warmup
-            else DEFAULT_MAP_MATERIAL_ID
-        )
-        map_material_on_v3 = map_material_id_v3 != DEFAULT_MAP_MATERIAL_ID
-        weather_effect_id_v3 = normalize_weather_effect_id(
-            getattr(warmup, "weather_effect_id", DEFAULT_WEATHER_EFFECT_ID)
-            if warmup
-            else DEFAULT_WEATHER_EFFECT_ID
-        )
-        weather_on_v3 = weather_effect_id_v3 != DEFAULT_WEATHER_EFFECT_ID
-        visual_layer_on_v3 = skybox_on_v3 or map_material_on_v3 or weather_on_v3
-        hlae_mirv_pov_requested = bool(pov_on_v3)
-        if hlae_mirv_pov_requested:
-            # CS:GO uses HLAE mirv_pov instead of the Source 2 POV VPK.
-            recording_hud_on_v3 = False
-            self._pov_enabled = False
-        recording_vpk_on_v3 = recording_hud_on_v3 or visual_layer_on_v3
-        pov_install_attempted = False
-        pov_expected_gameinfo_sha256: Optional[str] = None
-        pov_restoration: Optional[dict[str, Any]] = None
 
         try:
-            # ── Phase 0: CS2 启动前预构建录制计划 ──────────────────────────
+            # ── Phase 0: CSGO 启动前预构建录制计划 ──────────────────────────
             _plan_cache: dict = {}   # {request_id: RecordingPlan}
             logger.info("[RecordingV3] Pre-building %d plans", len(requests))
             for dto in requests:
@@ -3740,27 +3626,13 @@ class OBSDirector:
                     logger.warning("[RecordingV3] pre-build plan failed %s: %s", dto.request_id, _bp_e)
 
             # An abort may arrive while plans are being built.
-            # Do not continue into POV installation or launch CS2 after that.
+            # Do not continue into POV installation or launch CSGO after that.
             self._check_abort()
 
-            # ── Recording VPK manager (normal sky-only or POV + sky) ─────────
-            if recording_vpk_on_v3:
-                try:
-                    from .env_utils import load_config as _load_cfg
-                    _app_cfg = _load_cfg()
-                    pov_mgr_v3 = PovHudManager(_app_cfg)
-                except PovHudError as _pov_e:
-                    if visual_layer_on_v3:
-                        raise
-                    logger.error("[RecordingV3][POV] setup failed: %s; continuing without POV HUD", _pov_e)
-                    pov_on_v3 = False
-                    recording_hud_on_v3 = False
-                    recording_vpk_on_v3 = False
-
+            # Process each demo in its own CS:GO session.
             for job_idx, (demo_key, demo_requests) in enumerate(demo_groups.items()):
                 demo_abs = demo_abs_map[demo_key]
                 demo_name = demo_abs.name
-                demo_map_name = str(getattr(demo_requests[0].demo, "map_name", "") or "").strip()
                 logger.info("[RecordingV3] Job %d/%d: %s (%d requests)",
                             job_idx + 1, len(demo_groups), demo_name, len(demo_requests))
                 mirv_pov_entity_index: Optional[int] = None
@@ -3824,96 +3696,19 @@ class OBSDirector:
                             })
                         continue
 
-                # The speaking schedule is demo-specific. CS2 is stopped between
+                # The speaking schedule is demo-specific. CSGO is stopped between
                 # groups, so restore/reinstall the package with this demo's data.
-                if recording_vpk_on_v3 and pov_mgr_v3 is not None:
-                    try:
-                        demo_map_name = str(
-                            getattr(demo_requests[0].demo, "map_name", "") or ""
-                        ).strip()
-                        if visual_layer_on_v3:
-                            detected_demo_map = _detect_chroma_demo_map_name(demo_abs)
-                            declared_demo_map = normalize_skybox_map_name(demo_map_name)
-                            if declared_demo_map and declared_demo_map != detected_demo_map:
-                                raise PovHudError(
-                                    "录制任务地图与 Demo 文件检测结果不一致："
-                                    f"{declared_demo_map} != {detected_demo_map}。"
-                                )
-                            demo_map_name = detected_demo_map
-                        logger.info(
-                            "[RecordingV3][VPK] build and install package for %s "
-                            "(pov=%s map_material=%s weather=%s skybox=%s map=%s)",
-                            demo_name,
-                            pov_on_v3,
-                            map_material_id_v3,
-                            weather_effect_id_v3,
-                            skybox_id_v3,
-                            demo_map_name,
-                        )
-                        pov_install_attempted = True
-                        if recording_hud_on_v3:
-                            pov_mgr_v3.install(
-                                map_name=demo_map_name,
-                                demo_path=demo_abs,
-                                voice_mode=pov_voice_mode_v3,
-                                skybox_id=skybox_id_v3,
-                                map_material_id=map_material_id_v3,
-                                weather_effect_id=weather_effect_id_v3,
-                                input_hud_enabled=input_hud_enabled_v3,
-                                input_hud_display_mode=input_hud_display_mode_v3,
-                                input_hud_scale_percent=100,
-                                input_audio_enabled=input_audio_enabled_v3,
-                                input_audio_volume_percent=100,
-                                combat_stats_enabled=(
-                                    combat_stats_hud_enabled_v3 if pov_on_v3 else False
-                                ),
-                            )
-                        else:
-                            pov_mgr_v3.install(
-                                map_name=demo_map_name,
-                                skybox_id=skybox_id_v3,
-                                map_material_id=map_material_id_v3,
-                                weather_effect_id=weather_effect_id_v3,
-                            )
-                        installed_status = pov_mgr_v3.status()
-                        pov_expected_gameinfo_sha256 = str(
-                            installed_status.get("original_gameinfo_sha256") or ""
-                        ).strip().lower() or None
-                        if not pov_expected_gameinfo_sha256:
-                            raise PovHudError(
-                                "POV HUD install manifest does not contain the original gameinfo.gi hash."
-                            )
-                        self._pov_enabled = bool(pov_on_v3) and not hlae_mirv_pov_requested
-                    except PovHudError as _pov_e:
-                        if visual_layer_on_v3:
-                            logger.error(
-                                "[RecordingV3][VISUAL] install failed for %s: %s",
-                                demo_name,
-                                _pov_e,
-                            )
-                            raise
-                        logger.error(
-                            "[RecordingV3][POV] install failed for %s: %s; "
-                            "continuing without POV HUD",
-                            demo_name,
-                            _pov_e,
-                        )
-                        pov_on_v3 = False
-                        recording_hud_on_v3 = False
-                        self._pov_enabled = False
 
-                # ── CS2 launch ────────────────────────────────────────────────
+                # ── CSGO launch ────────────────────────────────────────────────
                 try:
                     launch_kwargs: dict[str, Any] = {
                         "mirv_pov_entity_index": mirv_pov_entity_index,
                         "hlae_path": hlae_exe_path,
                     }
-                    if skybox_id_v3 in CHROMA_SKYBOX_IDS:
-                        launch_kwargs["chroma_demo_map_name"] = demo_map_name
-                    self._launch_cs2(demo_abs, warmup, **launch_kwargs)
-                except CS2AlreadyRunningError:
+                    self._launch_csgo(demo_abs, warmup, **launch_kwargs)
+                except CSGOAlreadyRunningError:
                     raise
-                except CS2NotReadyError:
+                except CSGONotReadyError:
                     raise
                 except MirvPovError as e:
                     logger.error("[RecordingV3] HLAE mirv_pov launch failed for %s: %s", demo_name, e)
@@ -3922,37 +3717,37 @@ class OBSDirector:
                             "request_id": dto.request_id, "success": False,
                             "error": str(e), "segment_results": [], "warnings": [],
                         })
-                    await self._run_cleanup_step("CS2 shutdown after mirv_pov launch failure", self._kill_cs2, timeout=30.0)
-                    await self._run_cleanup_step("CS2 artifact cleanup", self._cleanup_cs2_artifacts, timeout=8.0)
+                    await self._run_cleanup_step("CSGO shutdown after mirv_pov launch failure", self._kill_csgo, timeout=30.0)
+                    await self._run_cleanup_step("CSGO artifact cleanup", self._cleanup_csgo_artifacts, timeout=8.0)
                     continue
                 except Exception as e:
-                    logger.error("[RecordingV3] CS2 launch failed for %s: %s", demo_name, e)
+                    logger.error("[RecordingV3] CSGO launch failed for %s: %s", demo_name, e)
                     for dto in demo_requests:
                         all_results.append({
                             "request_id": dto.request_id, "success": False,
-                            "error": f"CS2 launch failed: {e}", "segment_results": [], "warnings": [],
+                            "error": f"CSGO launch failed: {e}", "segment_results": [], "warnings": [],
                         })
-                    await self._run_cleanup_step("CS2 shutdown after launch failure", self._kill_cs2, timeout=30.0)
-                    await self._run_cleanup_step("CS2 artifact cleanup", self._cleanup_cs2_artifacts, timeout=8.0)
+                    await self._run_cleanup_step("CSGO shutdown after launch failure", self._kill_csgo, timeout=30.0)
+                    await self._run_cleanup_step("CSGO artifact cleanup", self._cleanup_csgo_artifacts, timeout=8.0)
                     continue
 
-                await self._start_cs2_exit_monitor()
+                await self._start_csgo_exit_monitor()
 
                 # ── Wait for GSI ready ────────────────────────────────────────
                 try:
                     self._set_state(DirectorState.LOADING_DEMO, str(demo_abs))
                     await self._await_gsi_startup_gate()
                     await self._sleep_abortable(8.0)
-                    await self._await_cs2_window(40.0)
+                    await self._await_csgo_window(40.0)
                     self._check_abort()
                     if job_idx > 0:
-                        settle = self._env_float("CS2_INSIGHT_BATCH_NEW_DEMO_SETTLE_SEC", "9.0")
+                        settle = self._env_float("CSGO_INSIGHT_BATCH_NEW_DEMO_SETTLE_SEC", "9.0")
                         if settle > 0:
                             await self._sleep_abortable(settle)
-                except CS2NotReadyError:
+                except CSGONotReadyError:
                     logger.error("[RecordingV3] GSI not ready for %s; aborting", demo_name)
-                    await self._run_cleanup_step("CS2 shutdown after GSI timeout", self._kill_cs2, timeout=30.0)
-                    await self._run_cleanup_step("CS2 artifact cleanup after GSI timeout", self._cleanup_cs2_artifacts, timeout=8.0)
+                    await self._run_cleanup_step("CSGO shutdown after GSI timeout", self._kill_csgo, timeout=30.0)
+                    await self._run_cleanup_step("CSGO artifact cleanup after GSI timeout", self._cleanup_csgo_artifacts, timeout=8.0)
                     raise
 
                 # ── Inject warmup console commands (+ POV HUD commands if enabled)
@@ -3962,66 +3757,30 @@ class OBSDirector:
                 # can send a keypress instead of opening the console during recording.
                 _V3_DEMO_KEY_BINDINGS = ["bind KP_5 demo_pause", "bind KP_6 demo_resume"]
                 # POV manages the selected dynamic audience mask and matching
-                # speaking notices; non-POV recording only mutes global volume.
-                # The per-segment backend mask injector stays disabled.
+                # Inject only Source 1 warmup commands and the demo-control bindings.
+                _V3_DEMO_KEY_BINDINGS = ["bind KP_5 demo_pause", "bind KP_6 demo_resume"]
                 _warmup_inject_ok = False
-                effective_warmup_cmds: list[str] = []
                 if warmup is not None:
                     effective_warmup_cmds = self._recording_warmup_console_lines(
                         warmup,
-                        pov_enabled=recording_hud_on_v3,
+                        pov_enabled=hlae_mirv_pov_requested,
                     )
-                    visual_cmds = visual_layer_console_commands(
-                        map_material_id=map_material_id_v3,
-                        weather_effect_id=weather_effect_id_v3,
-                    )
-                    if visual_cmds:
-                        effective_warmup_cmds = [
-                            *effective_warmup_cmds,
-                            *visual_cmds,
-                        ]
-                    effective_warmup_cmds = [
-                        *effective_warmup_cmds,
-                        *_V3_DEMO_KEY_BINDINGS,
-                    ]
-                    if self._pov_enabled:
-                        pov_cmds = [
-                            *POV_CORE_FORCED_COMMANDS,
-                            *pov_tail_commands(
-                                teamcounter_numeric=warmup.pov_teamcounter_numeric,
-                                radar_mode=warmup.pov_radar_mode,
-                                voice_mode=pov_voice_mode_v3,
-                                voice_disabled=warmup.pov_voice_disabled,
-                            ),
-                        ]
-                        effective_warmup_cmds = [*effective_warmup_cmds, *pov_cmds]
-                    elif recording_hud_on_v3 and pov_voice_mode_v3 != "mute":
-                        # Voice/input VPK mode is independent from the POV cvar
-                        # preset. Only enable the native demo voice path here;
-                        # the Panorama payload owns its selected audience mask.
-                        effective_warmup_cmds = [
-                            *effective_warmup_cmds,
-                            "voice_modenable 1",
-                            "snd_voipvolume 1",
-                        ]
-                    if effective_warmup_cmds:
-                        logger.info(
-                            "[RecordingV3] applying warmup console commands: %d",
-                            len(effective_warmup_cmds),
-                        )
-                        if self._pov_enabled:
-                            logger.info("[RecordingV3][POV] applying POV HUD commands after warmup")
-                            for _cmd in pov_cmds:
-                                logger.info("[RecordingV3][POV] inject command: %s", _cmd)
-                        try:
-                            _warmup_inject_ok = bool(
-                                await asyncio.to_thread(inject_console_sequence, effective_warmup_cmds)
-                            )
-                            if not _warmup_inject_ok:
-                                logger.warning("[RecordingV3] warmup console injection returned false")
-                        except Exception as _wce:
-                            logger.warning("[RecordingV3] warmup console inject failed: %s", _wce)
+                    effective_warmup_cmds = [*effective_warmup_cmds, *_V3_DEMO_KEY_BINDINGS]
                 else:
+                    effective_warmup_cmds = [*_V3_DEMO_KEY_BINDINGS, "snd_voipvolume 0"]
+                if effective_warmup_cmds:
+                    logger.info(
+                        "[RecordingV3] applying warmup console commands: %d",
+                        len(effective_warmup_cmds),
+                    )
+                    try:
+                        _warmup_inject_ok = bool(
+                            await asyncio.to_thread(inject_console_sequence, effective_warmup_cmds)
+                        )
+                        if not _warmup_inject_ok:
+                            logger.warning("[RecordingV3] warmup console injection returned false")
+                    except Exception as _wce:
+                        logger.warning("[RecordingV3] warmup console inject failed: %s", _wce)
                     # POV cannot be enabled without a warmup object. The non-POV
                     # default intentionally mutes only the global voice volume.
                     effective_warmup_cmds = [*_V3_DEMO_KEY_BINDINGS, "snd_voipvolume 0"]
@@ -4049,13 +3808,13 @@ class OBSDirector:
                             "warnings": [],
                         })
                     await self._run_cleanup_step(
-                        "CS2 shutdown after recording voice policy failure",
-                        self._kill_cs2,
+                        "CSGO shutdown after recording voice policy failure",
+                        self._kill_csgo,
                         timeout=30.0,
                     )
                     await self._run_cleanup_step(
-                        "CS2 artifact cleanup after recording voice policy failure",
-                        self._cleanup_cs2_artifacts,
+                        "CSGO artifact cleanup after recording voice policy failure",
+                        self._cleanup_csgo_artifacts,
                         timeout=8.0,
                     )
                     continue
@@ -4075,8 +3834,8 @@ class OBSDirector:
                             "request_id": dto.request_id, "success": False,
                             "error": f"OBS connection failed: {e}", "segment_results": [], "warnings": [],
                         })
-                    await self._run_cleanup_step("CS2 shutdown after OBS failure", self._kill_cs2, timeout=30.0)
-                    await self._run_cleanup_step("CS2 artifact cleanup after OBS failure", self._cleanup_cs2_artifacts, timeout=8.0)
+                    await self._run_cleanup_step("CSGO shutdown after OBS failure", self._kill_csgo, timeout=30.0)
+                    await self._run_cleanup_step("CSGO artifact cleanup after OBS failure", self._cleanup_csgo_artifacts, timeout=8.0)
                     continue
 
                 # ── Execute each DTO through build_plan + RecordingExecutor ───
@@ -4128,7 +3887,7 @@ class OBSDirector:
                     try:
                         result = await executor.execute(plan)
                         self._check_abort()
-                    except (CS2UnexpectedExitError, RecordingAborted):
+                    except (CSGOUnexpectedExitError, RecordingAborted):
                         raise
                     except Exception as e:
                         logger.error("[RecordingV3] executor error: %s", e)
@@ -4140,7 +3899,7 @@ class OBSDirector:
 
                     # ── Rename output file using legacy naming convention ──────
                     # recording_started_at from executor (set just before StartRecord) is
-                    # more accurate than _pre_execute_wall (which includes CS2 wait etc.).
+                    # more accurate than _pre_execute_wall (which includes CSGO wait etc.).
                     _started_at = result.recording_started_at or _pre_execute_wall
                     _stopped_at = result.recording_stopped_at
                     _clip_dict = _v3_clip_dict_for_rename(dto)
@@ -4200,12 +3959,8 @@ class OBSDirector:
                         "obs_record_directory": result.obs_record_directory,
                         "error": result.error,
                         "warnings": result.warnings,
-                        "pov_hud_enabled": pov_on_v3,
-                        "recording_skybox": skybox_id_v3,
-                        "recording_map_material": map_material_id_v3,
-                        "recording_weather_effect": weather_effect_id_v3,
                         "recording_perspective": (
-                            "pov_hud" if pov_on_v3
+                            "hlae_mirv_pov" if hlae_mirv_pov_requested
                             else "player_follow" if (dto.target_player and dto.target_player.name)
                             else "spectator"
                         ),
@@ -4243,16 +3998,16 @@ class OBSDirector:
                     except Exception as exc:  # noqa: BLE001 - 诊断产物不该影响录制
                         logger.warning("[RecordingV3] failed to write result JSON: %s", exc)
 
-                # ── Kill CS2 after this demo group ────────────────────────────
-                # Always kill CS2 and restore user configs, even when aborted;
-                # _kill_cs2 calls _restore_user_configs internally.
-                await self._run_cleanup_step("CS2 shutdown after plan queue job", self._kill_cs2, timeout=30.0)
-                await self._run_cleanup_step("CS2 artifact cleanup after plan queue job", self._cleanup_cs2_artifacts, timeout=8.0)
-                await self._stop_cs2_exit_monitor(expected=True)
+                # ── Kill CSGO after this demo group ────────────────────────────
+                # Always kill CSGO and restore user configs, even when aborted;
+                # _kill_csgo calls _restore_user_configs internally.
+                await self._run_cleanup_step("CSGO shutdown after plan queue job", self._kill_csgo, timeout=30.0)
+                await self._run_cleanup_step("CSGO artifact cleanup after plan queue job", self._cleanup_csgo_artifacts, timeout=8.0)
+                await self._stop_csgo_exit_monitor(expected=True)
 
-        except CS2UnexpectedExitError:
-            logger.warning("[RecordingV3] CS2 exited unexpectedly; entering recovery cleanup")
-            self._set_state(DirectorState.STOPPING, "cs2_exited_unexpectedly")
+        except CSGOUnexpectedExitError:
+            logger.warning("[RecordingV3] CSGO exited unexpectedly; entering recovery cleanup")
+            self._set_state(DirectorState.STOPPING, "csgo_exited_unexpectedly")
             completed_request_ids = {
                 str(item.get("request_id"))
                 for item in all_results
@@ -4264,8 +4019,8 @@ class OBSDirector:
                 all_results.append({
                     "request_id": dto.request_id,
                     "success": False,
-                    "error": "cs2_exited_unexpectedly",
-                    "error_code": "RECORDING_CS2_EXITED",
+                    "error": "csgo_exited_unexpectedly",
+                    "error_code": "RECORDING_CSGO_EXITED",
                     "segment_results": [],
                     "warnings": [],
                 })
@@ -4287,13 +4042,13 @@ class OBSDirector:
                     "segment_results": [],
                     "warnings": [],
                 })
-        except (CS2AlreadyRunningError, CS2NotReadyError):
+        except (CSGOAlreadyRunningError, CSGONotReadyError):
             raise
         except Exception as e:
             self._set_state(DirectorState.ERROR, str(e))
             raise
         finally:
-            await self._stop_cs2_exit_monitor(expected=True)
+            await self._stop_csgo_exit_monitor(expected=True)
             # Force-stop OBS via a fresh connection in case the hot client's recv
             # thread is dead or StartRecord/ResumeRecord left OBS in an unknown state.
             from .recording.executor.obs_recording_controller import OBSRecordingController
@@ -4306,110 +4061,26 @@ class OBSDirector:
                 await asyncio.to_thread(obs_client.disconnect)
             except Exception:
                 pass
-            # This must be unconditional.  Abort can raise while CS2 is still
+            # This must be unconditional.  Abort can raise while CSGO is still
             # launching or waiting for GSI, before the per-demo cleanup below
-            # is reached.  _kill_cs2 restores the player config snapshot after
+            # is reached.  _kill_csgo restores the player config snapshot after
             # the process exits; both operations are safe to repeat.
             await self._run_cleanup_step(
-                "CS2 shutdown during final recording cleanup",
-                self._kill_cs2,
+                "CSGO shutdown during final recording cleanup",
+                self._kill_csgo,
                 timeout=30.0,
             )
             await self._run_cleanup_step(
-                "CS2 artifact cleanup during final recording cleanup",
-                self._cleanup_cs2_artifacts,
+                "CSGO artifact cleanup during final recording cleanup",
+                self._cleanup_csgo_artifacts,
                 timeout=8.0,
             )
-            pov_restore_needed = bool(pov_expected_gameinfo_sha256)
-            if pov_mgr_v3 is not None and pov_install_attempted and not pov_restore_needed:
-                try:
-                    residual_status = pov_mgr_v3.status()
-                    pov_expected_gameinfo_sha256 = str(
-                        residual_status.get("original_gameinfo_sha256") or ""
-                    ).strip().lower() or None
-                    pov_restore_needed = bool(
-                        pov_expected_gameinfo_sha256
-                        or residual_status.get("needs_restore")
-                    )
-                except Exception as _pov_status_e:
-                    logger.warning(
-                        "[RecordingV3][POV] could not inspect install residue before restore: %s",
-                        _pov_status_e,
-                    )
-                    pov_restore_needed = True
-            if pov_mgr_v3 is not None and pov_restore_needed:
-                try:
-                    logger.info(
-                        "[RecordingV3][POV] wait for CS2 exit, restore files, and verify original gameinfo.gi"
-                    )
-                    pov_restoration = await asyncio.to_thread(
-                        restore_pov_after_cs2_exit,
-                        pov_mgr_v3,
-                        pov_expected_gameinfo_sha256,
-                        is_running=is_cs2_running,
-                        logger=logger,
-                    )
-                except Exception as _pov_restore_e:
-                    logger.exception("[RecordingV3][POV] shared restore flow failed: %s", _pov_restore_e)
-                    pov_restoration = {
-                        "verified": False,
-                        "error": str(_pov_restore_e),
-                    }
-            self._pov_enabled = False
             self._set_state(DirectorState.COMPLETED)
 
-            pov_restore_checked = bool(
-                isinstance(pov_restoration, dict)
-                and "verified" in pov_restoration
-            )
-            pov_restore_ok = bool(
-                pov_restore_checked and pov_restoration.get("verified")
-            )
             recovery = {
                 **self._player_config_recovery_payload(),
-                "pov_enabled": pov_on_v3,
-                "pov_restore_verified": pov_restore_checked if pov_on_v3 else True,
-                "pov_restored": pov_restore_ok if pov_on_v3 else True,
+                "hlae_mirv_pov": hlae_mirv_pov_requested,
             }
-            if skybox_on_v3:
-                recovery.update(
-                    {
-                        "recording_skybox_id": skybox_id_v3,
-                        "recording_skybox_enabled": True,
-                        "recording_vpk_enabled": True,
-                        "recording_vpk_restore_verified": pov_restore_checked,
-                        "recording_vpk_restored": pov_restore_ok,
-                    }
-                )
-            if map_material_on_v3:
-                recovery.update(
-                    {
-                        "recording_map_material_id": map_material_id_v3,
-                        "recording_map_material_enabled": True,
-                        "recording_vpk_enabled": True,
-                        "recording_vpk_restore_verified": pov_restore_checked,
-                        "recording_vpk_restored": pov_restore_ok,
-                    }
-                )
-            if weather_on_v3:
-                recovery.update(
-                    {
-                        "recording_weather_effect_id": weather_effect_id_v3,
-                        "recording_weather_effect_enabled": True,
-                        "recording_vpk_enabled": True,
-                        "recording_vpk_restore_verified": pov_restore_checked,
-                        "recording_vpk_restored": pov_restore_ok,
-                    }
-                )
-            if pov_on_v3:
-                recovery["pov_restore_state"] = (
-                    "restored"
-                    if pov_restore_ok
-                    else "restore_failed"
-                    if pov_restore_checked
-                    else "unverified"
-                )
-                recovery["pov_restore"] = pov_restoration
             # Recovery belongs to the whole managed recording session, not only
             # to unexpected-exit failures. Return the same verified summary with
             # every item so success and ordinary failure UIs can report reality.

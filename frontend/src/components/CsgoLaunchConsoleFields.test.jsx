@@ -4,7 +4,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useLocaleStore } from "../i18n/localeStore.js";
-import Cs2LaunchConsoleFields from "./Cs2LaunchConsoleFields.jsx";
+import CsgoLaunchConsoleFields from "./CsgoLaunchConsoleFields.jsx";
 
 function Harness() {
   const [launchArgs, setLaunchArgs] = useState("-fullscreen\n-high");
@@ -12,9 +12,9 @@ function Harness() {
 
   return (
     <div className="@container/params">
-      <Cs2LaunchConsoleFields
-        cs2ExtraLaunchArgs={launchArgs}
-        onCs2ExtraLaunchArgsChange={setLaunchArgs}
+      <CsgoLaunchConsoleFields
+        csgoExtraLaunchArgs={launchArgs}
+        onCsgoExtraLaunchArgsChange={setLaunchArgs}
         recordInjectConsoleLines={consoleLines}
         onRecordInjectConsoleLinesChange={setConsoleLines}
       />
@@ -22,7 +22,7 @@ function Harness() {
   );
 }
 
-describe("Cs2LaunchConsoleFields command manager", () => {
+describe("CsgoLaunchConsoleFields command manager", () => {
   beforeEach(() => {
     useLocaleStore.setState({ locale: "zh", effectiveLocale: "zh", hydrated: true, persistenceError: null });
   });

@@ -1,4 +1,4 @@
-# Copyright (c) CS2 Insight Agent contributors.
+# Copyright (c) CSGO Insight Agent contributors.
 # One-click Windows desktop package that rebuilds skin-core from a sibling
 # CS2-demo-anyskin checkout and embeds it into the Tauri NSIS installer.
 #
@@ -40,10 +40,10 @@ param(
     # Reuse an existing Agent PE from a prior Pass-1 build (skip first tauri build).
     [switch]$ReuseExistingAgent,
 
-    # Force refresh of the lean python\ runtime (sets CS2_INSIGHT_REFRESH_PYTHON=1).
+    # Force refresh of the lean python\ runtime (sets CSGO_INSIGHT_REFRESH_PYTHON=1).
     [switch]$RefreshPython,
 
-    # Optional demoparser2 wheel path (same as CS2_INSIGHT_DEMOPARSER_WHEEL).
+    # Optional demoparser2 wheel path (same as CSGO_INSIGHT_DEMOPARSER_WHEEL).
     [string]$DemoparserWheel = ""
 )
 
@@ -105,7 +105,7 @@ function Find-AgentExe {
     if (Test-Path -LiteralPath $preferred) {
         return $preferred
     }
-    $alt = Join-Path $ReleaseDir "CS2 Insight Agent.exe"
+    $alt = Join-Path $ReleaseDir "CSGO Insight Agent.exe"
     if (Test-Path -LiteralPath $alt) {
         return $alt
     }
@@ -199,13 +199,13 @@ if (-not (Test-Path -LiteralPath $ReleaseSkinCore)) {
 }
 
 if ($RefreshPython) {
-    $env:CS2_INSIGHT_REFRESH_PYTHON = "1"
+    $env:CSGO_INSIGHT_REFRESH_PYTHON = "1"
 }
 if ($DemoparserWheel) {
     if (-not (Test-Path -LiteralPath $DemoparserWheel)) {
         throw "DemoparserWheel not found: $DemoparserWheel"
     }
-    $env:CS2_INSIGHT_DEMOPARSER_WHEEL = (Resolve-Path -LiteralPath $DemoparserWheel).Path
+    $env:CSGO_INSIGHT_DEMOPARSER_WHEEL = (Resolve-Path -LiteralPath $DemoparserWheel).Path
 }
 
 try {
@@ -306,7 +306,7 @@ try {
 
     Write-Host ""
     Write-Host "=== Repack NSIS with final skin-core (Agent PE unchanged) ==="
-    $setup = Join-Path $ReleaseDir "bundle\nsis\CS2 Insight Agent_${Version}_x64-setup.exe"
+    $setup = Join-Path $ReleaseDir "bundle\nsis\CSGO Insight Agent_${Version}_x64-setup.exe"
     $nsiDir = Join-Path $ReleaseDir "nsis\x64"
     $nsi = Join-Path $nsiDir "installer.nsi"
     $makensis = Join-Path $env:LOCALAPPDATA "tauri\NSIS\makensis.exe"
@@ -375,6 +375,6 @@ process.exit(r.status ?? 1);
     Write-Host "  Installer:      $setup"
 } finally {
     Remove-Item Env:CS2_SKIN_CORE_EXE -ErrorAction SilentlyContinue
-    Remove-Item Env:CS2_INSIGHT_REFRESH_PYTHON -ErrorAction SilentlyContinue
-    Remove-Item Env:CS2_INSIGHT_DEMOPARSER_WHEEL -ErrorAction SilentlyContinue
+    Remove-Item Env:CSGO_INSIGHT_REFRESH_PYTHON -ErrorAction SilentlyContinue
+    Remove-Item Env:CSGO_INSIGHT_DEMOPARSER_WHEEL -ErrorAction SilentlyContinue
 }

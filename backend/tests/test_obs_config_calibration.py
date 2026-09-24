@@ -36,13 +36,13 @@ class FakeCalibrationWs:
                 }
             )
         if name == "GetSceneList":
-            return SimpleNamespace(datain={"scenes": [{"sceneName": "CS2 Insight Recording"}]})
+            return SimpleNamespace(datain={"scenes": [{"sceneName": "CS:GO Insight Recording"}]})
         if name == "GetSceneItemList":
             return SimpleNamespace(
                 datain={
                     "sceneItems": [
                         {
-                            "sourceName": "CS2 Insight Game Capture",
+                            "sourceName": "CS:GO Insight Game Capture",
                             "sceneItemId": 7,
                         }
                     ]

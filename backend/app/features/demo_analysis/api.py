@@ -15,6 +15,7 @@ from ...api.demo_replay import PlayerAnalysisReviewRequest, PlayerClipReviewRequ
 from ...api_errors import error_detail
 from ...databases import demo_db
 from ...demo_compat_service import ensure_demo_compatible
+from ...csgo_demo_format import DemoFormatError, require_csgo_demo
 from ...demo_library_hub import demo_library_hub
 from ...demo_paths import UPLOAD_DIR
 from ...env_utils import (
@@ -40,6 +41,14 @@ from .uploads import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["demo-analysis"])
+
+
+def _validate_csgo_demo_or_422(path: Path) -> None:
+    """Reject Source 2/unknown magic before entering an isolated parser."""
+    try:
+        require_csgo_demo(path)
+    except DemoFormatError as exc:
+        raise HTTPException(422, error_detail(exc.code)) from exc
 
 class ParseRequest(BaseModel):
     target_player: str
@@ -89,11 +98,14 @@ async def upload_demo(
         dest,
         uploaded_md5,
     )
-    compat = await asyncio.to_thread(
-        ensure_demo_compatible,
-        persistent_path,
-        allow_truncated_packet_tail=True,
-    )
+    try:
+        compat = await asyncio.to_thread(
+            ensure_demo_compatible,
+            persistent_path,
+            allow_truncated_packet_tail=True,
+        )
+    except DemoFormatError as exc:
+        raise HTTPException(422, error_detail(exc.code)) from exc
 
     players, match_meta, inspection_error = await safe_upload_demo_meta(persistent_path)
     demo_id = await _ensure_analysis_demo_row(persistent_path)
@@ -231,6 +243,7 @@ async def parse_demo(req: ParseRequest, filename: str):
     dem_path = UPLOAD_DIR / filename
     if not dem_path.exists():
         raise HTTPException(404, error_detail("DEMO_FILE_NOT_FOUND"))
+    _validate_csgo_demo_or_422(dem_path)
 
     try:
         result = await asyncio.to_thread(
@@ -276,6 +289,7 @@ async def parse_demo_multi(
 
     try:
         dem_path = await resolve_uploaded_demo_path_async(path or filename)
+        _validate_csgo_demo_or_422(dem_path)
         results_by_player = await asyncio.to_thread(
             analyze_multi_isolated,
             str(dem_path),
@@ -329,7 +343,9 @@ async def parse_demo_batch(req: BatchParseRequest):
 
     resolved: list[Path] = []
     for p in req.paths:
-        resolved.append(await resolve_uploaded_demo_path_async(p))
+        path = await resolve_uploaded_demo_path_async(p)
+        _validate_csgo_demo_or_422(path)
+        resolved.append(path)
 
     target = (req.target_player or "").strip()
     if not target:

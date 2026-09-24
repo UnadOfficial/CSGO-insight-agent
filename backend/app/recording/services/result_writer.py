@@ -10,7 +10,7 @@ from ...recording.executor.recording_executor import ExecutionResult
 logger = logging.getLogger(__name__)
 
 def default_results_dir() -> Path:
-    """产物目录：跟随 ``CS2_INSIGHT_DATA_DIR``。
+    """产物目录：跟随 ``CSGO_INSIGHT_DATA_DIR``。
 
     开发环境下就是仓库根的 ``data/recording_results``；安装版必须落到可写的应用数据目录，
     否则写在 ``Program Files`` 下的 ``resources`` 里会被拒绝——而写失败只有一条 warning

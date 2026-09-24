@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Download, Loader2, Save, Upload, X } from "l
 import { OptionRow, RECORD_WARMUP_DEFAULT_OPTIONS } from "./RecordWarmupModal";
 import ExperimentalPovSection from "./ExperimentalPovSection";
 import { BACKEND_DEFAULT_PACING, useRecordingQueue } from "../stores/recordingQueueStore";
-import Cs2LaunchConsoleFields from "./Cs2LaunchConsoleFields";
+import CsgoLaunchConsoleFields from "./CsgoLaunchConsoleFields";
 import { POV_CONFLICT_HUD, RecordingHudCard } from "./RecordingHudCard";
 import {
   aspectExportHint,
@@ -14,12 +14,6 @@ import {
   validateWarmupResolution,
 } from "../utils/warmupDefaults";
 import { useT } from "../i18n/useT.js";
-import { normalizeRecordingSkyboxId } from "../utils/recordingSkybox.js";
-import { normalizeRecordingMapMaterialId } from "../utils/recordingMapMaterial.js";
-import {
-  DEFAULT_RECORDING_WEATHER_EFFECT,
-  normalizeRecordingWeatherEffectId,
-} from "../utils/recordingWeatherEffect.js";
 import { normalizePovVoiceMode } from "../utils/povVoiceMode.js";
 import {
   buildRecordingPresetFile,
@@ -186,7 +180,7 @@ function PacingSlider({
 
 /**
  * 常用参数：内联编辑「全局节奏（数值）+ 入队默认 POV」与「录制前观战默认选项」；
- * 由顶栏「保存」一次性写入 data/cs2-insight.config.json。
+ * 由顶栏「保存」一次性写入 data/csgo-insight.config.json。
  */
 export default function CommonParamsModal({
   open,
@@ -196,11 +190,8 @@ export default function CommonParamsModal({
   configReady = true,
   savedWarmupDefaults,
   onSaveAllCommonParams,
-  experimentalPovEnabled = false,
-  recordingSkybox = "default",
-  recordingMapMaterial = "default",
-  recordingWeatherEffect = DEFAULT_RECORDING_WEATHER_EFFECT,
-  cs2ExtraLaunchArgs = "",
+  hlaeMirvPovEnabled = false,
+  csgoExtraLaunchArgs = "",
   recordInjectConsoleLines = "",
   obsTransitionEnabled: initObsTransitionEnabled = false,
   obsTransitionName: initObsTransitionName = "Fade",
@@ -241,15 +232,8 @@ export default function CommonParamsModal({
   const [obsTransEnabled, setObsTransEnabled] = useState(() => !!initObsTransitionEnabled);
   const [obsTransName, setObsTransName] = useState(() => initObsTransitionName);
   const [obsTransDurationMs, setObsTransDurationMs] = useState(() => Number(initObsTransitionDurationMs));
-  const [povEnabled, setPovEnabled] = useState(() => !!experimentalPovEnabled);
-  const [skyboxId, setSkyboxId] = useState(() => normalizeRecordingSkyboxId(recordingSkybox));
-  const [mapMaterialId, setMapMaterialId] = useState(
-    () => normalizeRecordingMapMaterialId(recordingMapMaterial),
-  );
-  const [weatherEffectId, setWeatherEffectId] = useState(
-    () => normalizeRecordingWeatherEffectId(recordingWeatherEffect),
-  );
-  const [localCs2ExtraLaunchArgs, setLocalCs2ExtraLaunchArgs] = useState(cs2ExtraLaunchArgs);
+  const [hlaeEnabled, setHlaeEnabled] = useState(() => !!hlaeMirvPovEnabled);
+  const [localCsgoExtraLaunchArgs, setLocalCsgoExtraLaunchArgs] = useState(csgoExtraLaunchArgs);
   const [localRecordInjectLines, setLocalRecordInjectLines] = useState(recordInjectConsoleLines);
   const [saveState, setSaveState] = useState("idle");
   const [saveError, setSaveError] = useState("");
@@ -282,18 +266,14 @@ export default function CommonParamsModal({
     }
     base.pov_voice_mode = normalizePovVoiceMode(
       o?.pov_voice_mode,
-      o?.pov_voice_disabled === true,
+      false,
     );
-    base.pov_radar_mode = 0;
     setWarmupOpts(base);
     setObsTransEnabled(!!initObsTransitionEnabled);
     setObsTransName(initObsTransitionName);
     setObsTransDurationMs(Number(initObsTransitionDurationMs));
-    setPovEnabled(!!experimentalPovEnabled);
-    setSkyboxId(normalizeRecordingSkyboxId(recordingSkybox));
-    setMapMaterialId(normalizeRecordingMapMaterialId(recordingMapMaterial));
-    setWeatherEffectId(normalizeRecordingWeatherEffectId(recordingWeatherEffect));
-    setLocalCs2ExtraLaunchArgs(cs2ExtraLaunchArgs);
+    setHlaeEnabled(!!hlaeMirvPovEnabled);
+    setLocalCsgoExtraLaunchArgs(csgoExtraLaunchArgs);
     setLocalRecordInjectLines(recordInjectConsoleLines);
     setWarmupResolutionError("");
     setSaveError("");
@@ -307,11 +287,8 @@ export default function CommonParamsModal({
     initObsTransitionEnabled,
     initObsTransitionName,
     initObsTransitionDurationMs,
-    experimentalPovEnabled,
-    recordingSkybox,
-    recordingMapMaterial,
-    recordingWeatherEffect,
-    cs2ExtraLaunchArgs,
+    hlaeMirvPovEnabled,
+    csgoExtraLaunchArgs,
     recordInjectConsoleLines,
   ]);
 
@@ -334,15 +311,12 @@ export default function CommonParamsModal({
     const result = await onSaveAllCommonParams({
       default_record_warmup: warmupUiOptsToPersisted(warmupOpts),
       recording_global_pacing: presetPacing,
-      cs2_extra_launch_args: localCs2ExtraLaunchArgs,
+      csgo_extra_launch_args: localCsgoExtraLaunchArgs,
       record_inject_console_lines: localRecordInjectLines,
       obs_transition_enabled: obsTransEnabled,
       obs_transition_name: obsTransName,
       obs_transition_duration_ms: obsTransDurationMs,
-      experimental_pov_enabled: povEnabled,
-      recording_skybox: skyboxId,
-      recording_map_material: mapMaterialId,
-      recording_weather_effect: weatherEffectId,
+      hlae_mirv_pov_enabled: hlaeEnabled,
     });
     setSaveState(result?.ok ? "saved" : "error");
     if (!result?.ok && result?.error) setSaveError(String(result.error));
@@ -355,15 +329,12 @@ export default function CommonParamsModal({
     saveState,
     warmupOpts,
     presetPacing,
-    localCs2ExtraLaunchArgs,
+    localCsgoExtraLaunchArgs,
     localRecordInjectLines,
     obsTransEnabled,
     obsTransName,
     obsTransDurationMs,
-    povEnabled,
-    skyboxId,
-    mapMaterialId,
-    weatherEffectId,
+    hlaeEnabled,
   ]);
 
   const saveDisabled = !configReady || saveState === "saving" || batchRecording;
@@ -371,27 +342,21 @@ export default function CommonParamsModal({
   const currentPreset = useCallback(() => ({
     recording_global_pacing: presetPacing,
     default_record_warmup: warmupUiOptsToPersisted(warmupOpts),
-    cs2_extra_launch_args: localCs2ExtraLaunchArgs,
+    csgo_extra_launch_args: localCsgoExtraLaunchArgs,
     record_inject_console_lines: localRecordInjectLines,
     obs_transition_enabled: obsTransEnabled,
     obs_transition_name: obsTransName,
     obs_transition_duration_ms: Number(obsTransDurationMs),
-    experimental_pov_enabled: povEnabled,
-    recording_skybox: skyboxId,
-    recording_map_material: mapMaterialId,
-    recording_weather_effect: weatherEffectId,
+    hlae_mirv_pov_enabled: hlaeEnabled,
   }), [
     presetPacing,
     warmupOpts,
-    localCs2ExtraLaunchArgs,
+    localCsgoExtraLaunchArgs,
     localRecordInjectLines,
     obsTransEnabled,
     obsTransName,
     obsTransDurationMs,
-    povEnabled,
-    skyboxId,
-    mapMaterialId,
-    weatherEffectId,
+    hlaeEnabled,
   ]);
 
   const handleExportPreset = useCallback(() => {
@@ -408,7 +373,7 @@ export default function CommonParamsModal({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `cs2-insight-recording-preset-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `csgo-insight-recording-preset-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -436,15 +401,12 @@ export default function CommonParamsModal({
       if (!vr.ok) throw new Error(t(vr.messageKey, vr.messageParams));
       hydratePresetPacing(parsed.recording_global_pacing);
       setWarmupOpts(parsed.default_record_warmup);
-      setLocalCs2ExtraLaunchArgs(parsed.cs2_extra_launch_args);
+      setLocalCsgoExtraLaunchArgs(parsed.csgo_extra_launch_args);
       setLocalRecordInjectLines(parsed.record_inject_console_lines);
       setObsTransEnabled(parsed.obs_transition_enabled);
       setObsTransName(parsed.obs_transition_name);
       setObsTransDurationMs(parsed.obs_transition_duration_ms);
-      setPovEnabled(parsed.experimental_pov_enabled);
-      setSkyboxId(parsed.recording_skybox);
-      setMapMaterialId(parsed.recording_map_material);
-      setWeatherEffectId(parsed.recording_weather_effect);
+      setHlaeEnabled(parsed.hlae_mirv_pov_enabled);
       setWarmupResolutionError("");
       setSaveError("");
       setSaveState("idle");
@@ -808,30 +770,18 @@ export default function CommonParamsModal({
             <div>
               <p className="mb-3 text-xs leading-relaxed text-cs2-text-muted">
                 {t("record.commonExpStatus", {
-                  status: povEnabled
+                  status: hlaeEnabled
                     ? t("record.commonExpStatusOn")
                     : t("record.commonExpStatusOff"),
                 })}
               </p>
               <ExperimentalPovSection
                 visible={open || isPage}
-                experimentalPovEnabled={povEnabled}
-                onExperimentalPovChange={setPovEnabled}
+                hlaeMirvPovEnabled={hlaeEnabled}
+                onHlaeMirvPovChange={setHlaeEnabled}
                 checkboxDisabled={batchRecording}
-                povTeamcounterNumeric={warmupOpts.pov_teamcounter_numeric}
-                onPovTeamcounterNumericChange={(v) => patchWarmup({ pov_teamcounter_numeric: v })}
                 povVoiceMode={warmupOpts.pov_voice_mode}
                 onPovVoiceModeChange={(v) => patchWarmup({ pov_voice_mode: v })}
-                inputHudEnabled={warmupOpts.input_hud_enabled}
-                inputHudDisplayMode={warmupOpts.input_hud_display_mode}
-                onInputHudEnabledChange={(v) => patchWarmup({ input_hud_enabled: v })}
-                onInputHudDisplayModeChange={(v) => patchWarmup({ input_hud_display_mode: v })}
-                recordingSkybox={skyboxId}
-                onRecordingSkyboxChange={setSkyboxId}
-                recordingMapMaterial={mapMaterialId}
-                onRecordingMapMaterialChange={setMapMaterialId}
-                recordingWeatherEffect={weatherEffectId}
-                onRecordingWeatherEffectChange={setWeatherEffectId}
                 omitEyebrow
                 omitDisclaimer
                 embedded
@@ -908,13 +858,13 @@ export default function CommonParamsModal({
               <div className="rounded-lg border border-cs2-border bg-cs2-bg-input px-3 py-3">
                 <label
                   className={`flex cursor-pointer items-center gap-3 ${
-                    povEnabled ? "cursor-not-allowed opacity-60" : ""
+                    hlaeEnabled ? "cursor-not-allowed opacity-60" : ""
                   }`}
                 >
                   <input
                     type="checkbox"
-                    checked={povEnabled || warmupOpts.apply_spectator_flashbang_opacity}
-                    disabled={povEnabled || batchRecording}
+                    checked={hlaeEnabled || warmupOpts.apply_spectator_flashbang_opacity}
+                    disabled={hlaeEnabled || batchRecording}
                     onChange={(e) =>
                       patchWarmup({ apply_spectator_flashbang_opacity: e.target.checked })
                     }
@@ -930,7 +880,7 @@ export default function CommonParamsModal({
                     min={0.2}
                     max={1}
                     step={0.1}
-                    value={povEnabled ? 1 : warmupOpts.spectator_flashbang_opacity}
+                    value={hlaeEnabled ? 1 : warmupOpts.spectator_flashbang_opacity}
                     onChange={(e) => {
                       if (e.target.value === "") return;
                       const n = parseFloat(e.target.value, 10);
@@ -941,13 +891,13 @@ export default function CommonParamsModal({
                       });
                     }}
                     disabled={
-                      povEnabled || batchRecording || !warmupOpts.apply_spectator_flashbang_opacity
+                      hlaeEnabled || batchRecording || !warmupOpts.apply_spectator_flashbang_opacity
                     }
                     className="w-24 rounded border border-cs2-border bg-cs2-bg-input px-2 py-1.5 font-mono text-sm text-cs2-text-primary disabled:opacity-40"
                   />
                   <span className="text-xs text-cs2-text-muted">{t("record.commonFlashRange")}</span>
                 </div>
-                {povEnabled ? (
+                {hlaeEnabled ? (
                   <p className="mt-2 border-t border-cs2-border pt-2 pl-7 text-xs leading-relaxed text-cs2-amber-on-surface">
                     {t("record.commonFlashPovActive")}
                   </p>
@@ -1024,7 +974,7 @@ export default function CommonParamsModal({
                     checked={warmupOpts.cl_draw_only_deathnotices}
                     onChange={(v) => patchWarmup({ cl_draw_only_deathnotices: v })}
                     outcomeOn={t("record.hudSimplifyOutcome")}
-                    disabled={!!povEnabled}
+                    disabled={!!hlaeEnabled}
                     disabledReason={POV_CONFLICT_HUD}
                   />
                   <RecordingHudCard
@@ -1086,9 +1036,9 @@ export default function CommonParamsModal({
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-cs2-text-muted">
                   {t("record.commonLaunchCmdLabel")}
                 </p>
-                <Cs2LaunchConsoleFields
-                  cs2ExtraLaunchArgs={localCs2ExtraLaunchArgs}
-                  onCs2ExtraLaunchArgsChange={setLocalCs2ExtraLaunchArgs}
+                <CsgoLaunchConsoleFields
+                  csgoExtraLaunchArgs={localCsgoExtraLaunchArgs}
+                  onCsgoExtraLaunchArgsChange={setLocalCsgoExtraLaunchArgs}
                   recordInjectConsoleLines={localRecordInjectLines}
                   onRecordInjectConsoleLinesChange={setLocalRecordInjectLines}
                 />

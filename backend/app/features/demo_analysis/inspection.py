@@ -84,7 +84,7 @@ def analyze_demo_sync(
 
 def demo_inspect_concurrency() -> int:
     try:
-        configured = int(os.environ.get("CS2_INSIGHT_DEMO_INSPECT_CONCURRENCY", "2"))
+        configured = int(os.environ.get("CSGO_INSIGHT_DEMO_INSPECT_CONCURRENCY", "2"))
     except ValueError:
         configured = 2
     return max(1, min(4, configured))
@@ -108,7 +108,7 @@ def demo_failure_code(error: BaseException, phase: str) -> str:
     if "not a .dem file" in text or "only .dem" in text:
         return "DEMO_INVALID_EXTENSION"
     if "pbdems2" in text or "cs2 (" in text or "only parses source 1" in text:
-        return "DEMO_CS2_NOT_SUPPORTED"
+        return "DEMO_NOT_CSGO"
     if any(marker in text for marker in ("not found", "no such file", "找不到", "不存在")):
         return "DEMO_FILE_NOT_FOUND"
     if "timeout" in text or "timed out" in text or "超时" in text:

@@ -46,7 +46,6 @@ from .api.demo_replay import router as demo_replay_router
 from .api.cosmetics_skin import router as cosmetics_skin_router
 from .api.config_backup import router as config_backup_router
 from .api.gsi import router as gsi_router
-from .api.game_resources import router as game_resources_router
 from .recording.api import router as recording_router
 from .features.lite_cut.api import router as lite_cut_router
 from .features.demo_playback.api import router as demo_playback_router
@@ -78,7 +77,7 @@ install_gsi_access_log_filter()
 
 _FAULT_LOG_FILE = None
 try:
-    _log_dir_raw = (os.environ.get("CS2_INSIGHT_LOG_DIR") or "").strip()
+    _log_dir_raw = (os.environ.get("CSGO_INSIGHT_LOG_DIR") or "").strip()
     _log_dir = Path(_log_dir_raw) if _log_dir_raw else (resolve_config_path().parent / "logs")
     _log_dir.mkdir(parents=True, exist_ok=True)
     _backend_log = _log_dir / "backend.log"
@@ -108,8 +107,8 @@ async def lifespan(_: FastAPI):
 
     **为什么不再自动扫描**：watchdog Observer 会在目录出现新 .dem 时立刻触发
     ``enqueue_demo_path``。录制期我们会
-    准备一个兼容性复验后的 ``_insight_<uuid>.dem`` 到 CS2 的 ``csgo/``；若用户的监听目录与
-    ``csgo/`` 有重叠（常见：就是把 CS2 的 replay 目录作为监听目录），**每次录制都会在后台触发
+    准备一个兼容性复验后的 ``_insight_<uuid>.dem`` 到 CS:GO 的 ``csgo/``；若用户的监听目录与
+    ``csgo/`` 有重叠（常见：就是把 CS:GO 的 replay 目录作为监听目录），**每次录制都会在后台触发
     登记新文件并做内容去重，仍可能与录制争用磁盘；历史上还曾叠加解析工作
     加重负载，故默认不在启动时全量扫描。
     保留 ``DemoWatcher`` 实例只是为 ``POST /api/demos/scan`` 这一条手动扫描接口
@@ -147,20 +146,15 @@ async def lifespan(_: FastAPI):
 
         await asyncio.to_thread(cleanup_stale_export_artifacts, stale_lite_cut_outputs)
     cfg = load_config()
-    removed_gsi_configs = cleanup_stale_gsi_configs(cfg.cs2_path)
+    removed_gsi_configs = cleanup_stale_gsi_configs(cfg.csgo_path)
     if removed_gsi_configs:
-        logger.info("Removed %d stale CS2 Insight GSI config(s)", len(removed_gsi_configs))
+        logger.info("Removed %d stale CS:GO Insight GSI config(s)", len(removed_gsi_configs))
     application_state.demo_watcher = DemoWatcher(
         cfg.demo_watch_paths or [],
         enqueue_demo_path,
         demo_db,
         max_depth=cfg.demo_watch_scan_depth,
     )
-    from .pov_hud_manager import try_restore_stale_pov_on_startup
-
-    for _msg in try_restore_stale_pov_on_startup(cfg):
-        if _msg:
-            logger.info("POV startup: %s", _msg)
     try:
         yield
     finally:
@@ -182,7 +176,7 @@ async def lifespan(_: FastAPI):
             _FAULT_LOG_FILE.close()
 
 
-app = FastAPI(title="CS2 Insight Agent", version=APP_VERSION, lifespan=lifespan)
+app = FastAPI(title="CS:GO Insight Agent", version=APP_VERSION, lifespan=lifespan)
 
 
 app.include_router(recording_router)
@@ -201,7 +195,6 @@ app.include_router(demo_replay_router)
 app.include_router(cosmetics_skin_router)
 app.include_router(config_backup_router)
 app.include_router(gsi_router)
-app.include_router(game_resources_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -249,7 +242,7 @@ async def app_runtime_state():
 
     return {
         "pid": os.getpid(),
-        "instance_id": (os.getenv("CS2_INSIGHT_INSTANCE_ID") or "").strip(),
+        "instance_id": (os.getenv("CSGO_INSIGHT_INSTANCE_ID") or "").strip(),
         "version": app.version,
         "data_dir": str(get_data_dir()),
         "recovery_required": _recovery_marker_path().is_file(),
@@ -312,11 +305,11 @@ _obs_launch_lock = threading.Lock()
 def _resolve_web_dist_dir() -> Optional[Path]:
     """
     解析前端静态目录（用于便携包/生产环境）：
-    1) CS2_INSIGHT_WEB_DIR 环境变量（最高优先）
+    1) CSGO_INSIGHT_WEB_DIR 环境变量（最高优先）
     2) 项目根目录下 web/
     3) frontend/dist/
     """
-    env_path = (os.getenv("CS2_INSIGHT_WEB_DIR") or "").strip()
+    env_path = (os.getenv("CSGO_INSIGHT_WEB_DIR") or "").strip()
     if env_path:
         p = Path(env_path).expanduser().resolve()
         if (p / "index.html").is_file():

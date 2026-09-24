@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def _debounce_seconds() -> float:
-    raw = (os.environ.get("CS2_INSIGHT_LIBRARY_SSE_DEBOUNCE_SEC") or "").strip()
+    raw = (os.environ.get("CSGO_INSIGHT_LIBRARY_SSE_DEBOUNCE_SEC") or "").strip()
     try:
         v = float(raw)
     except ValueError:

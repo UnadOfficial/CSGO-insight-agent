@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from ...app_state import application_state
 from ...databases import demo_db
 from ...demo_compat_service import ensure_demo_compatible
+from ...csgo_demo_format import DemoFormatError
 from ...demo_db import DemoListFilters, utc_now_iso
 from ...demo_library_hub import demo_library_hub
 from ...env_utils import load_config
@@ -585,7 +586,10 @@ async def get_demo_players(demo_id: int):
     if not row:
         raise HTTPException(404, f"Demo not found: {demo_id}")
     dem_path = await library_working_demo_path(row)
-    await asyncio.to_thread(ensure_demo_compatible, dem_path)
+    try:
+        await asyncio.to_thread(ensure_demo_compatible, dem_path)
+    except DemoFormatError as exc:
+        raise HTTPException(422, {"code": exc.code}) from exc
     match_meta = {
         "map_name": row.get("map_name"),
         "total_rounds": row.get("total_rounds"),
@@ -609,7 +613,10 @@ async def analyze_demo_from_library(demo_id: int, req: DemoAnalyzeRequest):
     if not row:
         raise HTTPException(404, f"Demo not found: {demo_id}")
     dem_path = await library_working_demo_path(row)
-    await asyncio.to_thread(ensure_demo_compatible, dem_path)
+    try:
+        await asyncio.to_thread(ensure_demo_compatible, dem_path)
+    except DemoFormatError as exc:
+        raise HTTPException(422, {"code": exc.code}) from exc
     out = await run_library_demo_analyze(
         demo_id,
         dem_path,

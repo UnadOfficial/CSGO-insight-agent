@@ -127,8 +127,8 @@ if (-not $wheel) {
 }
 
 # 为安装包强制重建仓库根目录下精简的 python\ runtime。
-$env:CS2_INSIGHT_DEMOPARSER_WHEEL = $wheel.FullName
-$env:CS2_INSIGHT_REFRESH_PYTHON = "1"
+$env:CSGO_INSIGHT_DEMOPARSER_WHEEL = $wheel.FullName
+$env:CSGO_INSIGHT_REFRESH_PYTHON = "1"
 
 Push-Location frontend
 try {
@@ -139,8 +139,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "桌面端构建失败。" }
 } finally {
     Pop-Location
-    Remove-Item Env:CS2_INSIGHT_DEMOPARSER_WHEEL -ErrorAction SilentlyContinue
-    Remove-Item Env:CS2_INSIGHT_REFRESH_PYTHON -ErrorAction SilentlyContinue
+    Remove-Item Env:CSGO_INSIGHT_DEMOPARSER_WHEEL -ErrorAction SilentlyContinue
+    Remove-Item Env:CSGO_INSIGHT_REFRESH_PYTHON -ErrorAction SilentlyContinue
 }
 ```
 
@@ -148,8 +148,8 @@ try {
 可执行文件编译、NSIS 安装包生成以及最终 Windows bundle 验证。产物位于：
 
 ```text
-frontend/src-tauri/target/release/bundle/nsis/CS2 Insight Agent_<version>_x64-setup.exe
-frontend/src-tauri/target/release/bundle/nsis/CS2 Insight Agent_<version>_x64-setup.exe.sig
+frontend/src-tauri/target/release/bundle/nsis/CSGO Insight Agent_<version>_x64-setup.exe
+frontend/src-tauri/target/release/bundle/nsis/CSGO Insight Agent_<version>_x64-setup.exe.sig
 ```
 
 只有存在 updater 私钥时才会生成 `.sig` 更新签名。没有私钥时仍然可以在

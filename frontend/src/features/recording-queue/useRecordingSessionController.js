@@ -6,16 +6,15 @@ import { messageFromApiCode } from "../../utils/apiErrorMessages";
 import { formatRecordingApiError, parseRecordingApiError } from "../../utils/formatRecordingApiError";
 import {
   recordingAbortToastKind,
-  recordingQueueHadUnexpectedCs2Exit,
+  recordingQueueHadUnexpectedCsgoExit,
   recordingQueueWasAborted,
-  unexpectedCs2ExitRecoveryMessageKey,
+  unexpectedCsgoExitRecoveryMessageKey,
 } from "../../utils/recordingAbort";
 import {
   applySessionObsTransitionToRequests,
   buildRecordingQueueRequestsFromQueue,
 } from "../../utils/recordingBatch";
 import { splitRecordWarmupConfirmPayload } from "../../utils/warmupDefaults";
-import { normalizePovVoiceMode } from "../../utils/povVoiceMode.js";
 import { applyRecordingPlayerAliases, recordingAliasDemoTargets } from "../../utils/playerAliases.js";
 
 /** Owns one recording session from preflight through recovery and result reporting. */
@@ -39,7 +38,6 @@ export function useRecordingSessionController({
   const [recordingBlockedCode, setRecordingBlockedCode] = useState(null);
   const [recordingRecoveryPrompt, setRecordingRecoveryPrompt] = useState({
     configRecoveryNeeded: null,
-    povRecoveryNeeded: false,
   });
   const [recordWarmupOpen, setRecordWarmupOpen] = useState(false);
   const [recordingAliasDemos, setRecordingAliasDemos] = useState([]);
@@ -126,11 +124,11 @@ export function useRecordingSessionController({
     if (!queue.length) return;
     recordingAbortRequestedRef.current = false;
     setRecordingAbortRequested(false);
-    setRecordingRecoveryPrompt({ configRecoveryNeeded: null, povRecoveryNeeded: false });
+    setRecordingRecoveryPrompt({ configRecoveryNeeded: null });
     setRecordingResults(null);
     setRecordingResultModalOpen(false);
     setBatchRecording(true);
-    setProgressText(t("common.preparingMapResources"), { loading: true });
+    setProgressText(t("common.preparingRecording"), { loading: true });
 
     let openResultsAfterRecording = false;
     try {
@@ -147,29 +145,15 @@ export function useRecordingSessionController({
       }
       requests = applySessionObsTransitionToRequests(requests, session);
       requests = applyRecordingPlayerAliases(requests, session.player_aliases_by_demo);
-      const povHud = {
-        enabled: session.experimental_pov_enabled,
-        radar_mode: 0,
-        teamcounter_numeric: Boolean(warmupForApi?.pov_teamcounter_numeric),
-        voice_mode: normalizePovVoiceMode(warmupForApi?.pov_voice_mode),
-        input_hud_enabled: session.input_hud_enabled !== false,
-        input_hud_display_mode: "hybrid",
-        input_audio_enabled: session.input_audio_enabled === true,
-        combat_stats_hud_enabled: session.combat_stats_hud_enabled !== false,
-      };
       const body = {
         requests,
         warmup: warmupForApi,
         obs: obsConfig,
-        cs2_extra_launch_args: session.cs2_extra_launch_args,
+        csgo_extra_launch_args: session.csgo_extra_launch_args,
         record_inject_console_lines: session.record_inject_console_lines,
-        skybox: { id: session.recording_skybox },
-        map_material: { id: session.recording_map_material },
-        weather: { id: session.recording_weather_effect },
-        pov_hud: povHud,
       };
       if (!recordingAbortRequestedRef.current) {
-        setProgressText(t("common.preparingMapResources"), { loading: true });
+        setProgressText(t("common.preparingRecording"), { loading: true });
       }
       const { data } = await API.post("recording/queue", body);
       const results = Array.isArray(data) ? data : [];
@@ -190,43 +174,24 @@ export function useRecordingSessionController({
       setRecordingResults(annotatedResults);
       openResultsAfterRecording = true;
 
-      const unexpectedCs2Exit = recordingQueueHadUnexpectedCs2Exit(results);
+      const unexpectedCsgoExit = recordingQueueHadUnexpectedCsgoExit(results);
       const aborted = recordingQueueWasAborted(results, recordingAbortRequestedRef.current);
-      if (unexpectedCs2Exit) {
+      if (unexpectedCsgoExit) {
         const unexpectedExitResult = results.find(
-          (item) => item?.error_code === "RECORDING_CS2_EXITED"
-            || String(item?.error || "").toLowerCase() === "cs2_exited_unexpectedly",
+          (item) => item?.error_code === "RECORDING_CSGO_EXITED"
+            || String(item?.error || "").toLowerCase() === "csgo_exited_unexpectedly",
         );
         const reportedRecovery = unexpectedExitResult?.recovery;
         const backupStatus = await refreshConfigBackupStatus();
-        let povStatus = null;
-        if (session.experimental_pov_enabled) {
-          try {
-            const { data: nextPovStatus } = await API.get("experimental/pov/status");
-            povStatus = nextPovStatus && typeof nextPovStatus === "object"
-              ? nextPovStatus
-              : { fetch_failed: true };
-          } catch {
-            povStatus = { fetch_failed: true };
-          }
-        }
         const configRecoveryNeeded = reportedRecovery?.player_config_restore_verified
           ? reportedRecovery.player_config_restored !== true
           : Boolean(backupStatus?.restore_required || backupStatus?.fetch_failed);
-        const povRecoveryNeeded = !session.experimental_pov_enabled
-          ? false
-          : reportedRecovery?.pov_restore_verified
-            ? reportedRecovery.pov_restored !== true
-            : Boolean(povStatus?.needs_restore || povStatus?.fetch_failed);
-        setRecordingRecoveryPrompt({ configRecoveryNeeded, povRecoveryNeeded });
-        setRecordingBlockedMessage(t(unexpectedCs2ExitRecoveryMessageKey({
+        setRecordingRecoveryPrompt({ configRecoveryNeeded });
+        setRecordingBlockedMessage(t(unexpectedCsgoExitRecoveryMessageKey({
           configRecoveryNeeded,
-          povEnabled: session.experimental_pov_enabled,
-          povRecoveryNeeded,
-          povRecoveryMode: reportedRecovery?.pov_restore?.verification_mode,
         })));
-        setRecordingBlockedCode("RECORDING_CS2_EXITED");
-        setProgressText(t("app.unexpectedCs2ExitToast"), { isError: true });
+        setRecordingBlockedCode("RECORDING_CSGO_EXITED");
+        setProgressText(t("app.unexpectedCsgoExitToast"), { isError: true });
       } else if (aborted) {
         const backupStatus = await refreshConfigBackupStatus();
         const toastKind = recordingAbortToastKind(backupStatus, results);
@@ -287,9 +252,9 @@ export function useRecordingSessionController({
       await refreshConfigBackupStatus();
     } catch (error) {
       const detail = error.response?.data?.detail;
-      if (error.response?.status === 409 && detail?.code === "CS2_RUNNING") {
-        setRecordingBlockedMessage(t("app.restoreBlockedCs2Running"));
-        setRecordingBlockedCode("CS2_RUNNING");
+      if (error.response?.status === 409 && detail?.code === "CSGO_RUNNING") {
+        setRecordingBlockedMessage(t("app.restoreBlockedCsgoRunning"));
+        setRecordingBlockedCode("CSGO_RUNNING");
       } else {
         setProgressText(t("app.restoreFail", {
           msg: formatRecordingApiError(error, t, t("common.requestFail")),
@@ -349,7 +314,7 @@ export function useRecordingSessionController({
   const clearRecordingBlock = useCallback(() => {
     setRecordingBlockedMessage("");
     setRecordingBlockedCode(null);
-    setRecordingRecoveryPrompt({ configRecoveryNeeded: null, povRecoveryNeeded: false });
+    setRecordingRecoveryPrompt({ configRecoveryNeeded: null });
   }, []);
 
   return {

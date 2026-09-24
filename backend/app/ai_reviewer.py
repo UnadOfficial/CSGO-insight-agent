@@ -214,7 +214,7 @@ class AIReviewer:
         if key.startswith("****"):
             raise ValueError("AIReviewer: invalid or masked api_key")
         if not key and llm_base_url_is_local_host(llm.base_url):
-            key = (os.environ.get("CS2_INSIGHT_LOCAL_LLM_API_KEY") or "local").strip() or "local"
+            key = (os.environ.get("CSGO_INSIGHT_LOCAL_LLM_API_KEY") or "local").strip() or "local"
         return cls(
             api_key=key,
             base_url=llm.base_url,
@@ -409,14 +409,14 @@ async def enrich_clips_dicts_with_reviewer(
     try:
         max_review_clips = min(
             64,
-            max(1, int(os.environ.get("CS2_INSIGHT_AI_REVIEW_MAX_CLIPS", "32"))),
+            max(1, int(os.environ.get("CSGO_INSIGHT_AI_REVIEW_MAX_CLIPS", "32"))),
         )
         reviewer = AIReviewer.from_llm_config(
             llm,
             locale=locale,
             max_concurrency=min(
                 12,
-                max(1, int(os.environ.get("CS2_INSIGHT_AI_REVIEW_CONCURRENCY", "6"))),
+                max(1, int(os.environ.get("CSGO_INSIGHT_AI_REVIEW_CONCURRENCY", "6"))),
             ),
         )
     except ValueError as e:

@@ -326,7 +326,7 @@ export function formatClipCombatSummaryLine(clip, t, locale = "zh") {
   return "";
 }
 
-/** CS2 录像 tickrate（与后端 demo_parser.TICK_RATE 一致，用于粗算时长） */
+/** CS:GO 录像 tickrate（与后端 demo_parser.TICK_RATE 一致，用于粗算时长） */
 export const DEMO_TICK_RATE = 64;
 
 export function getClipDurationSeconds(clip) {
@@ -741,7 +741,7 @@ export function blockShortLabelI18nKey(label) {
   return clipTypeI18nKey(label);
 }
 
-/** 回合比分：优先 CS2 双方 CT/T；否则回退为解析侧 己方/对方。 */
+/** 回合比分：优先 CS:GO 双方 CT/T；否则回退为解析侧 己方/对方。 */
 export function getMontageScorePair(clip) {
   if (!clip || typeof clip !== "object") return null;
   const ct = clip.score_ct;
@@ -830,7 +830,7 @@ export function getRecordedClipPerspectiveZh(clip, t) {
   if (!clip || typeof clip !== "object") return t("montage.perspectiveSpectator");
   const rp = String(clip.recording_perspective || "").trim();
   const fromEnum = {
-    pov_hud: t("montage.perspectivePovHud"),
+    hlae_mirv_pov: t("montage.perspectiveHlaeMirvPov"),
     player_follow: t("montage.perspectivePlayerFollow"),
     spectator: t("montage.perspectiveSpectator"),
   }[rp];

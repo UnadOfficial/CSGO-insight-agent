@@ -421,7 +421,7 @@ def extract_radar_timeline_impl(
     else:
         last_tick: int | None = None
         try:
-            sync_lead_sec = float(os.environ.get("CS2_INSIGHT_RADAR_SYNC_LEAD_SEC") or 0.0)
+            sync_lead_sec = float(os.environ.get("CSGO_INSIGHT_RADAR_SYNC_LEAD_SEC") or 0.0)
         except (TypeError, ValueError):
             sync_lead_sec = 0.0
         for i in range(n_frames):

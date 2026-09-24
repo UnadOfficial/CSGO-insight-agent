@@ -5,15 +5,12 @@ import { buildRecordingPresetFile, parseRecordingPresetFile } from "./recordingP
 const preset = {
   recording_global_pacing: { pre_first_sec: 2, default_victim_pov: true },
   default_record_warmup: { ...RECORD_WARMUP_DEFAULT_OPTIONS, aspect_ratio: "16:9", resolution_width: "1920", resolution_height: "1080" },
-  cs2_extra_launch_args: "-fullscreen",
+  csgo_extra_launch_args: "-fullscreen",
   record_inject_console_lines: "fps_max 0",
   obs_transition_enabled: true,
   obs_transition_name: "Fade",
   obs_transition_duration_ms: 200,
-  experimental_pov_enabled: false,
-  recording_skybox: "cartoon3",
-  recording_map_material: "waxed_reflection",
-  recording_weather_effect: "default",
+  hlae_mirv_pov_enabled: false,
 };
 
 describe("recording preset share JSON", () => {
@@ -47,34 +44,30 @@ describe("recording preset share JSON", () => {
       .toEqual(preset);
   });
 
-  test("defaults legacy presets to the original map sky", () => {
-    const { recording_skybox: _removed, ...legacyPreset } = preset;
-    const file = { ...buildRecordingPresetFile(legacyPreset), version: 2 };
-    expect(parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS).recording_skybox).toBe("default");
+  test("drops legacy Source 2 skybox fields", () => {
+    const file = buildRecordingPresetFile({ ...preset, recording_skybox: "cartoon3" });
+    expect(parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS)).not.toHaveProperty("recording_skybox");
   });
 
-  test("defaults legacy presets to the original map material", () => {
-    const { recording_map_material: _removed, ...legacyPreset } = preset;
-    const file = { ...buildRecordingPresetFile(legacyPreset), version: 3 };
-    expect(parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS).recording_map_material)
-      .toBe("default");
+  test("drops legacy Source 2 map material fields", () => {
+    const file = buildRecordingPresetFile({ ...preset, recording_map_material: "waxed_reflection" });
+    expect(parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS)).not.toHaveProperty("recording_map_material");
   });
 
-  test("rejects an unknown map material", () => {
+  test("ignores unknown map material values from old clients", () => {
     const file = buildRecordingPresetFile({ ...preset, recording_map_material: "chrome" });
-    expect(() => parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS)).toThrow();
+    expect(() => parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS)).not.toThrow();
   });
 
-  test("rejects an unknown skybox", () => {
+  test("ignores unknown skybox values from old clients", () => {
     const file = buildRecordingPresetFile({ ...preset, recording_skybox: "other" });
-    expect(() => parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS)).toThrow();
+    expect(() => parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS)).not.toThrow();
   });
 
-  test("preserves a custom skybox reference", () => {
+  test("does not preserve custom Source 2 skybox references", () => {
     const customId = "custom:0123456789abcdef0123456789abcdef";
     const file = buildRecordingPresetFile({ ...preset, recording_skybox: customId });
-    expect(parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS).recording_skybox)
-      .toBe(customId);
+    expect(parseRecordingPresetFile(file, RECORD_WARMUP_DEFAULT_OPTIONS)).not.toHaveProperty("recording_skybox");
   });
 
   test("round trips the POV voice audience", () => {
@@ -82,7 +75,7 @@ describe("recording preset share JSON", () => {
       ...preset,
       default_record_warmup: {
         ...preset.default_record_warmup,
-        pov_voice_mode: "enemy",
+        pov_voice_mode: "all",
       },
     };
     expect(parseRecordingPresetFile(buildRecordingPresetFile(next), RECORD_WARMUP_DEFAULT_OPTIONS))
@@ -99,13 +92,7 @@ describe("recording preset share JSON", () => {
       },
     };
     expect(parseRecordingPresetFile(buildRecordingPresetFile(next), RECORD_WARMUP_DEFAULT_OPTIONS))
-      .toEqual({
-        ...next,
-        default_record_warmup: {
-          ...next.default_record_warmup,
-          input_hud_display_mode: "hybrid",
-        },
-      });
+      .toEqual(preset);
   });
 
   test("rejects an unknown in-game input HUD display mode", () => {
@@ -117,7 +104,7 @@ describe("recording preset share JSON", () => {
       },
     };
     expect(() => parseRecordingPresetFile(buildRecordingPresetFile(next), RECORD_WARMUP_DEFAULT_OPTIONS))
-      .toThrow();
+      .not.toThrow();
   });
 
   test("migrates the legacy disabled voice switch", () => {
@@ -130,7 +117,7 @@ describe("recording preset share JSON", () => {
       },
     };
     expect(parseRecordingPresetFile(buildRecordingPresetFile(next), RECORD_WARMUP_DEFAULT_OPTIONS)
-      .default_record_warmup.pov_voice_mode).toBe("mute");
+      .default_record_warmup.pov_voice_mode).toBe("team");
   });
 
   test("rejects an unknown POV voice audience", () => {
@@ -154,6 +141,6 @@ describe("recording preset share JSON", () => {
       },
     };
     expect(parseRecordingPresetFile(buildRecordingPresetFile(next), RECORD_WARMUP_DEFAULT_OPTIONS)
-      .default_record_warmup.pov_radar_mode).toBe(0);
+      .default_record_warmup).not.toHaveProperty("pov_radar_mode");
   });
 });

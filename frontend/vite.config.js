@@ -8,7 +8,7 @@ import { dirname, resolve } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const pkg = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf-8"));
-const appVersion = process.env.CS2_INSIGHT_APP_VERSION?.trim() || pkg.version;
+const appVersion = process.env.CSGO_INSIGHT_APP_VERSION?.trim() || pkg.version;
 
 export default defineConfig({
   base: "./",

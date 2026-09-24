@@ -265,7 +265,7 @@ export function MatchListRow({
           >
             <MessageSquare className="h-4 w-4" />
           </button>
-          <button onClick={() => onPlay(demo.id)} className="p-2 text-cs2-emerald-on-surface hover:bg-cs2-emerald-surface rounded-md transition-colors" title={t("match.btnPlayCs2")}>
+          <button onClick={() => onPlay(demo.id)} className="p-2 text-cs2-emerald-on-surface hover:bg-cs2-emerald-surface rounded-md transition-colors" title={t("match.btnPlayCsgo")}>
             <CirclePlay className="h-4 w-4" strokeWidth={1.8} />
           </button>
           <button onClick={() => onOpenFile(demo.id)} className="p-2 text-cs2-cyan-on-surface hover:bg-cs2-cyan-surface rounded-md transition-colors" title={t("match.btnLocate")}>
@@ -465,7 +465,7 @@ export default function MatchCard({
           </div>
 
           <div className="match-card__actions absolute bottom-2.5 right-2 top-2.5 z-[2] flex items-center gap-1 rounded-lg border border-cs2-border bg-cs2-bg-elevated p-2 opacity-0 shadow-sm transition-opacity group-hover:opacity-100" onClick={e => e.stopPropagation()}>
-            <button aria-label={t("match.btnPlayCs2")} onClick={() => onPlay(demo.id)} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-cs2-emerald-on-surface transition-colors hover:bg-cs2-emerald-surface" title={t("match.btnPlayCs2")}><CirclePlay className="h-[18px] w-[18px]" strokeWidth={1.8} /></button>
+            <button aria-label={t("match.btnPlayCsgo")} onClick={() => onPlay(demo.id)} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-cs2-emerald-on-surface transition-colors hover:bg-cs2-emerald-surface" title={t("match.btnPlayCsgo")}><CirclePlay className="h-[18px] w-[18px]" strokeWidth={1.8} /></button>
             <button aria-label={t("match.btnLocate")} onClick={() => onOpenFile(demo.id)} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-cs2-cyan-on-surface transition-colors hover:bg-cs2-cyan-surface" title={t("match.btnLocate")}><FolderOpen className="h-[18px] w-[18px]" strokeWidth={1.8} /></button>
             <button aria-label={t("match.btnDelete")} onClick={() => onDelete(demo.id, demo.filename)} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-cs2-red-on-surface transition-colors hover:bg-cs2-red-surface" title={t("match.btnDelete")}><Trash className="h-[18px] w-[18px]" strokeWidth={1.8} /></button>
           </div>

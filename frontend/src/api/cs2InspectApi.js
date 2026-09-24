@@ -2,7 +2,7 @@ import API from "./api.js";
 import { desktopBridge } from "../desktop/desktopBridge.js";
 
 /**
- * Launch a self-contained CS2 inspect payload on the local host.
+ * Launch a self-contained CS:GO inspect payload on the local host.
  *
  * The backend path is primary so browser development and packaged desktop
  * builds use the same Insight-owned launch chain. The Tauri command remains a

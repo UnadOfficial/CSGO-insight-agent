@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..demo_playback_compat import read_demo_end_tick
+from ..csgo_demo_format import read_csgo_demo_end_tick
 
 from .models import (
     RecordingRequestDTO,
@@ -42,14 +42,14 @@ def normalize(dto: RecordingRequestDTO) -> NormalizedRequest:
     warnings = []
 
     # The request may come from an old saved analysis whose clip-derived end is
-    # not the PBDEMS2 playback boundary.  When the source is available, always
-    # re-read the outer-frame EOF here so a stale frontend value cannot let CS2
+    # not the HL2DEMO playback boundary.  When the source is available, always
+    # re-read the outer-frame EOF here so a stale frontend value cannot let CS:GO
     # naturally finish the demo and return to the main menu.
     demo = dto.demo
     demo_path = Path(demo.demo_path)
     if demo_path.is_file():
         try:
-            actual_demo_end_tick = read_demo_end_tick(demo_path)
+            actual_demo_end_tick = read_csgo_demo_end_tick(demo_path)
         except (OSError, ValueError) as exc:
             raise NormalizationError(
                 f"could not determine demo EOF for {demo_path}: {exc}"
@@ -60,7 +60,7 @@ def normalize(dto: RecordingRequestDTO) -> NormalizedRequest:
             )
         if actual_demo_end_tick != demo.demo_end_tick:
             logger.info(
-                "[RecordingV3][DemoEnd] replacing request demo_end_tick=%d with PBDEMS2 EOF=%d",
+                "[RecordingV3][DemoEnd] replacing request demo_end_tick=%d with HL2DEMO EOF=%d",
                 demo.demo_end_tick,
                 actual_demo_end_tick,
             )

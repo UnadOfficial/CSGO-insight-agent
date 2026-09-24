@@ -43,7 +43,7 @@ export default {
   "cosmeticsWorkshop.inspect.material": "高清材质预览",
   "cosmeticsWorkshop.inspect.rotate": "拖动旋转",
   "cosmeticsWorkshop.inspect.zoom": "滚轮缩放",
-  "cosmeticsWorkshop.inspect.gameHint": "选择磨损与模板后，Insight 会通过 Steam 拉起 CS2 展示该饰品；检视不会修改游戏库存。",
+  "cosmeticsWorkshop.inspect.gameHint": "选择磨损与模板后，Insight 会通过 Steam 拉起 CS:GO 展示该饰品；检视不会修改游戏库存。",
   "cosmeticsWorkshop.inspect.gloveFallback": "手套暂用高清材质检视；第一人称手套组合 3D 将在检视服务支持后接入。",
   "cosmeticsWorkshop.scheme.button": "饰品方案",
   "cosmeticsWorkshop.scheme.title": "饰品方案",

@@ -24,36 +24,19 @@ export function recordingAbortToastKind(configBackupStatus, results = []) {
   return "completed";
 }
 
-export function isUnexpectedCs2ExitResult(result) {
+export function isUnexpectedCsgoExitResult(result) {
   if (!result || typeof result !== "object") return false;
-  if (result.error_code === "RECORDING_CS2_EXITED") return true;
-  return String(result.error || "").trim().toLowerCase() === "cs2_exited_unexpectedly";
+  if (result.error_code === "RECORDING_CSGO_EXITED") return true;
+  return String(result.error || "").trim().toLowerCase() === "csgo_exited_unexpectedly";
 }
 
-export function recordingQueueHadUnexpectedCs2Exit(results) {
-  return Array.isArray(results) && results.some(isUnexpectedCs2ExitResult);
+export function recordingQueueHadUnexpectedCsgoExit(results) {
+  return Array.isArray(results) && results.some(isUnexpectedCsgoExitResult);
 }
 
-export function unexpectedCs2ExitRecoveryMessageKey({
+export function unexpectedCsgoExitRecoveryMessageKey({
   configRecoveryNeeded = false,
-  povEnabled = false,
-  povRecoveryNeeded = false,
-  povRecoveryMode = "",
 } = {}) {
-  if (configRecoveryNeeded && povEnabled && povRecoveryNeeded) {
-    return "app.unexpectedCs2ExitBothPending";
-  }
-  if (configRecoveryNeeded) return "app.unexpectedCs2ExitConfigPending";
-  if (povEnabled && povRecoveryNeeded) return "app.unexpectedCs2ExitPovPending";
-  if (povEnabled && String(povRecoveryMode).toLowerCase() === "semantic") {
-    return "app.unexpectedCs2ExitRecoveredWithPovCleanup";
-  }
-  if (povEnabled && String(povRecoveryMode).toLowerCase() === "strict") {
-    return "app.unexpectedCs2ExitRecoveredWithPovStrict";
-  }
-  if (povEnabled && String(povRecoveryMode).toLowerCase() === "none") {
-    return "app.unexpectedCs2ExitRecoveredWithPovNoChange";
-  }
-  if (povEnabled) return "app.unexpectedCs2ExitRecoveredWithPov";
-  return "app.unexpectedCs2ExitRecovered";
+  if (configRecoveryNeeded) return "app.unexpectedCsgoExitConfigPending";
+  return "app.unexpectedCsgoExitRecovered";
 }

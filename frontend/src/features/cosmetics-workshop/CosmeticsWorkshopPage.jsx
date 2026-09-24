@@ -670,7 +670,7 @@ export default function CosmeticsWorkshopPage() {
         : "analysis.cosmetics.inspectCommandCopied";
       setInspectFeedback({ tone: "success", text: t(messageKey) });
     } catch (error) {
-      console.warn("Failed to launch CS2 inspect", error);
+      console.warn("Failed to launch CS:GO inspect", error);
       setInspectFeedback({ tone: "error", text: t("analysis.cosmetics.inspectFailed") });
     } finally {
       setInspectBusy(false);

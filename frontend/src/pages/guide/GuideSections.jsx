@@ -51,10 +51,10 @@ function SetupChecklist() {
       linkLabel: t("guide.setupSettingsLink"),
     },
     {
-      key: "cs2_path_ok",
+      key: "csgo_path_ok",
       required: true,
-      label: t("guide.setupCs2Label"),
-      desc: t("guide.setupCs2Desc"),
+      label: t("guide.setupCsgoLabel"),
+      desc: t("guide.setupCsgoDesc"),
       to: "/settings?tab=paths",
       linkLabel: t("guide.setupSettingsLink"),
     },
@@ -135,7 +135,7 @@ function SetupChecklist() {
   };
 
   const allRequired =
-    status?.obs_configured && status?.cs2_path_ok;
+    status?.obs_configured && status?.csgo_path_ok;
 
   return (
     <section>

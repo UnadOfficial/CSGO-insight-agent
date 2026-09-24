@@ -22,7 +22,7 @@ vi.mock("../context/AppShellContext", () => ({
 
 const staleStatus = {
   obs_configured: false,
-  cs2_path_ok: true,
+  csgo_path_ok: true,
   ffmpeg_ok: false,
   ai_key_ok: false,
 };

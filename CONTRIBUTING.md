@@ -2,7 +2,7 @@
 
 简体中文 | [English](./CONTRIBUTING_EN.md)
 
-感谢你对 CS2 Insight Agent 的关注。本文说明分支策略与提交流程，对应 [Issue #76](https://github.com/DrEAmSs59/CS2-insight-agent/issues/76)。
+感谢你对 CSGO Insight Agent 的关注。本文说明分支策略与提交流程，对应 [Issue #76](https://github.com/DrEAmSs59/CS2-insight-agent/issues/76)。
 
 ## 分支策略
 

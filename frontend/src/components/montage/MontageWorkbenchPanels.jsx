@@ -755,8 +755,10 @@ export function MontageOrchestrationTimeline({
                         >
                           {perspectivePrimary}
                         </span>
-                        {clip.pov_hud_enabled === true ? (
-                          <span className="rounded bg-cs2-cyan-surface px-2 py-0.5 text-xs font-bold text-cs2-cyan-on-surface">HUD</span>
+                        {clip.hlae_mirv_pov === true ? (
+                          <span className="rounded bg-cs2-cyan-surface px-2 py-0.5 text-xs font-bold text-cs2-cyan-on-surface">
+                            {t("montage.perspectiveHlaeMirvPov")}
+                          </span>
                         ) : null}
                       </div>
                       {aiLine ? (
@@ -986,8 +988,10 @@ export function MontageMaterialPoolCard({
             >
               {perspectivePrimary}
             </span>
-            {clip.pov_hud_enabled === true ? (
-              <span className="rounded bg-cs2-cyan-surface px-1.5 py-0.5 text-[11px] font-bold text-cs2-cyan-on-surface">HUD</span>
+            {clip.hlae_mirv_pov === true ? (
+              <span className="rounded bg-cs2-cyan-surface px-1.5 py-0.5 text-[11px] font-bold text-cs2-cyan-on-surface">
+                {t("montage.perspectiveHlaeMirvPov")}
+              </span>
             ) : null}
             {victimSegCount > 0 ? (
               <span className="rounded bg-cs2-violet-surface px-1.5 py-0.5 text-[11px] font-medium text-cs2-violet-on-surface" title={povTip || undefined}>

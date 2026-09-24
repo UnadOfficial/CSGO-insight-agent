@@ -16,13 +16,13 @@ payload and rebuilds its VPK entry CRCs before CS2 starts:
 ## Recording skybox layer
 
 `skyboxes/<id>/` stores the eleven bundled Cartoon skyboxes as their original
-compiled `.vmat_c` / `.vtex_c` pairs. Refresh the bundled catalog with
-`python tools/sync_skybox_assets.py <compiled-skybox-directory>`. At runtime
+compiled `.vmat_c` / `.vtex_c` pairs. The bundled catalog is checked in as-is;
+these are legacy Source 2 assets that the current CS:GO-only recording chain no
+longer mounts. At runtime
 the backend reads only the selected pair and writes it directly into the
 map-specific temporary recording VPK; there is no aggregate asset VPK. The
-matching settings-page panoramas live in `frontend/public/skyboxes`. Rebuild
-them with `python tools/rebuild_skybox_previews.py <compiled-skybox-directory>
---cli <Source2Viewer-CLI.exe>`; this developer-only export step uses
+matching settings-page panoramas live in `frontend/public/skyboxes`. The panoramas
+were exported offline with Source2Viewer-CLI; that developer-only export step uses
 [ValveResourceFormat](https://github.com/ValveResourceFormat/ValveResourceFormat)
 and Python's OpenEXR, NumPy, and Pillow packages. The
 recording preset presents `recording_skybox` alongside POV HUD in the
@@ -58,9 +58,10 @@ uses the validated waxed wall/floor/crate materials, disables sun and direct
 lighting, and keeps indirect lighting enabled. It can run by itself or merge
 with POV HUD and a selected skybox. `default` adds neither material entries nor
 lighting commands. Rebuild the catalog from the locally verified research
-artifacts with `python tools/build_waxed_map_material_catalog.py`; the builder
-checks source hashes, rejects post-process or sky modifications, and verifies
-the complete generated VPK before writing it.
+artifacts. The catalog is checked in as a verified product asset; its manifest
+pins the source hashes of every compiled material it references, rejects
+post-process or sky modifications, and the complete generated VPK was verified
+before it was written.
 
 The same dynamic package also embeds an 8Hz XUID-bound radar track (payload
 index 8). At runtime Panorama hides the stock team-colored radar, draws the
@@ -213,8 +214,8 @@ row stack therefore controls chronology, spacing, the 15.5-second
 cross-source layout negotiation, duplicated text, or native panel recycling
 affecting reconstructed messages.
 
-The human-readable injected script is `voice_hud_injection.js`.
-`tools/rebuild_pov_voice_template.py` rebuilds both checked-in templates after
+The human-readable injected script is `voice_hud_injection.js`. Both checked-in
+templates are generated artifacts, rebuilt after
 editing the JS or HUD CSS resources. Both templates contain an empty payload
 only; demo Steam IDs, voice bytes, and other match-specific data are never
 committed. At runtime the script resolves

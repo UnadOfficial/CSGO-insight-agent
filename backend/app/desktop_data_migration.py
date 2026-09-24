@@ -3,7 +3,11 @@
 The desktop shell calls this module before starting the FastAPI backend.  It
 converges every supported historical layout on one user-facing directory:
 
-    %APPDATA%/CS2 Insight Agent/data
+    %APPDATA%/CSGO Insight Agent/data
+
+The container name must stay colon-free: ``:`` is illegal in Windows path
+components, and this exact literal is also hard-coded by the Tauri shell
+(``frontend/src-tauri/src/lib.rs``), so the two must never drift apart.
 
 Legacy sources are copied, validated and retained.  They are never deleted by
 the migration, so a failed or interrupted upgrade remains recoverable.
@@ -40,19 +44,29 @@ except ImportError:  # Direct ``python -I desktop_data_migration.py`` installer 
     result_as_dict = migration_module.result_as_dict
 
 
-CANONICAL_CONTAINER_NAME = "CS2 Insight Agent"
+CANONICAL_CONTAINER_NAME = "CSGO Insight Agent"
 CANONICAL_DATA_DIR_NAME = "data"
 MIGRATION_MARKER_NAME = ".desktop-data-migration-v1.json"
 MIGRATION_ERROR_LOG_NAME = "desktop-data-migration-error.log"
 
 # Ordered deliberately: an existing Tauri installation is newer than the
-# Electron package-name layout and must win when both survived on disk.
+# Electron package-name layout and must win when both survived on disk.  The
+# previous colon-bearing product name is listed first because it was the
+# canonical container of the immediately preceding release.
 LEGACY_CONTAINERS: tuple[tuple[str, str], ...] = (
+    ("previous-product-name", "CS2 Insight Agent"),
     ("tauri-identifier", "com.cs2insightagent.app"),
     ("electron-package", "cs2-insight-agent"),
 )
 
 LEGACY_ROOT_FILES = (
+    "csgo-insight.config.json",
+    "csgo-insight.db",
+    "csgo-insight.db-wal",
+    "csgo-insight.db-shm",
+    # Pre-CS:GO-only release names.  Installer-time migration is the one place
+    # that still understands them: without this a user upgrading from 2.6.x
+    # would silently lose the demo library and every saved preference.
     "cs2-insight.config.json",
     "cs2-insight.db",
     "cs2-insight.db-wal",
@@ -60,11 +74,28 @@ LEGACY_ROOT_FILES = (
 )
 LEGACY_ROOT_DIRECTORIES = (
     "logs",
+    ".csgo_config_backup",
     ".cs2_config_backup",
     ".obs_config_backups",
 )
+
+CANONICAL_CONFIG_NAME = "csgo-insight.config.json"
+CANONICAL_DATABASE_NAME = "csgo-insight.db"
+LEGACY_CONFIG_NAME = "cs2-insight.config.json"
+LEGACY_DATABASE_NAME = "cs2-insight.db"
+
+# Pre-CS:GO-only spellings that must be republished under their canonical
+# names, so no runtime module ever has to read a legacy name again.
+_LEGACY_FILE_RENAMES: tuple[tuple[str, str], ...] = (
+    (LEGACY_CONFIG_NAME, CANONICAL_CONFIG_NAME),
+    ("cs2-insight.db-wal", "csgo-insight.db-wal"),
+    ("cs2-insight.db-shm", "csgo-insight.db-shm"),
+)
+_LEGACY_DIRECTORY_RENAMES: tuple[tuple[str, str], ...] = (
+    (".cs2_config_backup", ".csgo_config_backup"),
+)
 CANONICAL_PAYLOAD_DIRECTORIES = (
-    ".cs2_config_backup",
+    ".csgo_config_backup",
     ".obs_config_backups",
     "demo_compat_cache",
     "lite_cut_assets",
@@ -85,7 +116,7 @@ def ensure_backend_stopped(host: str = "127.0.0.1", port: int = 19871) -> None:
         probe.settimeout(0.4)
         if probe.connect_ex((host, port)) == 0:
             raise DesktopDataMigrationError(
-                f"CS2 Insight backend is still listening on {host}:{port}; close the old app before upgrading"
+                f"CS:GO Insight backend is still listening on {host}:{port}; close the old app before upgrading"
             )
 
 
@@ -123,7 +154,7 @@ def _directory_has_payload(path: Path) -> bool:
 def _canonical_data_has_payload(path: Path) -> bool:
     if not path.is_dir():
         return False
-    if any((path / name).is_file() for name in ("cs2-insight.config.json", "cs2-insight.db")):
+    if any((path / name).is_file() for name in (CANONICAL_CONFIG_NAME, CANONICAL_DATABASE_NAME)):
         return True
     return any(_directory_has_payload(path / name) for name in CANONICAL_PAYLOAD_DIRECTORIES)
 
@@ -153,6 +184,30 @@ def _ensure_copy_space(source: Path, destination_parent: Path) -> None:
 
 def _legacy_root_has_payload(container: Path) -> bool:
     return any((container / name).exists() for name in (*LEGACY_ROOT_FILES, *LEGACY_ROOT_DIRECTORIES))
+
+
+def _normalize_legacy_names(root: Path) -> None:
+    """Republish pre-CS:GO-only file names under their canonical spelling.
+
+    The backend reads ``csgo-insight.*`` exclusively, so a tree copied from an
+    older release must be renamed in the staging directory rather than made
+    readable at runtime.  Canonical files always win; a legacy file is only
+    renamed when its canonical counterpart is absent.
+    """
+    for legacy_name, canonical_name in _LEGACY_FILE_RENAMES:
+        legacy = root / legacy_name
+        canonical = root / canonical_name
+        if legacy.is_file() and not canonical.exists():
+            os.replace(legacy, canonical)
+    legacy_database = root / LEGACY_DATABASE_NAME
+    canonical_database = root / CANONICAL_DATABASE_NAME
+    if legacy_database.is_file() and not canonical_database.exists():
+        os.replace(legacy_database, canonical_database)
+    for legacy_name, canonical_name in _LEGACY_DIRECTORY_RENAMES:
+        legacy = root / legacy_name
+        canonical = root / canonical_name
+        if legacy.is_dir() and not canonical.exists():
+            os.replace(legacy, canonical)
 
 
 def _source_for(label: str, container: Path) -> Optional[MigrationSource]:
@@ -189,13 +244,27 @@ def _copy_legacy_root(source: Path, destination: Path) -> None:
         item = source / name
         if item.is_dir():
             shutil.copytree(item, destination / name, dirs_exist_ok=True)
+    _normalize_legacy_names(destination)
 
 
 def _copy_source(source: MigrationSource, destination: Path) -> None:
     if source.layout == "data-tree":
         shutil.copytree(source.payload, destination, dirs_exist_ok=True)
+        _normalize_legacy_names(destination)
     else:
         _copy_legacy_root(source.payload, destination)
+
+
+def _source_database_path(source: MigrationSource) -> Path:
+    """Return the source database, accepting the pre-CS:GO-only name."""
+    root = source.payload if source.layout == "data-tree" else source.container
+    canonical = root / CANONICAL_DATABASE_NAME
+    if canonical.is_file():
+        return canonical
+    legacy = root / LEGACY_DATABASE_NAME
+    if legacy.is_file():
+        return legacy
+    return canonical
 
 
 def _sqlite_uri(path: Path) -> str:
@@ -243,7 +312,7 @@ def _snapshot_sqlite(source_db: Path, destination_db: Path) -> None:
 
 
 def validate_data_root(data_root: Path) -> None:
-    config_path = data_root / "cs2-insight.config.json"
+    config_path = data_root / CANONICAL_CONFIG_NAME
     if config_path.exists():
         try:
             parsed = json.loads(config_path.read_text(encoding="utf-8-sig"))
@@ -252,7 +321,7 @@ def validate_data_root(data_root: Path) -> None:
         if not isinstance(parsed, dict):
             raise DesktopDataMigrationError(f"配置文件必须是 JSON 对象：{config_path}")
 
-    database_path = data_root / "cs2-insight.db"
+    database_path = data_root / CANONICAL_DATABASE_NAME
     if database_path.exists():
         _sqlite_quick_check(database_path)
 
@@ -369,13 +438,9 @@ def migrate_desktop_data(appdata: Path) -> MigrationResult:
     try:
         _ensure_copy_space(selected.payload, container)
         _copy_source(selected, staging)
-        source_database = (
-            selected.payload / "cs2-insight.db"
-            if selected.layout == "data-tree"
-            else selected.container / "cs2-insight.db"
-        )
+        source_database = _source_database_path(selected)
         if source_database.is_file():
-            _snapshot_sqlite(source_database, staging / "cs2-insight.db")
+            _snapshot_sqlite(source_database, staging / CANONICAL_DATABASE_NAME)
         validate_data_root(staging)
         staging.joinpath("logs").mkdir(parents=True, exist_ok=True)
 
@@ -427,7 +492,7 @@ def _append_error_log(appdata: Path, error: BaseException) -> None:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Migrate CS2 Insight desktop user data")
+    parser = argparse.ArgumentParser(description="Migrate CS:GO Insight desktop user data")
     parser.add_argument("--appdata", required=True, type=Path)
     parser.add_argument(
         "--require-electron-ui-export",

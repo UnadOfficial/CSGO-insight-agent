@@ -763,10 +763,10 @@ def test_safe_demo_end_tick_logs_warning_not_exception(monkeypatch, caplog):
     def boom(_path):
         raise OSError("cancelled")
 
-    monkeypatch.setattr(analyzer_module, "read_demo_end_tick", boom)
+    monkeypatch.setattr(analyzer_module, "read_csgo_demo_end_tick", boom)
     with caplog.at_level("WARNING"):
         assert analyzer_module._safe_read_demo_end_tick("gone.dem") == 0
-    assert "Could not read PBDEMS2 end tick" in caplog.text
+    assert "Could not read HL2DEMO end tick" in caplog.text
     assert "Traceback" not in caplog.text
 
 

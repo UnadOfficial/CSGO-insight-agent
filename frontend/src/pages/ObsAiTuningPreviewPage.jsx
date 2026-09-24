@@ -60,7 +60,7 @@ const RUN_STEPS = [
   { title: "创建配置快照", detail: "备份当前 Profile，并记录受保护字段指纹", icon: ShieldCheck },
   { title: "切换专属 Profile", detail: "确认所有 OBS 输出已停止后切换", icon: RadioTower },
   { title: "应用目标参数", detail: "WebSocket 写入并立即回读精确 FPS 与分辨率", icon: WandSparkles },
-  { title: "短录制测试", detail: "录制 10 秒 CS2 动态画面，采集前后 Stats", icon: Film },
+  { title: "短录制测试", detail: "录制 10 秒 CS:GO 动态画面，采集前后 Stats", icon: Film },
   { title: "媒体与日志验收", detail: "ffprobe + OBS 日志联合判断，不只相信 UI", icon: FileCheck2 },
 ];
 
@@ -121,7 +121,7 @@ function buildHardwareRecommendation(goal) {
   if (fps >= 480) risks.push(`单帧预算仅 ${(1000 / fps).toFixed(2)} ms，瞬时抖动更容易造成跳帧`);
   if (renderLoad >= 80) risks.push("OBS 渲染线程余量偏小，复杂 Browser Source 或滤镜会放大风险");
   if (encoderLoad >= 80) risks.push("硬件编码吞吐接近启发式上限，需要真实 NVENC 短测");
-  if (targetAboveGameP10) risks.push(`目标高于本机 CS2 基准 P10（${MACHINE_PROFILE.cs2FpsP10} FPS），有效独立帧可能不足`);
+  if (targetAboveGameP10) risks.push(`目标高于本机 CS:GO 基准 P10（${MACHINE_PROFILE.cs2FpsP10} FPS），有效独立帧可能不足`);
   if (!FPS_OPTIONS.includes(fps)) risks.push("这是自定义 FPS，需额外检查插件、容器和后处理链兼容性");
   if (goal.useCase === "archive" && fps > 240) risks.push("长时间归档采用超高帧率会显著增加容量和热负载");
   if (risks.length === 0) risks.push("未发现突出风险；仍需用短录制验证实际负载");
@@ -353,13 +353,13 @@ export function DiscoveryRail({ recommendation, environment = null, recommendati
               [Monitor, environment.obs?.version ? `OBS ${environment.obs.version}` : "OBS", "连接正常，可以开始自动设置"],
               [Zap, primaryGpu?.name || "没有识别到显卡", primaryGpu ? `${gpuMemory} · 支持 ${codecs.join(" / ") || "硬件"} 录制${otherGpu ? ` · 另有 ${otherGpu.name}` : ""}` : "请重新检测电脑配置"],
               [Cpu, environment.hardware?.cpu || "没有识别到处理器", `${environment.hardware?.memory_gb || "—"} GB 内存`],
-              [Gauge, environment.limits?.game_fps_p10 ? `CS2 实测约 ${environment.limits.game_fps_p10} FPS` : "游戏性能还没测试", "完成一次短录制后，卡不卡会判断得更准"],
+              [Gauge, environment.limits?.game_fps_p10 ? `CS:GO 实测约 ${environment.limits.game_fps_p10} FPS` : "游戏性能还没测试", "完成一次短录制后，卡不卡会判断得更准"],
               [HardDrive, `录像磁盘还剩 ${environment.disk?.free_gb ?? "—"} GB`, "空间不足时会提前提醒你"],
             ] : [
               [Monitor, "OBS 32.1.0", "连接正常，可以开始自动设置"],
               [Zap, MACHINE_PROFILE.gpu, "12 GB 显存 · 支持 H.264 / HEVC / AV1 录制"],
               [Cpu, MACHINE_PROFILE.cpu, MACHINE_PROFILE.memory],
-              [Gauge, `CS2 实测约 ${MACHINE_PROFILE.cs2FpsP10} FPS`, "电脑可以继续做高帧率录制测试"],
+              [Gauge, `CS:GO 实测约 ${MACHINE_PROFILE.cs2FpsP10} FPS`, "电脑可以继续做高帧率录制测试"],
               [HardDrive, "录像磁盘还剩 1.8 TB", "空间不足时会提前提醒你"],
             ];
             return rows.map(([Icon, title, detail]) => (
@@ -548,7 +548,7 @@ function PlanScreen({ goal, recommendation, onBack, onNext }) {
   const resolution = RESOLUTIONS.find((item) => item.value === goal.resolution)?.detail ?? "2560 × 1440";
   const codecLabel = CODECS.find((item) => item.value === goal.codec)?.label ?? "Agent 自动选择";
   const changes = [
-    ["OBS Profile", "Streaming", "CS2 Insight Recording", "隔离创建"],
+    ["OBS Profile", "Streaming", "CS:GO Insight Recording", "隔离创建"],
     ["整数 FPS", "60 / 1", `${goal.fps} / 1`, "WebSocket"],
     ["画布分辨率", "2560 × 1440", resolution, goal.resolution === "current" ? "保持" : "WebSocket"],
     ["输出分辨率", "2560 × 1440", resolution, goal.resolution === "current" ? "保持" : "WebSocket"],
@@ -672,7 +672,7 @@ function RunScreen({ goal, recommendation, demoDone, setDemoDone, onBack, onNext
             const completed = demoDone || index < 2;
             const active = !demoDone && index === 2;
             const stepDetail = index === 3
-              ? `录制 ${goal.testSeconds} 秒 CS2 动态画面，采集前后 Stats`
+              ? `录制 ${goal.testSeconds} 秒 CS:GO 动态画面，采集前后 Stats`
               : step.detail;
             return (
               <div key={step.title} className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 ${active ? "border-cs2-accent/45 bg-cs2-accent/[0.06]" : "border-cs2-border/75 bg-cs2-bg-input/25"}`}>
@@ -760,8 +760,8 @@ function ReportScreen({ goal, recommendation, onBack, onReset }) {
   const renderedSkipped = Math.max(2, Math.round(expectedFrames * 0.0004));
   const reportTitle = goal.testSeconds >= 60 ? "配置生效，稳定性确认测试通过" : "配置生效，快速稳定性测试通过";
   const reportExplanation = goal.testSeconds >= 60
-    ? `测试证明当前场景能在 ${goal.testSeconds} 秒窗口内维持目标。正式生产时仍应保持相近的 CS2 与场景负载，并确认游戏实际渲染帧率不低于 ${goal.fps}。`
-    : `快速测试证明当前场景能在 ${goal.testSeconds} 秒窗口内维持目标。若要把“稳定”用于长时间生产录制，建议继续完成 60 秒确认测试，并确保 CS2 实际渲染帧率不低于 ${goal.fps}。`;
+    ? `测试证明当前场景能在 ${goal.testSeconds} 秒窗口内维持目标。正式生产时仍应保持相近的 CS:GO 与场景负载，并确认游戏实际渲染帧率不低于 ${goal.fps}。`
+    : `快速测试证明当前场景能在 ${goal.testSeconds} 秒窗口内维持目标。若要把“稳定”用于长时间生产录制，建议继续完成 60 秒确认测试，并确保 CS:GO 实际渲染帧率不低于 ${goal.fps}。`;
   return (
     <div className="space-y-4">
       <section className="overflow-hidden rounded-2xl border border-emerald-400/25 bg-cs2-bg-card">
@@ -819,8 +819,8 @@ function ReportScreen({ goal, recommendation, onBack, onReset }) {
             <h3 className="text-[11px] font-bold text-cs2-text-primary">交付信息</h3>
             <dl className="mt-3 space-y-3 text-[10px]">
               <div><dt className="text-cs2-text-muted">备份位置</dt><dd className="mt-1 break-all font-mono text-cs2-text-secondary">data/.obs_config_backups/20260722_094218_ai_tune</dd></div>
-              <div><dt className="text-cs2-text-muted">测试文件</dt><dd className="mt-1 break-all font-mono text-cs2-text-secondary">D:\OBS\CS2IA-test-{goal.fps}fps.mp4</dd></div>
-              <div><dt className="text-cs2-text-muted">当前 Profile</dt><dd className="mt-1 font-mono text-cs2-text-secondary">CS2 Insight Recording</dd></div>
+              <div><dt className="text-cs2-text-muted">测试文件</dt><dd className="mt-1 break-all font-mono text-cs2-text-secondary">D:\OBS\CSGOIA-test-{goal.fps}fps.mp4</dd></div>
+              <div><dt className="text-cs2-text-muted">当前 Profile</dt><dd className="mt-1 font-mono text-cs2-text-secondary">CS:GO Insight Recording</dd></div>
             </dl>
           </div>
           <button type="button" className="flex w-full items-center justify-center gap-2 rounded-xl border border-cs2-border bg-cs2-bg-input px-3 py-2.5 text-[11px] font-semibold text-cs2-text-secondary hover:border-cs2-accent/35">

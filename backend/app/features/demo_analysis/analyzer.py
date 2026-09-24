@@ -11,7 +11,7 @@ from typing import Any, Optional
 from ... import native_table as pd
 from demoparser2 import DemoParser
 
-from ...demo_playback_compat import read_demo_end_tick
+from ...csgo_demo_format import read_csgo_demo_end_tick
 from .models import MatchMeta, Clip, ParseResult, meme_series_badges_for_kd
 from .weapons import (
     SNIPER_WEAPONS, _normalize_item, _translate_weapon, _highlight_weapon_used_label,
@@ -71,16 +71,16 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_read_demo_end_tick(dem_path: str | Path) -> int:
-    """Read the PBDEMS2 EOF tick without treating a cancelled parse as corruption.
+    """Read the HL2DEMO EOF tick without treating a cancelled parse as corruption.
 
     This is a sequential header/frame scan and must run before ``DemoParser``
     maps the demo.  Interrupting the process while the file is open raises
     ``OSError``; log that as a warning rather than a full traceback.
     """
     try:
-        return int(read_demo_end_tick(dem_path) or 0)
+        return int(read_csgo_demo_end_tick(dem_path) or 0)
     except (OSError, ValueError) as exc:
-        logger.warning("Could not read PBDEMS2 end tick (%s): %s", dem_path, exc)
+        logger.warning("Could not read HL2DEMO end tick (%s): %s", dem_path, exc)
         return 0
 
 
@@ -439,7 +439,7 @@ class DemoAnalyzer:
         self.dem_path = Path(dem_path)
         require_csgo_demo(self.dem_path)
         # Scan the outer-frame EOF before mmap'ing the demo so a later cancel
-        # cannot be misreported as a PBDEMS2 framing error, and so the scan
+        # cannot be misreported as a Source 1 framing error, and so the scan
         # does not run on top of the native parser working set.
         self.demo_end_tick = _safe_read_demo_end_tick(self.dem_path)
         self.parser = DemoParser(str(self.dem_path))
@@ -1910,13 +1910,13 @@ class DemoAnalyzer:
 
         # clip_max_tick 计算
         _re_offset_last_ticks = int(float(
-            os.environ.get("CS2_INSIGHT_LAST_ROUND_END_OFFSET_SEC", "-3.0") or "-3.0"
+            os.environ.get("CSGO_INSIGHT_LAST_ROUND_END_OFFSET_SEC", "-3.0") or "-3.0"
         ) * TICK_RATE)
         _re_buf_mid_ticks = int(float(
-            os.environ.get("CS2_INSIGHT_MID_ROUND_END_BUFFER_SEC", "3.0") or "3.0"
+            os.environ.get("CSGO_INSIGHT_MID_ROUND_END_BUFFER_SEC", "3.0") or "3.0"
         ) * TICK_RATE)
         _last_kill_buf_ticks = int(float(
-            os.environ.get("CS2_INSIGHT_LAST_ROUND_KILL_BUFFER_SEC", "0.70") or "0.70"
+            os.environ.get("CSGO_INSIGHT_LAST_ROUND_KILL_BUFFER_SEC", "0.70") or "0.70"
         ) * TICK_RATE)
         # round_end 事件 tick 映射（已从缓存 DataFrame 派生）
         _round_end_evt_tick_map: dict[int, int] = dict(round_end_tick_map)

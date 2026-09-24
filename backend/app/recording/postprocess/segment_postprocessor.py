@@ -35,7 +35,7 @@ def postprocess_segments(
             "end_tick": end_tick,
         })
 
-        # Step 2: Stop before actual demo EOF so CS2 cannot return to the menu.
+        # Step 2: Stop before actual demo EOF so CS:GO cannot return to the menu.
         segment, guard_warnings = apply_demo_end_guard(segment, req)
         warnings.extend(guard_warnings)
 

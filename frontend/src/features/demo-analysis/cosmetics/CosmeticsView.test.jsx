@@ -366,7 +366,7 @@ describe("CosmeticsView", () => {
     expect(launchCs2InspectOnHostMock.mock.calls[0][0]).toMatch(/^[0-9A-F]+$/);
     expect(desktopBridgeMock.openExternal).not.toHaveBeenCalled();
     expect(desktopBridgeMock.writeClipboardText).not.toHaveBeenCalled();
-    expect(await within(dialog).findByText(/已通过 Steam 拉起 CS2 检视|launched through Steam/i)).toBeTruthy();
+    expect(await within(dialog).findByText(/已通过 Steam 拉起 CS:GO 检视|launched through Steam/i)).toBeTruthy();
   });
 
   test("reports a game-inspect failure when both Steam launch and clipboard fallback fail", async () => {
@@ -388,7 +388,7 @@ describe("CosmeticsView", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /游戏内检视|Inspect in Game/i }));
 
     const alert = await within(dialog).findByRole("alert");
-    expect(alert.textContent).toMatch(/无法启动 CS2 检视|Could not launch CS2 inspection/i);
+    expect(alert.textContent).toMatch(/无法启动 CS:GO 检视|Could not launch CS:GO inspection/i);
   });
 
   test("uses a flat background for the item detail preview", () => {
@@ -1340,13 +1340,13 @@ describe("CosmeticsView", () => {
                   ...hedgeMaze,
                   item_id: 9001,
                   observed_teams: ["ct"],
-                  custom_name: "CS2 INSIGHT AGENT",
+                  custom_name: "CS:GO INSIGHT AGENT",
                 }),
                 cosmetic({
                   ...hedgeMaze,
                   item_id: 9002,
                   observed_teams: ["t"],
-                  custom_name: "CS2 INSIGHT AGENT",
+                  custom_name: "CS:GO INSIGHT AGENT",
                 }),
               ],
             },
@@ -1362,7 +1362,7 @@ describe("CosmeticsView", () => {
       expect(within(ctRow).getByText(/→\s*运动手套 \| 树篱迷宫/)).toBeTruthy();
       expect(within(tRow).getByText("默认T手套")).toBeTruthy();
       expect(within(tRow).getByText(/→\s*运动手套 \| 树篱迷宫/)).toBeTruthy();
-      expect(screen.queryByText(/CS2 INSIGHT AGENT/)).toBeNull();
+      expect(screen.queryByText(/CS:GO INSIGHT AGENT/)).toBeNull();
     });
   });
 
@@ -1458,13 +1458,13 @@ describe("CosmeticsView", () => {
                   ...hypnotic,
                   item_id: 9101,
                   observed_teams: ["ct"],
-                  custom_name: "CS2 INSIGHT AGENT",
+                  custom_name: "CS:GO INSIGHT AGENT",
                 }),
                 cosmetic({
                   ...arid,
                   item_id: 9102,
                   observed_teams: ["ct"],
-                  custom_name: "CS2 INSIGHT AGENT",
+                  custom_name: "CS:GO INSIGHT AGENT",
                 }),
               ],
             },
@@ -1479,7 +1479,7 @@ describe("CosmeticsView", () => {
       expect(within(ctRow).getByText(/Hypnotic/)).toBeTruthy();
       expect(within(ctRow).getByText(/Broken Fang Gloves/)).toBeTruthy();
       expect(within(ctRow).getByText(/Sport Gloves \| Arid/)).toBeTruthy();
-      expect(screen.queryByText(/CS2 INSIGHT AGENT/)).toBeNull();
+      expect(screen.queryByText(/CS:GO INSIGHT AGENT/)).toBeNull();
     });
   });
 

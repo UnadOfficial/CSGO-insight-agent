@@ -1,4 +1,4 @@
-"""CS2 玩家配置磁盘备份、manifest 与 recording_state 持久化（录制异常恢复）。"""
+"""CS:GO 玩家配置磁盘备份、manifest 与 recording_state 持久化（录制异常恢复）。"""
 
 from __future__ import annotations
 
@@ -13,18 +13,18 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from .env_utils import _candidate_steam_roots, get_data_dir
-from .win_cs2_console import find_cs2_hwnd
+from .win_csgo_console import find_csgo_hwnd
 
 logger = logging.getLogger(__name__)
 
-_BACKUP_DIR_NAME = ".cs2_config_backup"
+_BACKUP_DIR_NAME = ".csgo_config_backup"
 RECORDING_STATE_FILENAME = "recording_state.json"
 MANIFEST_FILENAME = "manifest.json"
 README_FILENAME = "恢复说明.txt"
 RECORDING_STATE_VERSION = 1
 MANIFEST_VERSION = 4
 
-# CS2 writes archived cvars and binds to both the current ``local/cfg`` files
+# CSGO writes archived cvars and binds to both the current ``local/cfg`` files
 # and Steam's legacy/cloud-facing ``remote`` files.  Both copies must be
 # restored; otherwise Steam Cloud can copy a polluted remote file back over a
 # successfully restored local snapshot on the next launch.
@@ -40,16 +40,16 @@ USER_CONFIG_GLOB_PATTERNS: tuple[str, ...] = (
     "video.txt",
 )
 
-RECOVERY_README_TEXT = """这是 CS2 Insight Agent 在录制前自动保存的玩家原始配置。
+RECOVERY_README_TEXT = """这是 CS:GO Insight Agent 在录制前自动保存的玩家原始配置。
 
-如果软件异常退出，导致 CS2 键位、画面设置或控制台参数没有恢复，请使用软件内的“一键恢复玩家配置”功能。
+如果软件异常退出，导致 CS:GO 键位、画面设置或控制台参数没有恢复，请使用软件内的“一键恢复玩家配置”功能。
 
 恢复前请注意：
 
-1. 请先关闭 CS2。
-2. 然后打开 CS2 Insight Agent。
+1. 请先关闭 CS:GO。
+2. 然后打开 CS:GO Insight Agent。
 3. 在软件提示中点击“一键恢复玩家配置”。
-4. 恢复完成后重新进入 CS2。
+4. 恢复完成后重新进入 CS:GO。
 
 请不要手动修改本目录下的 manifest.json。
 请不要删除本目录，否则可能无法恢复录制前的玩家配置。
@@ -61,7 +61,7 @@ CONFIG_RESTORE_REQUIRED = {
 
 
 def get_backup_root() -> Path:
-    """``<repo>/data/.cs2_config_backup``（旧版本曾为仓库根下的同名目录，启动时自动迁入 data）。"""
+    """``<repo>/data/.csgo_config_backup``（旧版本曾为仓库根下的同名目录，启动时自动迁入 data）。"""
     return get_data_dir() / _BACKUP_DIR_NAME
 
 
@@ -165,11 +165,11 @@ def write_manifest(manifest: dict[str, Any]) -> None:
     os.replace(tmp, p)
 
 
-def is_cs2_running() -> bool:
+def is_csgo_running() -> bool:
     """Return True when CS:GO has either a visible window or a live csgo.exe process."""
     if sys.platform != "win32":
-        return bool(find_cs2_hwnd())
-    if find_cs2_hwnd():
+        return bool(find_csgo_hwnd())
+    if find_csgo_hwnd():
         return True
     try:
         cp = subprocess.run(
@@ -207,8 +207,8 @@ def is_cs2_running() -> bool:
         return False
 
 
-def candidate_user_config_dirs(cs2_path: str | Path) -> list[Path]:
-    """Return every CS2 config directory that can persist binds or cvars."""
+def candidate_user_config_dirs(csgo_path: str | Path) -> list[Path]:
+    """Return every CSGO config directory that can persist binds or cvars."""
     dirs: list[Path] = []
     seen: set[str] = set()
 
@@ -225,27 +225,27 @@ def candidate_user_config_dirs(cs2_path: str | Path) -> list[Path]:
         dirs.append(directory)
 
     try:
-        cs2 = Path(cs2_path)
+        csgo = Path(csgo_path)
     except (TypeError, ValueError):
         return dirs
 
     # csgo.exe lives at the install root; cfg is install/csgo/cfg.
     try:
-        if cs2.name.lower() == "csgo.exe":
-            add(cs2.parent / "csgo" / "cfg")
+        if csgo.name.lower() == "csgo.exe":
+            add(csgo.parent / "csgo" / "cfg")
         else:
-            add(cs2.parents[2] / "csgo" / "cfg")
+            add(csgo.parents[2] / "csgo" / "cfg")
     except IndexError:
         pass
     try:
-        add(cs2.parents[3] / "csgo" / "cfg")
+        add(csgo.parents[3] / "csgo" / "cfg")
     except IndexError:
         pass
 
     steam_roots: list[Path] = []
     for index in range(1, 8):
         try:
-            steam_roots.append(cs2.parents[index])
+            steam_roots.append(csgo.parents[index])
         except IndexError:
             break
     steam_roots.extend(_candidate_steam_roots())
@@ -275,7 +275,7 @@ def candidate_user_config_dirs(cs2_path: str | Path) -> list[Path]:
 
 
 def snapshot_user_configs(
-    cs2_path: str | Path,
+    csgo_path: str | Path,
     *,
     config_dirs: Optional[Iterable[Path]] = None,
     extra_paths: Iterable[Path] = (),
@@ -297,7 +297,7 @@ def snapshot_user_configs(
     dirs = (
         [Path(directory) for directory in config_dirs]
         if config_dirs is not None
-        else candidate_user_config_dirs(cs2_path)
+        else candidate_user_config_dirs(csgo_path)
     )
     for directory in dirs:
         for name in USER_CONFIG_FILENAMES:
@@ -322,9 +322,9 @@ def snapshot_user_configs(
 
 def _atomic_write_bytes(target: Path, data: bytes) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".cs2insight.tmp")
+    tmp = target.with_suffix(target.suffix + ".csgoinsight.tmp")
     tmp.write_bytes(data)
-    # Windows 上目标文件可能被 AV / Steam Cloud / CS2 exit autosave 短暂锁定，
+    # Windows 上目标文件可能被 AV / Steam Cloud / CSGO exit autosave 短暂锁定，
     # 重试最多 4 次（等待 0.3 / 0.6 / 1.2 / 2.4 s），覆盖绝大多数瞬时锁场景。
     last_err: Optional[OSError] = None
     for attempt in range(5):
@@ -338,7 +338,7 @@ def _atomic_write_bytes(target: Path, data: bytes) -> None:
     raise last_err  # type: ignore[misc]
 
 
-def restore_latest_user_config_backup(*, skip_cs2_running_check: bool = False) -> dict[str, Any]:
+def restore_latest_user_config_backup(*, skip_csgo_running_check: bool = False) -> dict[str, Any]:
     """按 manifest 将备份写回原始路径；全部成功后将 ``recording_state`` 置为 ``recorded``。"""
     backup_root = get_backup_root()
     manifest = read_manifest()
@@ -366,12 +366,12 @@ def restore_latest_user_config_backup(*, skip_cs2_running_check: bool = False) -
             "source": "none",
         }
 
-    if not skip_cs2_running_check and is_cs2_running():
+    if not skip_csgo_running_check and is_csgo_running():
         return {
             "ok": False,
             "verified": False,
             "checked": 0,
-            "code": "CS2_RUNNING",
+            "code": "CSGO_RUNNING",
             "restored": 0,
             "failed": [],
             "source": "manifest",
@@ -487,15 +487,15 @@ def restore_latest_user_config_backup(*, skip_cs2_running_check: bool = False) -
 def restore_user_config_snapshot(
     snap: dict[Path, Optional[bytes]],
     *,
-    skip_cs2_running_check: bool = False,
+    skip_csgo_running_check: bool = False,
 ) -> dict[str, Any]:
     """Restore a session snapshot, preferring its crash-safe disk manifest."""
-    if not skip_cs2_running_check and is_cs2_running():
+    if not skip_csgo_running_check and is_csgo_running():
         return {
             "ok": False,
             "verified": False,
             "checked": 0,
-            "code": "CS2_RUNNING",
+            "code": "CSGO_RUNNING",
             "restored": 0,
             "failed": [],
             "source": "none",
@@ -503,7 +503,7 @@ def restore_user_config_snapshot(
 
     if is_restore_required():
         try:
-            result = restore_latest_user_config_backup(skip_cs2_running_check=True)
+            result = restore_latest_user_config_backup(skip_csgo_running_check=True)
             if result.get("ok"):
                 return {**result, "source": "manifest"}
             logger.warning("Manifest restore failed post-exit: %s", result)
@@ -528,13 +528,13 @@ def restore_user_config_snapshot(
             if original is None:
                 if current_exists:
                     path.unlink()
-                    logger.info("Removed CS2-created user config: %s", path)
+                    logger.info("Removed CSGO-created user config: %s", path)
                     restored += 1
                 continue
             current = path.read_bytes() if current_exists else None
             if current != original:
                 _atomic_write_bytes(path, original)
-                logger.info("Restored user config: %s (modified during managed CS2 session)", path)
+                logger.info("Restored user config: %s (modified during managed CSGO session)", path)
                 restored += 1
         except OSError as exc:
             logger.warning("Restore user config %s failed: %s", path, exc)
@@ -677,7 +677,7 @@ def build_config_backup_status_payload() -> dict[str, Any]:
         "backup_dir": backup_dir,
         "created_at_iso": state.get("started_at_iso") or manifest.get("created_at_iso") or "",
         "accounts": sorted(accounts),
-        "cs2_running": is_cs2_running(),
+        "csgo_running": is_csgo_running(),
     }
 
 

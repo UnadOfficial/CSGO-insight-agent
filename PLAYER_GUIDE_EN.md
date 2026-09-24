@@ -1,8 +1,8 @@
-# 🎮 CS2 Insight Agent — Player Guide
+# 🎮 CS:GO Insight Agent — Player Guide
 
-> **CS2 Insight Agent** is your personal CS2 highlight director and video-production tool.
+> **CS:GO Insight Agent** is your personal CS:GO highlight director and video-production tool.
 >
-> It parses CS2 demo files, finds highlights and funny fails, optionally adds AI scores and commentary, controls CS2 Replay and OBS to record clips automatically, and lets you arrange clips with BGM, intros, outros, and player cards into a finished compilation.
+> It parses CS:GO demo files, finds highlights and funny fails, optionally adds AI scores and commentary, controls CS:GO Replay and OBS to record clips automatically, and lets you arrange clips with BGM, intros, outros, and player cards into a finished compilation.
 
 <p align="center">
   <a href="./PLAYER_GUIDE.md">简体中文</a> | English
@@ -25,7 +25,7 @@
 
 Prefer a walkthrough? Watch the community video tutorial first:
 
-- [▶ BV1PcVj69ExZ — CS2 Insight Agent tutorial](https://www.bilibili.com/video/BV1PcVj69ExZ/)
+- [▶ BV1PcVj69ExZ — CS:GO Insight Agent tutorial](https://www.bilibili.com/video/BV1PcVj69ExZ/)
 
 > [!TIP]
 > For a first setup, watch the video once, then use this guide to configure OBS and FFmpeg step by step.
@@ -40,7 +40,7 @@ Prefer a walkthrough? Watch the community video tutorial first:
 - [▶ BV1TPGq67EFS](https://www.bilibili.com/video/BV1TPGq67EFS/)
 
 > [!NOTE]
-> In these examples, the creator added the intro/outro BGM and team logo; the in-game clips were automatically edited by CS2 Insight Agent.
+> In these examples, the creator added the intro/outro BGM and team logo; the in-game clips were automatically edited by CS:GO Insight Agent.
 
 ### End-to-end edited compilations
 
@@ -48,7 +48,7 @@ Prefer a walkthrough? Watch the community video tutorial first:
 - [▶ BV1G198BkEHd](https://www.bilibili.com/video/BV1G198BkEHd/)
 
 > [!NOTE]
-> In these examples, both the intro/outro BGM and the game clips were produced with CS2 Insight Agent.
+> In these examples, both the intro/outro BGM and the game clips were produced with CS:GO Insight Agent.
 
 ---
 
@@ -72,7 +72,7 @@ Prefer a walkthrough? Watch the community video tutorial first:
 | Item | Required? | Purpose |
 | --- | --- | --- |
 | Windows 10 or 11 PC | ✅ Yes | The app currently supports Windows only. |
-| CS2 installed through Steam | ✅ Yes | Needed for local demo playback and recording. |
+| CS:GO installed through Steam | ✅ Yes | Needed for local demo playback and recording. |
 | OBS Studio | 🎬 For recording | Records clips under the app's control. |
 | FFmpeg | 🎬 For compilation export | Renders an MP4 from the Compilation Workbench. |
 | LLM API key | 💡 Optional | Enables AI scores and commentary. |
@@ -83,7 +83,7 @@ Prefer a walkthrough? Watch the community video tutorial first:
 
 ### Step 1: Download the installer
 
-Open the project's [Releases page](https://github.com/DrEAmSs59/CS2-insight-agent/releases) and download the latest **`CS2-Insight-Agent-Setup-x.x.x.exe`** installer.
+Open the project's [Releases page](https://github.com/DrEAmSs59/CS2-insight-agent/releases) and download the latest **`CSGO Insight Agent_x.x.x_x64-setup.exe`** installer.
 
 ### Step 2: Run the installer
 
@@ -101,7 +101,7 @@ Double-click the downloaded `.exe` and follow the installer prompts.
 
 ### Step 3: Launch it
 
-After installation, **CS2 Insight Agent** shortcuts are available from the desktop and Start menu.
+After installation, **CS:GO Insight Agent** shortcuts are available from the desktop and Start menu.
 
 ---
 
@@ -125,7 +125,7 @@ Download [OBS Studio](https://obsproject.com/download), choose **Windows**, and 
 
 ### Step 2: Enable OBS WebSocket
 
-CS2 Insight uses OBS WebSocket to control recording.
+CS:GO Insight uses OBS WebSocket to control recording.
 
 1. Open **OBS Studio**.
 2. Choose **Tools** → **WebSocket Server Settings**.
@@ -133,9 +133,9 @@ CS2 Insight uses OBS WebSocket to control recording.
 4. Keep the default port, `4455`, unless you need a different one. Set or generate a password and save it.
 
 > [!TIP]
-> You can disable authentication and leave the password blank in CS2 Insight, but keeping authentication enabled is safer.
+> You can disable authentication and leave the password blank in CS:GO Insight, but keeping authentication enabled is safer.
 
-### Step 3: Connect OBS in CS2 Insight
+### Step 3: Connect OBS in CS:GO Insight
 
 Go to **Settings** → **Video Settings**.
 
@@ -150,7 +150,7 @@ Go to **Settings** → **Video Settings**.
    - Port: `4455`
    - Password: the WebSocket password you set in OBS
 3. Select **Configuration Check**. The app can launch OBS when needed and verifies both the executable path and WebSocket connection.
-4. After it connects, use **One-click Calibration** to inspect the recording setup. If necessary, use **One-click Repair**. It only manages the dedicated `CS2 Insight Recording` scene and can create its Game Capture source and correct common canvas/output resolution, stretch, recording-format, and recording-quality problems.
+4. After it connects, use **One-click Calibration** to inspect the recording setup. If necessary, use **One-click Repair**. It only manages the dedicated `CS:GO Insight Recording` scene and can create its Game Capture source and correct common canvas/output resolution, stretch, recording-format, and recording-quality problems.
 
 > [!TIP]
 > If calibration says the recording encoder changed, restart OBS before recording.
@@ -195,9 +195,9 @@ Switch back to **Fast Local** mode to parse with local rules only, without sendi
 
 ### What is a demo file?
 
-A demo is a CS2 match replay in `.dem` format. You can obtain one from:
+A demo is a CS:GO Source 1 match replay (HL2DEMO / .dem). CS2 PBDEMS2 files are not supported. You can obtain one from:
 
-- **Steam match history:** CS2 main menu → Your Matches → choose a match → **Download**.
+- **Steam match history:** CS:GO main menu → Your Matches → choose a match → **Download**.
 - **5E client:** Match History → choose a match → Download Demo.
 - **Perfect World Arena:** Match History → download the replay.
 - **HLTV or other match sites:** useful for professional matches.
@@ -234,15 +234,17 @@ With AI mode enabled, cards also include an AI score and commentary.
 
 ## 7. One-Click Automatic Recording
 
-This workflow automatically drives CS2 demo playback and OBS recording.
+This workflow automatically drives CS:GO demo playback and OBS recording.
+
+> **Note:** The recording pipeline is Source 1 / HL2DEMO only. Source 2 skybox, material, weather, and POV HUD overrides are not supported; HLAE mirv_pov is optional for local demos with -insecure.
 
 ### Prerequisites
 
 - OBS is configured and connected successfully; see [Configure OBS](#4-configure-obs-required-for-recording).
-- CS2 is installed and **CS2 Path** in Settings points to `cs2.exe`. The app normally detects the Steam installation automatically. A typical path is:
+- CS:GO is installed and **CS:GO Path** in Settings points to `csgo.exe`. The app normally detects the Steam installation automatically. A typical path is:
 
   ```text
-  D:\steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe
+  D:\steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\csgo.exe
   ```
 
 - Keep OBS open.
@@ -252,10 +254,10 @@ This workflow automatically drives CS2 demo playback and OBS recording.
 1. Parse a demo and open its clip list.
 2. Select the clips to record, then add them to the recording queue.
 3. In the queue, select **Start Recording**.
-4. The app will launch CS2, load the demo, seek to every clip, start and stop OBS, move to the next clip, and close CS2 after the queue is complete.
+4. The app will launch CS:GO, load the demo, seek to every clip, start and stop OBS, move to the next clip, and close CS:GO after the queue is complete.
 
 > [!WARNING]
-> **Do not use the computer while recording.** The app sends keyboard commands to the CS2 window. Switching windows, typing, or manually entering console commands can interrupt recording and may overwrite game settings. Let the recording run unattended.
+> **Do not use the computer while recording.** The app sends keyboard commands to the CS:GO window. Switching windows, typing, or manually entering console commands can interrupt recording and may overwrite game settings. Let the recording run unattended.
 
 ### Spectator warm-up (optional)
 
@@ -331,7 +333,7 @@ Add yourself and friends under **Settings** → **Followed Players** (up to 50 n
 **The app does not open, or I do not see a shortcut after installing.**
 
 - Confirm the installer reached completion rather than being closed early.
-- Look for CS2 Insight Agent in the Windows Start menu.
+- Look for CS:GO Insight Agent in the Windows Start menu.
 - Run the installer again if necessary.
 
 **Windows SmartScreen appears when I start the app.**
@@ -348,22 +350,22 @@ Use the in-app update prompt when it appears at startup, or install the newest p
 - Ensure OBS can open and that **Tools** → **WebSocket Server Settings** has WebSocket enabled.
 - Verify the port (normally `4455`) and password match in both apps.
 - Use OBS 28.0 or newer; older versions need obs-websocket installed separately.
-- As a diagnostic step, you may disable OBS authentication and leave the password blank in CS2 Insight.
+- As a diagnostic step, you may disable OBS authentication and leave the password blank in CS:GO Insight.
 
-**CS2 was not detected.**
+**CS:GO was not detected.**
 
-Set the full executable path manually under **CS2 Path**, for example:
+Set the full executable path manually under **CS:GO Path**, for example:
 
 ```text
-C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe
+C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\csgo.exe
 ```
 
 > [!CAUTION]
-> Once recording begins, do not interact with the keyboard, mouse, CS2 console, or recording windows. Manual interference can disrupt playback and may overwrite the local game configuration.
+> Once recording begins, do not interact with the keyboard, mouse, CS:GO console, or recording windows. Manual interference can disrupt playback and may overwrite the local game configuration.
 
 **The app asks me to restore player configuration before recording.**
 
-In the prompt, select **Go to Player Configuration**. This opens **Settings** → **General Settings** → **Player Game Configuration**. Close CS2 first, then choose **One-click Restore Player Configuration**. The same screen can open the backup folder for manual recovery.
+In the prompt, select **Go to Player Configuration**. This opens **Settings** → **General Settings** → **Player Game Configuration**. Close CS:GO first, then choose **One-click Restore Player Configuration**. The same screen can open the backup folder for manual recovery.
 
 **What is the experimental POV HUD / mirv_pov feature?**
 
@@ -375,12 +377,12 @@ Enable **HLAE mirv_pov** under **Settings** → **Recording Presets** → **Expe
 - One demo session is locked to one player; victim/killer counterpart clips are skipped
 - The entity index comes from demo parsing, not the `spec_player` slot
 
-**OBS records a black screen, or CS2 is not visible.**
+**OBS records a black screen, or CS:GO is not visible.**
 
 - Run OBS calibration again in **Settings** → **Video Settings**, then **restart OBS**.
-- Run OBS and CS2 Insight at the same privilege level; if needed, run OBS as administrator too.
-- Check the Game Capture source in the `CS2 Insight Recording` scene.
-- With multiple displays, ensure the capture targets the display used by CS2.
+- Run OBS and CS:GO Insight at the same privilege level; if needed, run OBS as administrator too.
+- Check the Game Capture source in the `CS:GO Insight Recording` scene.
+- With multiple displays, ensure the capture targets the display used by CS:GO.
 
 **There is no sound in the recording.**
 
@@ -389,15 +391,15 @@ Enable **HLAE mirv_pov** under **Settings** → **Recording Presets** → **Expe
 
 **The exported file cannot be opened, moved, or sent.**
 
-- Avoid running CS2 Insight as administrator unless necessary; differing permissions can affect output files.
-- Close CS2 Insight and OBS before moving the file.
+- Avoid running CS:GO Insight as administrator unless necessary; differing permissions can affect output files.
+- Close CS:GO Insight and OBS before moving the file.
 - Try moving the file to another folder, then open it again.
 
 **The video has black bars or the game image is cropped.**
 
-- This can happen with a 4:3 CS2 display mode.
+- This can happen with a 4:3 CS:GO display mode.
 - In OBS Game Capture, right-click the source → **Transform** → **Stretch to Screen**.
-- For cropped footage, ensure CS2 uses true fullscreen—not fullscreen windowed—and that the selected recording resolution exists for the display. If only fullscreen windowed supports it, remove `-fullscreen` from **Recording Presets** → **Additional Launch Options** and use fullscreen windowed. Alternatively, add a suitable custom display resolution through your GPU control panel.
+- For cropped footage, ensure CS:GO uses true fullscreen—not fullscreen windowed—and that the selected recording resolution exists for the display. If only fullscreen windowed supports it, remove `-fullscreen` from **Recording Presets** → **Additional Launch Options** and use fullscreen windowed. Alternatively, add a suitable custom display resolution through your GPU control panel.
 
 **The recording misses the end, or records the console.**
 
@@ -405,9 +407,9 @@ Enable **HLAE mirv_pov** under **Settings** → **Recording Presets** → **Expe
 - In OBS **Settings** → **Output** → **Recording**, do not use “Same as stream.” Set a dedicated recording quality.
 - If OBS uses Advanced output mode, switch temporarily to Simple mode, calibrate through the app, and restart OBS. In Advanced mode, do not choose “Use stream encoder” as the recording video encoder.
 
-**CS2 stays on the main menu when recording starts.**
+**CS:GO stays on the main menu when recording starts.**
 
-Current CS2 builds may only play demos recorded after the April 21, 2026 AG2 movement-system update. To record older demos, roll CS2 back to version `1.41.4.1`.
+CS:GO recording accepts Source 1 HL2DEMO files only; CS2 PBDEMS2 demos are rejected.
 
 **The clip is in third-person view.**
 
@@ -427,20 +429,20 @@ The app normally switches to the target player's first-person view. In the parse
 
 **Where are demos from 5E or Perfect World Arena?**
 
-Download them from each platform's Match History page. The downloaded `.dem` file can be dragged directly into CS2 Insight.
+Download them from each platform's Match History page. The downloaded `.dem` file can be dragged directly into CS:GO Insight.
 
 **Can I record clips from multiple demos in one queue?**
 
-Yes. Add clips from different demos to the queue. The app groups them by demo, starts CS2 for each group, and records them sequentially.
+Yes. Add clips from different demos to the queue. The app groups them by demo, starts CS:GO for each group, and records them sequentially.
 
 ---
 
 ## 🎬 Quick Start Checklist
 
 ```text
-1. Download and install CS2 Insight Agent.
+1. Download and install CS:GO Insight Agent.
 2. Start it from the desktop shortcut.
-3. In Settings, set the CS2 path under General Settings; configure and calibrate OBS under Video Settings.
+3. In Settings, set the CS:GO path under General Settings; configure and calibrate OBS under Video Settings.
 4. Drag in a demo, select a player, and start parsing.
 5. Select clips, add them to the queue, start recording, and wait for it to finish.
 6. Collect the videos from OBS's recording folder, or export a compilation from the workbench.
@@ -452,9 +454,9 @@ Have fun—and may your highlights outnumber your fails. 🔥💀
 
 ## Support the Project
 
-If CS2 Insight Agent saves you editing time, you are welcome to buy the developer a coffee. Support helps cover demo parsing, recording compatibility testing, and ongoing maintenance.
+If CS:GO Insight Agent saves you editing time, you are welcome to buy the developer a coffee. Support helps cover demo parsing, recording compatibility testing, and ongoing maintenance.
 
 <img src="asset/wx.jpg" alt="Support QR code 1" style="zoom:33%;" />
 <img src="asset/ali.jpg" alt="Support QR code 2" style="zoom:33%;" />
 
-> **CS2 Insight Agent** · Made with ❤️ for CS2 Players
+> **CS:GO Insight Agent** · Made with ❤️ for CS:GO Players

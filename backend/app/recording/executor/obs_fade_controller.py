@@ -19,24 +19,24 @@ from .obs_client import OBSClient, OBSRecordError
 
 logger = logging.getLogger(__name__)
 
-_BLACK_COLOR_SOURCE_NAME = "CS2 Insight Black Source"
-_GAME_CAPTURE_INPUT_NAME = "CS2 Insight Game Capture"
+_BLACK_COLOR_SOURCE_NAME = "CSGO Insight Black Source"
+_GAME_CAPTURE_INPUT_NAME = "CSGO Insight Game Capture"
 
 
 def _game_capture_settings() -> dict:
     """Build OBS Game Capture input settings matching the legacy managed capture.
 
     Mirrors obs_director._obs_managed_game_capture_settings():
-    - capture_mode: window (env CS2_INSIGHT_OBS_GAME_CAPTURE_MODE)
-    - window: Counter-Strike 2:SDL_app:cs2.exe (env CS2_INSIGHT_OBS_GAME_CAPTURE_WINDOW)
+    - capture_mode: window (env CSGO_INSIGHT_OBS_GAME_CAPTURE_MODE)
+    - window: Counter-Strike: Global Offensive:SDL_app:csgo.exe (env CSGO_INSIGHT_OBS_GAME_CAPTURE_WINDOW)
     - capture_cursor: False  (always — hides mouse pointer from the recording)
     """
     window = (
-        os.environ.get("CS2_INSIGHT_OBS_GAME_CAPTURE_WINDOW", "").strip()
-        or "Counter-Strike 2:SDL_app:cs2.exe"
+        os.environ.get("CSGO_INSIGHT_OBS_GAME_CAPTURE_WINDOW", "").strip()
+        or "Counter-Strike: Global Offensive:SDL_app:csgo.exe"
     )
     capture_mode = (
-        os.environ.get("CS2_INSIGHT_OBS_GAME_CAPTURE_MODE", "").strip()
+        os.environ.get("CSGO_INSIGHT_OBS_GAME_CAPTURE_MODE", "").strip()
         or "window"
     )
     return {
@@ -181,7 +181,7 @@ class OBSFadeController:
         except Exception as exc:
             logger.warning("[OBSFade] set game capture transform failed (non-fatal): %s", exc)
 
-        # Switch OBS to the game scene so recording captures CS2 regardless of
+        # Switch OBS to the game scene so recording captures CSGO regardless of
         # whether fade transitions are enabled.
         try:
             client.set_current_program_scene(game)
@@ -219,7 +219,7 @@ class OBSFadeController:
                 logger.warning("[OBSFade] add black source failed (non-fatal): %s", exc)
 
         # ── Keep game audio alive during the black period ────────────────
-        # When CS2 audio is captured by the Game Capture source (rather than the
+        # When CSGO audio is captured by the Game Capture source (rather than the
         # global Desktop Audio device), that source only produces audio while it
         # is in the active program scene.  Switching the program scene to the
         # black scene would deactivate it, dropping audio during the fade and
@@ -256,7 +256,7 @@ class OBSFadeController:
     def _ensure_game_capture_hidden_in_black(self, client: OBSClient, black: str) -> None:
         """Mirror the game capture into the black scene, hidden under the black color source.
 
-        Keeps the game-capture source active (so CS2 game-audio capture keeps
+        Keeps the game-capture source active (so CSGO game-audio capture keeps
         producing audio) while the black color source on top hides the video,
         preserving a fully-black fade.  Best-effort: all failures are logged and
         swallowed so a missing capability never blocks transitions.

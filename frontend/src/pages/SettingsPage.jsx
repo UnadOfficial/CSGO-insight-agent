@@ -10,7 +10,6 @@ import RecordingParamsPage from "./RecordingParamsPage";
 import SponsorModal from "../components/SponsorModal";
 import ObsAiSettingsPanel from "../components/ObsAiSettingsPanel";
 import ObsHostField from "../components/settings/ObsHostField.jsx";
-import GameResourcesSettings from "../components/settings/GameResourcesSettings.jsx";
 import { formatFileSize } from "../utils/demoLibraryDisplay.js";
 import { formatObsEncoderLabel, obsEncoderIsConfigured, obsEncoderIsHardware } from "../utils/obsEncoderDisplay.js";
 import {
@@ -41,7 +40,6 @@ import {
   RotateCcw,
   ShieldAlert,
   Gamepad2,
-  PackageOpen,
   Download,
   // 新增图标
   Github,
@@ -124,7 +122,6 @@ const ENCODER_OPTIONS = [
 const TABS = [
   { key: "general", icon: SettingsIcon, labelKey: "settings.tabGeneral" },
   { key: "paths", icon: FolderOpen, labelKey: "settings.tabPaths" },
-  { key: "game-resources", icon: PackageOpen, labelKey: "settings.tabGameResources" },
   { key: "video", icon: Monitor, labelKey: "settings.tabVideo" },
   { key: "parse", icon: Brain, labelKey: "settings.tabParse" },
   { key: "recording", icon: SlidersHorizontal, labelKey: "settings.tabRecording" },
@@ -480,7 +477,7 @@ export default function SettingsPage() {
       const obs = config.obs ?? {};
       const llm = config.llm ?? {};
 
-      payload.cs2_path = config.cs2_path ?? "";
+      payload.csgo_path = config.csgo_path ?? "";
       payload.hlae_path = config.hlae_path ?? "";
       payload.ffmpeg_path = config.ffmpeg_path ?? "";
       payload.montage_encoder = config.montage_encoder ?? "auto";
@@ -881,17 +878,17 @@ export default function SettingsPage() {
                 </>
               )}
 
-              {/* Paths (CS2 + application and LiteCut data directories) */}
+              {/* Paths (CS:GO + application and LiteCut data directories) */}
               {activeTab === "paths" && (
-              <SectionCard title={t("settings.sectionPaths")} hint={t("settings.sectionPathsHint")} search={search && !matches(t("settings.sectionPaths") + " " + t("settings.labelCs2Path") + " " + t("settings.labelHlaePath") + " " + t("settings.labelLiteCutStorage") + " " + t("settings.labelDemoCachePath") + " " + t("settings.labelDataDirectory") + " " + t("settings.labelLogDirectory"))}>
-                <FieldRow label={t("settings.labelCs2Path")} hint={t("settings.hintCs2Path")} search={search && !matches(t("settings.labelCs2Path") + " " + (config.cs2_path ?? ""))}>
+              <SectionCard title={t("settings.sectionPaths")} hint={t("settings.sectionPathsHint")} search={search && !matches(t("settings.sectionPaths") + " " + t("settings.labelCsgoPath") + " " + t("settings.labelHlaePath") + " " + t("settings.labelLiteCutStorage") + " " + t("settings.labelDemoCachePath") + " " + t("settings.labelDataDirectory") + " " + t("settings.labelLogDirectory"))}>
+                <FieldRow label={t("settings.labelCsgoPath")} hint={t("settings.hintCsgoPath")} search={search && !matches(t("settings.labelCsgoPath") + " " + (config.csgo_path ?? ""))}>
                   <PathPicker
-                    value={config.cs2_path ?? ""}
-                    onChange={(v) => set("cs2_path", v)}
-                    placeholder="cs2.exe"
-                    exeName="cs2.exe"
-                    detectApi="config/detect-cs2"
-                    detectField="cs2_path"
+                    value={config.csgo_path ?? ""}
+                    onChange={(v) => set("csgo_path", v)}
+                    placeholder="csgo.exe"
+                    exeName="csgo.exe"
+                    detectApi="config/detect-csgo"
+                    detectField="csgo_path"
                     t={t}
                   />
                 </FieldRow>
@@ -916,7 +913,7 @@ export default function SettingsPage() {
                           setLiteCutStorageDraft(event.target.value);
                           setLiteCutStorageMsg(null);
                         }}
-                        placeholder="D:\\CS2 Insight\\LiteCut"
+                        placeholder="D:\\CS:GO Insight\\LiteCut"
                         className="min-w-0 flex-1 rounded-md border border-cs2-border bg-cs2-bg-input px-3 py-2 text-xs text-cs2-text-primary focus-visible:border-cs2-accent focus-visible:outline-none"
                       />
                       <span className="shrink-0 text-xs text-cs2-text-muted">
@@ -1144,7 +1141,7 @@ export default function SettingsPage() {
                     <p className="font-semibold text-red-200">{t("playercfg.fetchFailTitle")}</p>
                     <p className="mt-1 text-red-100/85">{playerConfigStatus.message}</p>
                     <p className="mt-1 text-cs2-text-muted">
-                      {t("playercfg.fetchFailHint", { data: "data", data2: "data", backup: ".cs2_config_backup" })}
+                      {t("playercfg.fetchFailHint", { data: "data", data2: "data", backup: ".csgo_config_backup" })}
                     </p>
                   </div>
                 ) : playerConfigStatus?.restore_required ? (
@@ -1154,9 +1151,9 @@ export default function SettingsPage() {
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-amber-200">{t("playercfg.restoreTitle")}</p>
                         <p className="mt-1 text-xs leading-relaxed text-amber-100/85">{t("playercfg.restoreDesc")}</p>
-                        {typeof playerConfigStatus.cs2_running === "boolean" && (
+                        {typeof playerConfigStatus.csgo_running === "boolean" && (
                           <p className="mt-1 font-mono text-xs text-amber-200">
-                            {playerConfigStatus.cs2_running ? t("playercfg.cs2StatusRunning") : t("playercfg.cs2StatusStopped")}
+                            {playerConfigStatus.csgo_running ? t("playercfg.csgoStatusRunning") : t("playercfg.csgoStatusStopped")}
                           </p>
                         )}
                         {playerConfigStatus.backup_dir && (
@@ -1487,11 +1484,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* ======================== 游戏资源 ======================== */}
-          {activeTab === "game-resources" && (
-            <GameResourcesSettings search={search} />
-          )}
-
           {/* ======================== 录制预设 ======================== */}
           {activeTab === "recording" && (
             <RecordingParamsPage
@@ -1505,8 +1497,7 @@ export default function SettingsPage() {
       </div>
 
 {/* Footer save bar */}
-{activeTab !== "game-resources" ? (
-  <div className="shrink-0 px-4 pb-3 pt-2">
+<div className="shrink-0 px-4 pb-3 pt-2">
     <div
       data-testid="settings-save-footer-card"
       className={`flex items-center justify-between gap-4 rounded-[10px] border border-cs2-border bg-cs2-bg-card px-4 py-2.5 ${
@@ -1549,7 +1540,6 @@ export default function SettingsPage() {
             )}
           </div>
   </div>
-) : null}
       {!restartAlertDismissed && (calibrateResult?.restart_obs_required || checkResult?.restart_obs_required) && (
         <div
           role="alert"

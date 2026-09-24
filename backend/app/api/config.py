@@ -11,16 +11,16 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..app_state import application_state
 from ..env_utils import (
     LLMConfig,
     OBSConfig,
-    detect_cs2_path,
+    detect_csgo_path,
     detect_ffmpeg_path,
     detect_obs_path,
-    ensure_cs2_path,
+    ensure_csgo_path,
     get_data_dir,
     llm_api_key_configured,
     llm_base_url_is_local_host,
@@ -28,26 +28,22 @@ from ..env_utils import (
     resolve_config_path,
     save_config,
 )
-from ..map_material_vpk import MapMaterialVpkError, normalize_map_material_id
-from ..skybox_vpk import SkyboxVpkError, normalize_skybox_id
-from ..weather_effects import WeatherEffectError, normalize_weather_effect_id
 from ..update_info import build_update_payload, resolve_local_version_info
 
 router = APIRouter(tags=["config"])
 
 
-class ExperimentalPayload(BaseModel):
-    pov_enabled: Optional[bool] = None
-
-
 class ConfigPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     obs: Optional[OBSConfig] = None
     llm: Optional[LLMConfig] = None
     ffmpeg_path: Optional[str] = None
     montage_encoder: Optional[str] = None
     montage_export_dir: Optional[str] = None
-    cs2_path: Optional[str] = None
+    csgo_path: Optional[str] = None
     hlae_path: Optional[str] = None
+    hlae_mirv_pov_enabled: Optional[bool] = None
     demo_directory: Optional[str] = None
     demo_cache_directory: Optional[str] = None
     demo_watch_paths: Optional[list[str]] = None
@@ -58,17 +54,13 @@ class ConfigPayload(BaseModel):
     expected_parse_players: Optional[list[str]] = None
     recording_global_pacing: Optional[dict[str, Any]] = None
     default_record_warmup: Optional[dict[str, Any]] = None
-    recording_skybox: Optional[str] = None
-    recording_map_material: Optional[str] = None
-    recording_weather_effect: Optional[str] = None
-    cs2_extra_launch_args: Optional[str] = None
-    cs2_extra_launch_args_user_configured: Optional[bool] = None
+    csgo_extra_launch_args: Optional[str] = None
+    csgo_extra_launch_args_user_configured: Optional[bool] = None
     record_inject_console_lines: Optional[str] = None
     record_inject_console_lines_user_configured: Optional[bool] = None
     obs_transition_enabled: Optional[bool] = None
     obs_transition_name: Optional[str] = None
     obs_transition_duration_ms: Optional[int] = None
-    experimental: Optional[ExperimentalPayload] = None
     steam_api_key: Optional[str] = None
     steam_id64: Optional[str] = None
     steam_cdn_assets_enabled: Optional[bool] = None
@@ -80,7 +72,7 @@ class ConfigPayload(BaseModel):
 
 @router.get("/api/config")
 def get_config():
-    cfg = ensure_cs2_path(load_config())
+    cfg = ensure_csgo_path(load_config())
     data = cfg.model_dump()
     if data["llm"]["api_key"]:
         data["llm"]["api_key"] = "****" + data["llm"]["api_key"][-4:]
@@ -128,18 +120,18 @@ async def detect_encoder():
     return result
 
 
-@router.post("/api/config/detect-cs2")
-def detect_cs2_save():
-    path = detect_cs2_path()
+@router.post("/api/config/detect-csgo")
+def detect_csgo_save():
+    path = detect_csgo_path()
     if not path:
         raise HTTPException(
             404,
             "未找到 CS:GO（csgo.exe）。请安装 Steam 的 csgo_legacy 分支或国服客户端，或在设置中手动填写 csgo.exe 的完整路径。",
         )
     cfg = load_config()
-    cfg.cs2_path = path
+    cfg.csgo_path = path
     save_config(cfg)
-    return {"cs2_path": path}
+    return {"csgo_path": path}
 
 
 @router.post("/api/config/detect-hlae")
@@ -361,10 +353,12 @@ async def update_config(payload: ConfigPayload):
             cfg.llm.model = payload.llm.model
             if payload.llm.base_url is not None:
                 cfg.llm.base_url = payload.llm.base_url
-    if payload.cs2_path is not None:
-        cfg.cs2_path = payload.cs2_path
+    if payload.csgo_path is not None:
+        cfg.csgo_path = payload.csgo_path
     if payload.hlae_path is not None:
         cfg.hlae_path = str(payload.hlae_path or "").strip()
+    if payload.hlae_mirv_pov_enabled is not None:
+        cfg.hlae_mirv_pov_enabled = bool(payload.hlae_mirv_pov_enabled)
     if payload.demo_directory is not None:
         cfg.demo_directory = str(payload.demo_directory or "").strip()
     if payload.demo_cache_directory is not None:
@@ -414,44 +408,19 @@ async def update_config(payload: ConfigPayload):
             if isinstance(payload.default_record_warmup, dict)
             else {}
         )
-    if payload.recording_skybox is not None:
-        try:
-            skybox_id = normalize_skybox_id(payload.recording_skybox)
-        except SkyboxVpkError as exc:
-            raise HTTPException(422, str(exc)) from exc
-        cfg.recording_skybox = skybox_id
-    if payload.recording_map_material is not None:
-        try:
-            map_material_id = normalize_map_material_id(payload.recording_map_material)
-        except MapMaterialVpkError as exc:
-            raise HTTPException(422, str(exc)) from exc
-        cfg.recording_map_material = map_material_id
-    if payload.recording_weather_effect is not None:
-        try:
-            weather_effect_id = normalize_weather_effect_id(
-                payload.recording_weather_effect
+    if payload.csgo_extra_launch_args is not None:
+        next_launch_args = str(payload.csgo_extra_launch_args)
+        if payload.csgo_extra_launch_args_user_configured is not None:
+            cfg.csgo_extra_launch_args = next_launch_args
+            cfg.csgo_extra_launch_args_user_configured = bool(
+                payload.csgo_extra_launch_args_user_configured
             )
-        except WeatherEffectError as exc:
-            raise HTTPException(422, str(exc)) from exc
-        cfg.recording_weather_effect = weather_effect_id
-    if (
-        str(getattr(cfg, "recording_map_material", "default")) != "default"
-        and str(getattr(cfg, "recording_weather_effect", "default")) != "default"
-    ):
-        raise HTTPException(422, "打蜡与天气效果不能同时启用。")
-    if payload.cs2_extra_launch_args is not None:
-        next_launch_args = str(payload.cs2_extra_launch_args)
-        if payload.cs2_extra_launch_args_user_configured is not None:
-            cfg.cs2_extra_launch_args = next_launch_args
-            cfg.cs2_extra_launch_args_user_configured = bool(
-                payload.cs2_extra_launch_args_user_configured
-            )
-        elif next_launch_args != cfg.cs2_extra_launch_args:
-            cfg.cs2_extra_launch_args = next_launch_args
-            cfg.cs2_extra_launch_args_user_configured = True
-    elif payload.cs2_extra_launch_args_user_configured is not None:
-        cfg.cs2_extra_launch_args_user_configured = bool(
-            payload.cs2_extra_launch_args_user_configured
+        elif next_launch_args != cfg.csgo_extra_launch_args:
+            cfg.csgo_extra_launch_args = next_launch_args
+            cfg.csgo_extra_launch_args_user_configured = True
+    elif payload.csgo_extra_launch_args_user_configured is not None:
+        cfg.csgo_extra_launch_args_user_configured = bool(
+            payload.csgo_extra_launch_args_user_configured
         )
     if payload.record_inject_console_lines is not None:
         next_inject_lines = str(payload.record_inject_console_lines)
@@ -476,8 +445,6 @@ async def update_config(payload: ConfigPayload):
             cfg.obs_transition_duration_ms = max(0, int(payload.obs_transition_duration_ms))
         except (TypeError, ValueError):
             pass
-    if payload.experimental is not None and payload.experimental.pov_enabled is not None:
-        cfg.experimental.pov_enabled = bool(payload.experimental.pov_enabled)
     if (
         payload.steam_api_key is not None
         and payload.steam_api_key
@@ -506,31 +473,6 @@ async def update_config(payload: ConfigPayload):
     ):
         watcher.configure(cfg.demo_watch_paths or [], cfg.demo_watch_scan_depth)
     return {"status": "ok"}
-
-
-@router.get("/api/experimental/pov/status")
-def experimental_pov_status():
-    from ..pov_hud_manager import PovHudError, PovHudManager
-
-    cfg = ensure_cs2_path(load_config())
-    try:
-        status = PovHudManager(cfg).status()
-    except PovHudError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    status["enabled"] = bool(cfg.experimental.pov_enabled)
-    return status
-
-
-@router.post("/api/experimental/pov/restore")
-def experimental_pov_restore():
-    from ..pov_hud_manager import PovHudError, PovHudManager
-
-    cfg = ensure_cs2_path(load_config())
-    try:
-        verification = PovHudManager(cfg).restore()
-    except PovHudError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    return {"ok": bool(verification.get("verified")), "restore": verification}
 
 
 class DemoCacheMigrateBody(BaseModel):

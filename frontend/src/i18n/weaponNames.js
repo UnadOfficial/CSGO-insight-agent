@@ -87,7 +87,7 @@ const WEAPON_NAME_EN_CASEFOLD = new Set([
 /**
  * Return the weapon's display name appropriate for the current locale.
  *
- * - Parser/platform aliases are resolved through the generated CS2 catalog,
+ * - Parser/platform aliases are resolved through the generated CS:GO catalog,
  *   including dynamic PWA/5E prefixes and suffixes around a schema name.
  * - Existing translated labels stay readable; unknown values are preserved so
  *   nothing ever becomes blank or mislabeled.

@@ -18,7 +18,7 @@ from app.electron_ui_state_migration import ElectronUiStateResult, UI_STATE_FILE
 
 def _write_config(data_root: Path, marker: str) -> None:
     data_root.mkdir(parents=True, exist_ok=True)
-    (data_root / "cs2-insight.config.json").write_text(
+    (data_root / "csgo-insight.config.json").write_text(
         json.dumps({"demo_directory": marker}),
         encoding="utf-8",
     )
@@ -26,7 +26,7 @@ def _write_config(data_root: Path, marker: str) -> None:
 
 def _write_database(data_root: Path, marker: str) -> None:
     data_root.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(data_root / "cs2-insight.db")
+    connection = sqlite3.connect(data_root / "csgo-insight.db")
     try:
         connection.execute("CREATE TABLE sentinel(value TEXT NOT NULL)")
         connection.execute("INSERT INTO sentinel(value) VALUES (?)", (marker,))
@@ -36,7 +36,7 @@ def _write_database(data_root: Path, marker: str) -> None:
 
 
 def _read_database(data_root: Path) -> str:
-    connection = sqlite3.connect(data_root / "cs2-insight.db")
+    connection = sqlite3.connect(data_root / "csgo-insight.db")
     try:
         assert connection.execute("PRAGMA quick_check").fetchone() == ("ok",)
         return connection.execute("SELECT value FROM sentinel").fetchone()[0]
@@ -98,7 +98,7 @@ def test_cli_exports_renderer_state_before_snapshotting_backend_data(
 
     assert main(["--appdata", str(tmp_path), "--require-electron-ui-export"]) == 0
 
-    migrated = json.loads((_canonical(tmp_path) / "cs2-insight.config.json").read_text())
+    migrated = json.loads((_canonical(tmp_path) / "csgo-insight.config.json").read_text())
     assert migrated["demo_directory"] == "after-renderer-closed"
     assert calls[0].name == ".electron-ui-migration-v1"
     assert calls[1] == _canonical(tmp_path)
@@ -111,19 +111,19 @@ def test_migrates_full_electron_data_tree_and_keeps_source(tmp_path: Path):
     _write_database(source, "electron-db")
     (source / "lite_cut_assets" / "nested").mkdir(parents=True)
     (source / "lite_cut_assets" / "nested" / "clip.json").write_text("asset", encoding="utf-8")
-    (source / ".cs2_config_backup").mkdir()
-    (source / ".cs2_config_backup" / "restore.cfg").write_text("bind w +forward", encoding="utf-8")
+    (source / ".csgo_config_backup").mkdir()
+    (source / ".csgo_config_backup" / "restore.cfg").write_text("bind w +forward", encoding="utf-8")
 
     result = migrate_desktop_data(tmp_path)
 
     destination = _canonical(tmp_path)
     assert result.mode == "migrated"
     assert result.source == str(tmp_path / "cs2-insight-agent")
-    assert json.loads((destination / "cs2-insight.config.json").read_text())["demo_directory"] == "electron-config"
+    assert json.loads((destination / "csgo-insight.config.json").read_text())["demo_directory"] == "electron-config"
     assert _read_database(destination) == "electron-db"
     assert (destination / "lite_cut_assets" / "nested" / "clip.json").read_text() == "asset"
-    assert (destination / ".cs2_config_backup" / "restore.cfg").is_file()
-    assert (source / "cs2-insight.config.json").is_file()
+    assert (destination / ".csgo_config_backup" / "restore.cfg").is_file()
+    assert (source / "csgo-insight.config.json").is_file()
     assert (tmp_path / CANONICAL_CONTAINER_NAME / MIGRATION_MARKER_NAME).is_file()
 
 
@@ -135,7 +135,7 @@ def test_current_tauri_data_wins_when_multiple_legacy_sources_exist(tmp_path: Pa
 
     result = migrate_desktop_data(tmp_path)
 
-    config = json.loads((_canonical(tmp_path) / "cs2-insight.config.json").read_text())
+    config = json.loads((_canonical(tmp_path) / "csgo-insight.config.json").read_text())
     assert config["demo_directory"] == "tauri-newer"
     assert result.ignored_sources == (str(tmp_path / "cs2-insight-agent"),)
 
@@ -150,7 +150,7 @@ def test_existing_canonical_data_is_authoritative_and_idempotent(tmp_path: Path)
     second = migrate_desktop_data(tmp_path)
 
     assert first.mode == second.mode == "existing"
-    assert json.loads((destination / "cs2-insight.config.json").read_text())["demo_directory"] == "canonical"
+    assert json.loads((destination / "csgo-insight.config.json").read_text())["demo_directory"] == "canonical"
     assert _read_database(destination) == "canonical-db"
 
 
@@ -188,7 +188,7 @@ def test_empty_canonical_directories_do_not_mask_legacy_data(tmp_path: Path):
     result = migrate_desktop_data(tmp_path)
 
     assert result.mode == "migrated"
-    config = json.loads((_canonical(tmp_path) / "cs2-insight.config.json").read_text())
+    config = json.loads((_canonical(tmp_path) / "csgo-insight.config.json").read_text())
     assert config["demo_directory"] == "legacy"
 
 
@@ -201,7 +201,7 @@ def test_unrelated_canonical_file_does_not_mask_legacy_and_is_preserved(tmp_path
     result = migrate_desktop_data(tmp_path)
 
     assert result.mode == "migrated"
-    assert json.loads((destination / "cs2-insight.config.json").read_text())["demo_directory"] == "legacy"
+    assert json.loads((destination / "csgo-insight.config.json").read_text())["demo_directory"] == "legacy"
     backups = list((tmp_path / CANONICAL_CONTAINER_NAME).glob("data.pre-migration-*"))
     assert len(backups) == 1
     assert (backups[0] / "installer.log").read_text(encoding="utf-8") == "diagnostic"
@@ -218,53 +218,53 @@ def test_migrates_legacy_product_name_root_layout(tmp_path: Path):
 
     destination = _canonical(tmp_path)
     assert result.source_layout == "legacy-root"
-    assert json.loads((destination / "cs2-insight.config.json").read_text())["demo_directory"] == "root-layout"
+    assert json.loads((destination / "csgo-insight.config.json").read_text())["demo_directory"] == "root-layout"
     assert _read_database(destination) == "root-db"
     assert (destination / "logs" / "legacy.log").read_text() == "hello"
-    assert (container / "cs2-insight.config.json").is_file()
+    assert (container / "csgo-insight.config.json").is_file()
 
 
 def test_sqlite_backup_includes_committed_wal_content(tmp_path: Path):
     source = tmp_path / "cs2-insight-agent" / "data"
     source.mkdir(parents=True)
-    connection = sqlite3.connect(source / "cs2-insight.db")
+    connection = sqlite3.connect(source / "csgo-insight.db")
     try:
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("CREATE TABLE sentinel(value TEXT NOT NULL)")
         connection.execute("INSERT INTO sentinel(value) VALUES ('from-wal')")
         connection.commit()
-        assert (source / "cs2-insight.db-wal").exists()
+        assert (source / "csgo-insight.db-wal").exists()
 
         migrate_desktop_data(tmp_path)
     finally:
         connection.close()
 
     assert _read_database(_canonical(tmp_path)) == "from-wal"
-    assert not (_canonical(tmp_path) / "cs2-insight.db-wal").exists()
-    assert not (_canonical(tmp_path) / "cs2-insight.db-shm").exists()
+    assert not (_canonical(tmp_path) / "csgo-insight.db-wal").exists()
+    assert not (_canonical(tmp_path) / "csgo-insight.db-shm").exists()
 
 
 def test_invalid_config_aborts_without_replacing_source(tmp_path: Path):
     source = tmp_path / "cs2-insight-agent" / "data"
     source.mkdir(parents=True)
-    (source / "cs2-insight.config.json").write_text("{not-json", encoding="utf-8")
+    (source / "csgo-insight.config.json").write_text("{not-json", encoding="utf-8")
 
     with pytest.raises(DesktopDataMigrationError, match="配置文件无法解析"):
         migrate_desktop_data(tmp_path)
 
-    assert (source / "cs2-insight.config.json").read_text() == "{not-json"
+    assert (source / "csgo-insight.config.json").read_text() == "{not-json"
     assert not _canonical(tmp_path).exists()
 
 
 def test_corrupt_database_aborts_without_replacing_source(tmp_path: Path):
     source = tmp_path / "com.cs2insightagent.app" / "data"
     source.mkdir(parents=True)
-    (source / "cs2-insight.db").write_bytes(b"not a sqlite database")
+    (source / "csgo-insight.db").write_bytes(b"not a sqlite database")
 
     with pytest.raises(DesktopDataMigrationError, match="SQLite"):
         migrate_desktop_data(tmp_path)
 
-    assert (source / "cs2-insight.db").read_bytes() == b"not a sqlite database"
+    assert (source / "csgo-insight.db").read_bytes() == b"not a sqlite database"
     assert not _canonical(tmp_path).exists()
 
 

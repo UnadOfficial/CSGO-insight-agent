@@ -325,7 +325,7 @@ function CurrentObsConfiguration({ discovery, previewMode, refreshing, kept, onK
   const fallback = previewMode ? {
     video: { base_width: 2560, base_height: 1440, output_width: 2560, output_height: 1440, fps_num: 60, fps_den: 1 },
     recording: { output_mode: "Simple", encoder: "jim_nvenc", format: "hybrid_mp4" },
-    active_profile: "CS2",
+    active_profile: "CS:GO",
   } : {};
   const obs = discovery?.obs || fallback;
   const video = obs.video || {};
@@ -787,7 +787,7 @@ export default function ObsAiSettingsPanel({
             { step: "record", label: "进行短录制测试", status: "ok", detail: "已完成 10 秒测试录制。" },
             { step: "probe", label: "检查测试视频和掉帧", status: "ok", detail: "ffprobe、OBS Stats 与日志检查完成。" },
           ],
-          backup: { id: "obs_preview", path: "C:\\Users\\Demo\\AppData\\Local\\CS2 Insight\\backups\\obs_preview" },
+          backup: { id: "obs_preview", path: "C:\\Users\\Demo\\AppData\\Local\\CS:GO Insight\\backups\\obs_preview" },
           test_file: "C:\\Users\\Demo\\Videos\\OBS_OUTPUT\\obs-test.mp4",
           validation: { passed: true, verdict: "stable", media_resolution_ok: true, r_frame_rate_ok: true, avg_frame_rate_ok: true, stats_ok: true, logs_ok: true, encoder_ok: true, reasons: [] },
           actual: {

@@ -144,9 +144,9 @@ function CommandListItem({ line, index, builtIn = false, builtInLabel, tone = "a
 /**
  * 额外启动参数 + 附加预热控制台（与常用参数页同一套交互）。
  */
-export default function Cs2LaunchConsoleFields({
-  cs2ExtraLaunchArgs = "",
-  onCs2ExtraLaunchArgsChange,
+export default function CsgoLaunchConsoleFields({
+  csgoExtraLaunchArgs = "",
+  onCsgoExtraLaunchArgsChange,
   recordInjectConsoleLines = "",
   onRecordInjectConsoleLinesChange,
   omitConsoleHint = false,
@@ -162,7 +162,7 @@ export default function Cs2LaunchConsoleFields({
     [recordInjectConsoleLines],
   );
 
-  const launchChips = useMemo(() => launchChipsFromStored(cs2ExtraLaunchArgs), [cs2ExtraLaunchArgs]);
+  const launchChips = useMemo(() => launchChipsFromStored(csgoExtraLaunchArgs), [csgoExtraLaunchArgs]);
   const editableLaunchChips = useMemo(
     () => launchChips.filter((c) => !FIXED_LAUNCH_ARGS.includes(c)),
     [launchChips],
@@ -189,24 +189,24 @@ export default function Cs2LaunchConsoleFields({
 
   const addLaunchChip = useCallback(() => {
     const trimmed = launchArgDraft.trim();
-    if (!trimmed || !onCs2ExtraLaunchArgsChange) return;
-    const cur = launchChipsFromStored(cs2ExtraLaunchArgs);
+    if (!trimmed || !onCsgoExtraLaunchArgsChange) return;
+    const cur = launchChipsFromStored(csgoExtraLaunchArgs);
     if (cur.includes(trimmed)) {
       setLaunchArgDraft("");
       return;
     }
     if (cur.length >= 32) return;
-    onCs2ExtraLaunchArgsChange(storedFromLaunchChips([...cur, trimmed]));
+    onCsgoExtraLaunchArgsChange(storedFromLaunchChips([...cur, trimmed]));
     setLaunchArgDraft("");
-  }, [launchArgDraft, cs2ExtraLaunchArgs, onCs2ExtraLaunchArgsChange]);
+  }, [launchArgDraft, csgoExtraLaunchArgs, onCsgoExtraLaunchArgsChange]);
 
   const removeLaunchChip = useCallback(
     (idx) => {
-      if (!onCs2ExtraLaunchArgsChange) return;
-      const cur = launchChipsFromStored(cs2ExtraLaunchArgs);
-      onCs2ExtraLaunchArgsChange(storedFromLaunchChips(cur.filter((_, i) => i !== idx)));
+      if (!onCsgoExtraLaunchArgsChange) return;
+      const cur = launchChipsFromStored(csgoExtraLaunchArgs);
+      onCsgoExtraLaunchArgsChange(storedFromLaunchChips(cur.filter((_, i) => i !== idx)));
     },
-    [cs2ExtraLaunchArgs, onCs2ExtraLaunchArgsChange],
+    [csgoExtraLaunchArgs, onCsgoExtraLaunchArgsChange],
   );
 
   const addConsoleChip = useCallback(() => {

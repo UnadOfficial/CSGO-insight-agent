@@ -103,7 +103,7 @@ def enable_websocket_server_safely(
         return {"ok": True, "changed": False, "reason": "already_enabled", "backup_path": None, "state": state}
 
     raw = json.loads(config_path.read_text(encoding="utf-8-sig"))
-    backup_dir = config_path.parent / ".cs2-insight-backups"
+    backup_dir = config_path.parent / ".csgo-insight-backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     backup_path = backup_dir / f"config.before-enable.{stamp}.json"
@@ -167,7 +167,7 @@ def _default_launcher(obs_path: str) -> None:
 
 
 def _default_connection_tester(app_cfg: AppConfig) -> dict[str, Any]:
-    director = OBSDirector(app_cfg.obs, app_cfg.cs2_path)
+    director = OBSDirector(app_cfg.obs, app_cfg.csgo_path)
     return director.test_obs_connection(handshake_timeout_sec=1.5)
 
 

@@ -4,13 +4,12 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { useLocaleStore } from "../../i18n/localeStore.js";
 import QueueWorkspaceRow from "./QueueWorkspaceRow.jsx";
 
-function renderRow(demoHasPlayerKeyboardInput) {
+function renderRow() {
   return render(
     <QueueWorkspaceRow
       item={{
         demoFilename: "match.dem",
         demoPath: "C:/demos/match.dem",
-        demoHasPlayerKeyboardInput,
         targetPlayer: "alpha",
         clipData: {
           category: "highlight",
@@ -28,7 +27,7 @@ function renderRow(demoHasPlayerKeyboardInput) {
   );
 }
 
-describe("QueueWorkspaceRow in-game input HUD warning", () => {
+describe("QueueWorkspaceRow", () => {
   beforeEach(() => {
     useLocaleStore.setState({
       locale: "zh",
@@ -38,17 +37,8 @@ describe("QueueWorkspaceRow in-game input HUD warning", () => {
     });
   });
 
-  test("shows the warning only when input data is confirmed missing", () => {
-    const missing = renderRow(false);
-    const warning = screen.getByTestId("queue-input-hud-warning");
-    expect(screen.getByText("该 Demo 缺少权威玩家输入数据")).toBeTruthy();
-    expect(screen.getByText("该片段的局内 VPK 按键 HUD 可能保持为空。")).toBeTruthy();
-    expect(screen.getByText("其他局内 HUD 功能不受影响。")).toBeTruthy();
-    expect(warning.className).toContain("w-fit");
-    expect(warning.className).toContain("max-w-[290px]");
-    missing.unmount();
-
-    renderRow(null);
+  test("does not render retired Source 2 input HUD warnings", () => {
+    renderRow();
     expect(screen.queryByTestId("queue-input-hud-warning")).toBeNull();
   });
 });

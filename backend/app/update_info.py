@@ -19,11 +19,11 @@ from packaging.version import InvalidVersion, Version
 _GITHUB_OWNER_REPO = "DrEAmSs59/CS2-insight-agent"
 GITHUB_LATEST_API = f"https://api.github.com/repos/{_GITHUB_OWNER_REPO}/releases/latest"
 GITHUB_RELEASE_LATEST_PAGE = f"https://github.com/{_GITHUB_OWNER_REPO}/releases/latest"
-_USER_AGENT = "CS2-Insight-Agent-UpdateCheck/1.0"
+_USER_AGENT = "CSGO-Insight-Agent-UpdateCheck/1.0"
 _RE_RELEASE_TAG_PATH = re.compile(r"/releases/tag/([^/?#]+)\s*$", re.IGNORECASE)
 _RE_GITHUB_URL = re.compile(r"https://github\.com/[^\s\"']+", re.IGNORECASE)
 
-# 社区镜像前缀（{prefix}/{完整 GitHub URL}）；可用 CS2_INSIGHT_UPDATE_MIRROR_PRESETS 覆盖
+# 社区镜像前缀（{prefix}/{完整 GitHub URL}）；可用 CSGO_INSIGHT_UPDATE_MIRROR_PRESETS 覆盖
 _BUILTIN_MIRROR_PREFIXES = (
     "https://ghfast.top",
     "https://mirror.ghproxy.com",
@@ -41,13 +41,13 @@ def _env_float(key: str, default: float) -> float:
 
 
 # 镜像 API 常被 403/挂起；镜像仅走 releases/latest 跳转。auto 模式与直连并发，谁先成功用谁。
-_MIRROR_REDIRECT_TIMEOUT_SEC = _env_float("CS2_INSIGHT_UPDATE_MIRROR_TIMEOUT_SEC", 3.5)
-_DIRECT_FETCH_TIMEOUT_SEC = _env_float("CS2_INSIGHT_UPDATE_FETCH_TIMEOUT_SEC", 5.0)
-_UPDATE_RACE_TIMEOUT_SEC = _env_float("CS2_INSIGHT_UPDATE_RACE_TIMEOUT_SEC", 8.0)
+_MIRROR_REDIRECT_TIMEOUT_SEC = _env_float("CSGO_INSIGHT_UPDATE_MIRROR_TIMEOUT_SEC", 3.5)
+_DIRECT_FETCH_TIMEOUT_SEC = _env_float("CSGO_INSIGHT_UPDATE_FETCH_TIMEOUT_SEC", 5.0)
+_UPDATE_RACE_TIMEOUT_SEC = _env_float("CSGO_INSIGHT_UPDATE_RACE_TIMEOUT_SEC", 8.0)
 
 _RELEASE_FILE = Path(__file__).resolve().parent / "release_version.txt"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_TOKEN_FILE_DEFAULT = _REPO_ROOT / ".cs2-insight-github-token"
+_TOKEN_FILE_DEFAULT = _REPO_ROOT / ".csgo-insight-github-token"
 
 LocalSource = Literal["file", "registry", "unknown"]
 
@@ -89,7 +89,12 @@ def unwrap_github_url(url: str) -> str:
 def pick_download_urls(assets: list[dict[str, Any]], version_without_v: str) -> tuple[Optional[str], Optional[str]]:
     setup_url: Optional[str] = None
     zip_url: Optional[str] = None
+    # The Tauri NSIS bundler names its artifact from tauri.conf.json's
+    # productName, so "CSGO Insight Agent_<ver>_x64-setup.exe" is what the
+    # release workflow actually publishes.  The CS2-era names are kept so an
+    # installation still on an older release can discover its own upgrade.
     setup_names = {
+        f"CSGO Insight Agent_{version_without_v}_x64-setup.exe",
         f"CS2.Insight.Agent.Setup.{version_without_v}.exe",
         f"CS2 Insight Agent Setup {version_without_v}.exe",
         f"CS2InsightAgent-{version_without_v}-Setup.exe",
@@ -137,7 +142,8 @@ def _read_windows_uninstall_display_version() -> Optional[str]:
         (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
         (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
     )
-    want_name = "CS2 Insight Agent"
+    # Must match the NSIS DisplayName, which Tauri derives from productName.
+    want_name = "CSGO Insight Agent"
     for hive, sub in uninstall_roots:
         try:
             key = winreg.OpenKey(hive, sub)
@@ -204,11 +210,11 @@ def _read_github_token_file(path: Path) -> str | None:
 
 def _github_api_token() -> str | None:
     """Optional PAT to raise REST rate limits (anonymous ~60/hr → authenticated ~5000/hr)."""
-    for key in ("CS2_INSIGHT_GITHUB_TOKEN", "GITHUB_TOKEN"):
+    for key in ("CSGO_INSIGHT_GITHUB_TOKEN", "GITHUB_TOKEN"):
         raw = (os.environ.get(key) or "").strip()
         if raw:
             return raw
-    file_env = (os.environ.get("CS2_INSIGHT_GITHUB_TOKEN_FILE") or "").strip()
+    file_env = (os.environ.get("CSGO_INSIGHT_GITHUB_TOKEN_FILE") or "").strip()
     if file_env:
         t = _read_github_token_file(Path(file_env).expanduser())
         if t:
@@ -217,7 +223,7 @@ def _github_api_token() -> str | None:
 
 
 def _update_mirror_setting() -> str:
-    env = (os.environ.get("CS2_INSIGHT_UPDATE_MIRROR") or os.environ.get("CS2_INSIGHT_GITHUB_MIRROR") or "").strip()
+    env = (os.environ.get("CSGO_INSIGHT_UPDATE_MIRROR") or os.environ.get("CSGO_INSIGHT_GITHUB_MIRROR") or "").strip()
     if env:
         return env
     try:
@@ -229,7 +235,7 @@ def _update_mirror_setting() -> str:
 
 
 def _builtin_mirror_prefixes() -> tuple[str, ...]:
-    raw = (os.environ.get("CS2_INSIGHT_UPDATE_MIRROR_PRESETS") or "").strip()
+    raw = (os.environ.get("CSGO_INSIGHT_UPDATE_MIRROR_PRESETS") or "").strip()
     if raw:
         parts = [p.strip().rstrip("/") for p in raw.split(",") if p.strip()]
         if parts:
@@ -297,7 +303,7 @@ def _guess_download_urls(tag_raw: str, tag_norm: str) -> tuple[str, None]:
     enc_tag = quote(tag_raw, safe="")
     base = f"https://github.com/{_GITHUB_OWNER_REPO}/releases/download/{enc_tag}"
     return (
-        f"{base}/CS2.Insight.Agent.Setup.{tag_norm}.exe",
+        f"{base}/{quote(f'CSGO Insight Agent_{tag_norm}_x64-setup.exe')}",
         None,
     )
 
@@ -331,7 +337,10 @@ def _fetch_latest_release_dict_via_redirect(mirror_prefix: str | None = None, *,
         "html_url": release_page,
         "body": "",
         "assets": [
-            {"name": f"CS2.Insight.Agent.Setup.{tag_norm}.exe", "browser_download_url": setup_u},
+            {
+                "name": f"CSGO Insight Agent_{tag_norm}_x64-setup.exe",
+                "browser_download_url": setup_u,
+            },
         ],
     }
 

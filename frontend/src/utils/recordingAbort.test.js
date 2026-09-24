@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  isUnexpectedCs2ExitResult,
+  isUnexpectedCsgoExitResult,
   isRecordingAbortResult,
   recordingAbortToastKind,
-  recordingQueueHadUnexpectedCs2Exit,
+  recordingQueueHadUnexpectedCsgoExit,
   recordingQueueWasAborted,
-  unexpectedCs2ExitRecoveryMessageKey,
+  unexpectedCsgoExitRecoveryMessageKey,
 } from "./recordingAbort";
 
 describe("recording abort outcome", () => {
@@ -34,43 +34,20 @@ describe("recording abort outcome", () => {
     )).toBe("not_needed");
   });
 
-  it("recognizes a managed CS2 process that exited outside Insight cleanup", () => {
-    expect(isUnexpectedCs2ExitResult({ error_code: "RECORDING_CS2_EXITED" })).toBe(true);
-    expect(isUnexpectedCs2ExitResult({ error: "cs2_exited_unexpectedly" })).toBe(true);
-    expect(recordingQueueHadUnexpectedCs2Exit([{ success: true }, {
+  it("recognizes a managed CS:GO process that exited outside Insight cleanup", () => {
+    expect(isUnexpectedCsgoExitResult({ error_code: "RECORDING_CSGO_EXITED" })).toBe(true);
+    expect(isUnexpectedCsgoExitResult({ error: "csgo_exited_unexpectedly" })).toBe(true);
+    expect(recordingQueueHadUnexpectedCsgoExit([{ success: true }, {
       success: false,
-      error_code: "RECORDING_CS2_EXITED",
+      error_code: "RECORDING_CSGO_EXITED",
     }])).toBe(true);
-    expect(recordingQueueHadUnexpectedCs2Exit([{ success: false, error: "failed" }])).toBe(false);
+    expect(recordingQueueHadUnexpectedCsgoExit([{ success: false, error: "failed" }])).toBe(false);
   });
 
   it("selects recovery copy for config and optional POV state", () => {
-    expect(unexpectedCs2ExitRecoveryMessageKey()).toBe("app.unexpectedCs2ExitRecovered");
-    expect(unexpectedCs2ExitRecoveryMessageKey({ povEnabled: true })).toBe(
-      "app.unexpectedCs2ExitRecoveredWithPov",
+    expect(unexpectedCsgoExitRecoveryMessageKey()).toBe("app.unexpectedCsgoExitRecovered");
+    expect(unexpectedCsgoExitRecoveryMessageKey({ configRecoveryNeeded: true })).toBe(
+      "app.unexpectedCsgoExitConfigPending",
     );
-    expect(unexpectedCs2ExitRecoveryMessageKey({
-      povEnabled: true,
-      povRecoveryMode: "semantic",
-    })).toBe("app.unexpectedCs2ExitRecoveredWithPovCleanup");
-    expect(unexpectedCs2ExitRecoveryMessageKey({
-      povEnabled: true,
-      povRecoveryMode: "strict",
-    })).toBe("app.unexpectedCs2ExitRecoveredWithPovStrict");
-    expect(unexpectedCs2ExitRecoveryMessageKey({
-      povEnabled: true,
-      povRecoveryMode: "none",
-    })).toBe("app.unexpectedCs2ExitRecoveredWithPovNoChange");
-    expect(unexpectedCs2ExitRecoveryMessageKey({ configRecoveryNeeded: true })).toBe(
-      "app.unexpectedCs2ExitConfigPending",
-    );
-    expect(unexpectedCs2ExitRecoveryMessageKey({ povEnabled: true, povRecoveryNeeded: true })).toBe(
-      "app.unexpectedCs2ExitPovPending",
-    );
-    expect(unexpectedCs2ExitRecoveryMessageKey({
-      configRecoveryNeeded: true,
-      povEnabled: true,
-      povRecoveryNeeded: true,
-    })).toBe("app.unexpectedCs2ExitBothPending");
   });
 });

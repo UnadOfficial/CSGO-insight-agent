@@ -28,7 +28,7 @@ pnpm.cmd run desktop:build:ver -- 2.4.0
    CI 或自定义密钥路径时改用环境变量 `TAURI_SIGNING_PRIVATE_KEY`（密钥内容或文件路径均可）与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。注意 PowerShell 无法设置「空字符串」环境变量（`$env:X = ""` 等于删除），空密码密钥请交给 `desktop:build:ver` 处理或在 CI YAML 中设置。
 
 3. **发布**：设置 R2 凭据（`R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET`，可选 `R2_PUBLIC_BASE_URL`、`RELEASE_NOTES`、`UPDATE_MODE=force|normal`）后执行 `pnpm run deploy:r2`。脚本会上传：
-   - `CS2 Insight Agent_<ver>_x64-setup.exe` — 完整安装包，同时是更新包；
+   - `CSGO Insight Agent_<ver>_x64-setup.exe` — 完整安装包，同时是更新包；
    - `latest.json` — Tauri updater 清单（内嵌 `.sig` 签名，含 `update_mode`）；
    - `latest.yml` — electron-updater 桥接清单：仍在旧 Electron 版上的用户会把 Tauri 安装包当作更新静默安装，完成一次性迁移。
 
@@ -68,7 +68,7 @@ try {
 发布构建不要使用不带版本的 `pnpm run desktop:build`；该命令只使用仓库默认版本，仅适合本地验证完整安装链。日常开发应使用 `desktop:dev`，提交前的无安装包检查使用 `desktop:check`。正式产物固定输出到：
 
 ```text
-frontend/src-tauri/target/release/bundle/nsis/CS2 Insight Agent_<version>_x64-setup.exe
+frontend/src-tauri/target/release/bundle/nsis/CSGO Insight Agent_<version>_x64-setup.exe
 ```
 
 如果需要从锁定依赖重建正式精简 Python runtime，先构建 lean wheel，再强制刷新：
@@ -79,8 +79,8 @@ $python312 = py -3.12 -c "import sys; print(sys.executable)"
 uv sync --frozen
 ./packaging/demoparser-lean/build-wheel.ps1 -PythonExe $python312 -OutputDir dist/wheels
 
-$env:CS2_INSIGHT_DEMOPARSER_WHEEL = (Get-ChildItem ./dist/wheels/demoparser2-*-cp312-*.whl | Select-Object -First 1).FullName
-$env:CS2_INSIGHT_REFRESH_PYTHON = "1"
+$env:CSGO_INSIGHT_DEMOPARSER_WHEEL = (Get-ChildItem ./dist/wheels/demoparser2-*-cp312-*.whl | Select-Object -First 1).FullName
+$env:CSGO_INSIGHT_REFRESH_PYTHON = "1"
 Push-Location frontend
 try {
   pnpm install --frozen-lockfile
@@ -121,8 +121,8 @@ uv sync --frozen
 2. 构建 Tauri NSIS 安装包：
 
 ```powershell
-$env:CS2_INSIGHT_DEMOPARSER_WHEEL = (Get-ChildItem ./dist/wheels/demoparser2-*-cp312-*.whl | Select-Object -First 1).FullName
-$env:CS2_INSIGHT_REFRESH_PYTHON = "1"
+$env:CSGO_INSIGHT_DEMOPARSER_WHEEL = (Get-ChildItem ./dist/wheels/demoparser2-*-cp312-*.whl | Select-Object -First 1).FullName
+$env:CSGO_INSIGHT_REFRESH_PYTHON = "1"
 Push-Location frontend
 pnpm install --frozen-lockfile
 pnpm.cmd run desktop:build:ver -- 0.0.0
@@ -149,4 +149,4 @@ CI 预算：嵌入 resources 不超过 `120 MiB`，NSIS 安装包不超过 `45 M
 
 `skin-core.exe` **不在本仓库构建**；由闭源 `CS2-demo-anyskin` 产出后在打包时显式注入。只有设置 `CS2_SKIN_CORE_EXE` 时，`desktop:stage-resources` 才会复制它到 `frontend/src-tauri/bundle-resources/tools/skin-core.exe`；普通构建不会再从同级私有仓库静默拾取旧产物，缺失时 OSS CI 仍可正常构建。正式发布前请把本版主程序（及建议包含的 bundled `python.exe`）PE SHA-256 写入 skin-core 的父进程 allowlist，并用 anyskin `release-skin-core.ps1 -ParentPe ... -Pack` 产出 **release-ship + UPX** 的 `dist/skin-core.exe` 再注入（免费加固/加壳；非商业壳替代品）。
 
-`bootstrap-staging.ps1`、`package_portable.ps1` 与 `CS2InsightAgent.iss` 仍保留为 legacy/manual 工具；Tauri 正式发布仅复用 `package_portable.ps1` 的 Python staging 能力。
+`bootstrap-staging.ps1`、`package_portable.ps1` 与 `CSGOInsightAgent.iss` 仍保留为 legacy/manual 工具；Tauri 正式发布仅复用 `package_portable.ps1` 的 Python staging 能力。

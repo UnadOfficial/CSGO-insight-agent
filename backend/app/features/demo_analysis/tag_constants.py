@@ -90,10 +90,10 @@ def set_tick_rate(value: object) -> float:
 
 # 「冻结结束前 → 死亡后固定留白」合辑
 _FREEZE_TO_DEATH_PRE_FREEZE_SEC = float(
-    os.environ.get("CS2_INSIGHT_FREEZE_TO_DEATH_PRE_SEC", "8.0") or "8.0",
+    os.environ.get("CSGO_INSIGHT_FREEZE_TO_DEATH_PRE_SEC", "8.0") or "8.0",
 )
 _FREEZE_TO_DEATH_POST_DEATH_SEC = float(
-    os.environ.get("CS2_INSIGHT_FREEZE_TO_DEATH_POST_DEATH_SEC", "2.0") or "2.0",
+    os.environ.get("CSGO_INSIGHT_FREEZE_TO_DEATH_POST_DEATH_SEC", "2.0") or "2.0",
 )
 BUFFER_SECONDS_BEFORE = 5
 BUFFER_SECONDS_AFTER = 3

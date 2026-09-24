@@ -41,7 +41,7 @@ def test_require_csgo_demo_rejects_cs2(tmp_path: Path):
     path.write_bytes(b"PBDEMS2\0" + b"\x00" * 32)
     with pytest.raises(DemoFormatError) as error:
         require_csgo_demo(path)
-    assert error.value.code == "DEMO_CS2_NOT_SUPPORTED"
+    assert error.value.code == "DEMO_NOT_CSGO"
 
 
 def test_read_hl2demo_header_tick_rate(tmp_path: Path):

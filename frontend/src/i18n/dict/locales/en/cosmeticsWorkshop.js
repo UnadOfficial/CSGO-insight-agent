@@ -43,7 +43,7 @@ export default {
   "cosmeticsWorkshop.inspect.material": "HD material preview",
   "cosmeticsWorkshop.inspect.rotate": "Drag to rotate",
   "cosmeticsWorkshop.inspect.zoom": "Scroll to zoom",
-  "cosmeticsWorkshop.inspect.gameHint": "Choose wear and pattern seed, then Insight will launch CS2 through Steam for preview. This does not modify your game inventory.",
+  "cosmeticsWorkshop.inspect.gameHint": "Choose wear and pattern seed, then Insight will launch CS:GO through Steam for preview. This does not modify your game inventory.",
   "cosmeticsWorkshop.inspect.gloveFallback": "Gloves currently use an HD material preview; first-person glove 3D will be connected when the viewer supports it.",
   "cosmeticsWorkshop.scheme.button": "Loadout Plans",
   "cosmeticsWorkshop.scheme.title": "Loadout Plans",
