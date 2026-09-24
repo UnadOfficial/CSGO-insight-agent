@@ -11,6 +11,19 @@ on:
         description: "Version without v prefix (e.g. 2.6.0)"
         required: true
         type: string
+      update_mode:
+        description: "Updater mode: normal prompts users, force auto-installs"
+        required: false
+        default: normal
+        type: choice
+        options:
+          - normal
+          - force
+      deploy:
+        description: "Publish the installer + updater manifests to Cloudflare R2"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -28,6 +41,8 @@ jobs:
   release:
     runs-on: windows-latest
     timeout-minutes: 180
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
       PYTHONPATH: backend
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -68,6 +83,7 @@ jobs:
       - uses: ./.github/actions/build-csgo-extractor
 
       - name: Resolve release version
+        id: version
         shell: pwsh
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -83,6 +99,7 @@ jobs:
             throw "Invalid release version: $ver"
           }
           "RELEASE_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           Write-Host "Release version $ver"
 
       - name: Install frontend dependencies
@@ -137,6 +154,16 @@ jobs:
             "CSGO_INSIGHT_WINDOWS_CERTIFICATE_THUMBPRINT=$($certificate.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           } finally {
             Remove-Item -LiteralPath $pfxPath -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Verify updater signing configuration
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          $conf = Get-Content "frontend/src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          if ($conf.bundle.createUpdaterArtifacts -and -not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            throw "tauri.conf.json enables bundle.createUpdaterArtifacts but TAURI_SIGNING_PRIVATE_KEY is not configured. Add the secret, or set createUpdaterArtifacts=false and remove plugins.updater to build without update signing."
           }
 
       - name: Build Tauri desktop installer
@@ -227,3 +254,87 @@ jobs:
             SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 部署阶段：把 NSIS 安装包 + Tauri updater 清单（latest.json / latest.yml）
+  # 推到 Cloudflare R2，供客户端增量更新使用。GitHub Release 保留人工下载通道。
+  deploy:
+    name: Deploy updater channel
+    needs: release
+    if: ${{ needs.release.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.deploy) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    environment:
+      name: production
+      url: ${{ vars.R2_PUBLIC_BASE_URL || 'https://pub-7920152f7eff45c19b5a1750e55acd42.r2.dev' }}/latest.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.9.0"
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install deployment dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer-${{ needs.release.outputs.version }}
+
+      - name: Resolve deployment configuration
+        id: r2
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -z "${R2_ENDPOINT}" ] || [ -z "${R2_ACCESS_KEY_ID}" ] || [ -z "${R2_SECRET_ACCESS_KEY}" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::R2 credentials are not configured; skipping updater deployment. Set the R2_ENDPOINT / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY secrets to enable it."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish installer and updater manifests to R2
+        if: steps.r2.outputs.enabled == 'true'
+        working-directory: frontend
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'cs-demo-agent' }}
+          R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+          UPDATE_MODE: ${{ inputs.update_mode || 'normal' }}
+          RELEASE_NOTES: "CSGO Insight Agent ${{ needs.release.outputs.version }}"
+        run: pnpm run deploy:r2
+
+      - name: Verify updater manifest
+        if: steps.r2.outputs.enabled == 'true'
+        env:
+          BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL || 'https://pub-7920152f7eff45c19b5a1750e55acd42.r2.dev' }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if curl -fsSL "$BASE_URL/latest.json" -o latest.json; then break; fi
+            echo "manifest not visible yet (attempt ${attempt}); retrying in 10s"
+            sleep 10
+          done
+          jq -e --arg v "$VERSION" '.version == $v and (.platforms["windows-x86_64"].url | length) > 0' latest.json > /dev/null
+          {
+            echo "### Updater channel deployed"
+            echo ""
+            echo "- Version: \`${VERSION}\`"
+            echo "- Manifest: ${BASE_URL}/latest.json"
+            echo "- Installer: $(jq -r '.platforms["windows-x86_64"].url' latest.json)"
+          } >> "$GITHUB_STEP_SUMMARY"

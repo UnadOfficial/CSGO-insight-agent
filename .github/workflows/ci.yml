@@ -24,16 +24,21 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # PR 之间互相取消；main / develop 的每次提交都要留下完整结果
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
   PYTHONNOUSERSITE: "1"
   PYTHONDONTWRITEBYTECODE: "1"
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.11.8"
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.9.0"
 
 jobs:
   extractor:
-    name: CS:GO extractor
+    name: CS:GO extractor (Go)
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -49,7 +54,7 @@ jobs:
           retention-days: 1
 
   backend:
-    name: Backend tests
+    name: Backend tests (Python 3.12)
     runs-on: windows-latest
     timeout-minutes: 45
     needs: extractor
@@ -65,11 +70,11 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - uses: astral-sh/setup-uv@v6
         with:
-          version: "0.11.8"
+          version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Install backend dependencies
@@ -82,7 +87,7 @@ jobs:
         run: uv run --frozen python -m pytest backend/tests -q
 
   frontend:
-    name: Frontend tests
+    name: Frontend tests & build
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
@@ -93,12 +98,12 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: "11.9.0"
+          version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
@@ -114,8 +119,16 @@ jobs:
       - name: Build frontend
         run: pnpm run build
 
+      - name: Upload web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 7
+
   rust:
-    name: Rust checks
+    name: Rust checks (Tauri shell)
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -140,3 +153,49 @@ jobs:
 
       - name: Run tests
         run: cargo test --locked
+
+  rust-tools:
+    name: Rust checks (demo-cosmetic-rewriter)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tools/demo-cosmetic-rewriter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/demo-cosmetic-rewriter
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run lints
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Run tests
+        run: cargo test --locked
+
+  ci-gate:
+    name: CI gate
+    if: ${{ always() }}
+    needs: [extractor, backend, frontend, rust, rust-tools]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate upstream jobs
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$RESULTS" | jq -e '[.[] | .result] | any(. != "success")' > /dev/null; then
+            echo "::error::One or more CI jobs did not succeed. See the job summary above."
+            exit 1
+          fi
+          echo "All CI jobs passed."

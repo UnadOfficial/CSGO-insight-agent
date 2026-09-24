@@ -1,0 +1,10 @@
+# Cloudflare Worker: 更新代理（合并 Range 请求，规避 Worker 50 子请求上限）
+# 部署入口：.github/workflows/deploy-cloudflare-worker.yml
+name = "csgo-insight-update-proxy"
+main = "update-proxy-worker.js"
+compatibility_date = "2025-09-20"
+
+# 需要自定义域名时取消下面注释（先在 Cloudflare 上托管对应 zone）
+# routes = [
+#   { pattern = "update.example.com", custom_domain = true }
+# ]
