@@ -126,24 +126,85 @@ def test_executor_promotes_segment_abort_to_request_result():
     assert result.error == "aborted"
 
 
+def _scripted_alive(states):
+    """Probe stub that walks *states*, repeating the final value once exhausted."""
+    queue = list(states)
+
+    def probe() -> bool:
+        if len(queue) > 1:
+            return queue.pop(0)
+        return queue[0] if queue else True
+
+    return probe
+
+
 def test_csgo_exit_monitor_signals_unexpected_exit(monkeypatch):
     async def run():
         abort_event = asyncio.Event()
         director = OBSDirector(OBSConfig(), "", abort_event=abort_event)
-        alive_states = iter((True, False))
-        monkeypatch.setattr(
-            director,
-            "_is_managed_csgo_alive",
-            lambda: next(alive_states),
-        )
+        # One healthy probe, then the game is gone for good.
+        monkeypatch.setattr(director, "_is_managed_csgo_alive", _scripted_alive([True, False]))
+        # Collapse the wall-clock grace so the test does not sleep for real seconds.
+        monkeypatch.setenv("CSGO_INSIGHT_CSGO_EXIT_MISS_GRACE_SEC", "0")
         director._csgo_exit_monitor_stop = asyncio.Event()
 
-        await asyncio.wait_for(director._monitor_csgo_exit(poll_interval=0.01), timeout=1.0)
+        await asyncio.wait_for(director._monitor_csgo_exit(poll_interval=0.01), timeout=3.0)
 
         assert director._csgo_exited_unexpectedly is True
         assert abort_event.is_set() is True
         with pytest.raises(CSGOUnexpectedExitError):
             director._check_abort()
+
+    asyncio.run(run())
+
+
+def test_csgo_exit_monitor_tolerates_transient_misses(monkeypatch):
+    """A brief probe gap must not abort a healthy recording.
+
+    Patching video.txt for the target resolution tears down and recreates the
+    game window, so window discovery legitimately reports "not running" for a
+    few polls. Declaring an exit on the first miss stopped healthy recordings
+    with a spurious "CS:GO 被手动关闭" notice.
+    """
+    async def run():
+        abort_event = asyncio.Event()
+        director = OBSDirector(OBSConfig(), "", abort_event=abort_event)
+        monkeypatch.setattr(
+            director,
+            "_is_managed_csgo_alive",
+            _scripted_alive([True, False, False, True]),
+        )
+        monkeypatch.setenv("CSGO_INSIGHT_CSGO_EXIT_MISS_GRACE_SEC", "0")
+        director._csgo_exit_monitor_stop = asyncio.Event()
+
+        task = asyncio.create_task(director._monitor_csgo_exit(poll_interval=0.01))
+        await asyncio.sleep(0.4)
+        director._csgo_exit_monitor_stop.set()
+        await asyncio.wait_for(task, timeout=3.0)
+
+        assert director._csgo_exited_unexpectedly is False
+        assert abort_event.is_set() is False
+
+    asyncio.run(run())
+
+
+def test_csgo_exit_monitor_honours_the_grace_period(monkeypatch):
+    """Reaching the miss count alone is not enough; the grace window must elapse."""
+    async def run():
+        abort_event = asyncio.Event()
+        director = OBSDirector(OBSConfig(), "", abort_event=abort_event)
+        monkeypatch.setattr(director, "_is_managed_csgo_alive", _scripted_alive([True, False]))
+        monkeypatch.setenv("CSGO_INSIGHT_CSGO_EXIT_MISS_THRESHOLD", "2")
+        monkeypatch.setenv("CSGO_INSIGHT_CSGO_EXIT_MISS_GRACE_SEC", "30")
+        director._csgo_exit_monitor_stop = asyncio.Event()
+
+        task = asyncio.create_task(director._monitor_csgo_exit(poll_interval=0.01))
+        await asyncio.sleep(0.4)
+        director._csgo_exit_monitor_stop.set()
+        await asyncio.wait_for(task, timeout=3.0)
+
+        assert director._csgo_exited_unexpectedly is False
+        assert abort_event.is_set() is False
 
     asyncio.run(run())
 

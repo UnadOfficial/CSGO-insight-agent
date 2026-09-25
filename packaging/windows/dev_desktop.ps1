@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
   One-click Tauri desktop:dev. Does not build an NSIS installer.
@@ -116,16 +116,23 @@ if ($needFrontend) {
 }
 
 if ($Browser) {
+    # Vite proxies /api to this port, so keep the listener and the GSI sink URL
+    # (which derives from CSGO_INSIGHT_PORT) on the same value. Without the export
+    # the sink would fall back to its own default and CS:GO would post its state to
+    # a port nothing is listening on.
+    $devPort = 8000
+    $env:CSGO_INSIGHT_PORT = "$devPort"
+
     Write-Host ""
     Write-Host "CSGO Insight Agent - 浏览器开发（不打包、不启动 Tauri）"
-    Write-Host "  后端  http://127.0.0.1:8000"
+    Write-Host "  后端  http://127.0.0.1:$devPort"
     Write-Host "  前端  http://localhost:5173  （/api 代理到后端）"
     Write-Host "关闭本窗口会停止两个进程。"
     Write-Host ""
 
     $pnpm = Get-PnpmCmd
     $backend = Start-Process -FilePath $python -ArgumentList @(
-        "-m", "uvicorn", "app.main:app", "--app-dir", "backend", "--reload", "--port", "8000"
+        "-m", "uvicorn", "app.main:app", "--app-dir", "backend", "--reload", "--port", "$devPort"
     ) -WorkingDirectory $repoRoot -PassThru -NoNewWindow
     $frontendProc = $null
     try {

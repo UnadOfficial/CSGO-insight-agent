@@ -60,11 +60,12 @@ def main() -> None:
     if backend not in sys.path:
         sys.path.insert(0, backend)
     host = os.environ.get("CSGO_INSIGHT_HOST", "127.0.0.1")
-    try:
-        port = int(os.environ.get("CSGO_INSIGHT_PORT", "19871"))
-    except ValueError:
-        port = 19871
+    # Shared with the GSI sink URL written into gamestate_integration_*.cfg;
+    # a divergent default here silently points CS:GO's GSI at a dead port.
+    from app.runtime_port import resolve_backend_port
     from app.shutdown_state import register_server_shutdown
+
+    port = resolve_backend_port()
 
     config = uvicorn.Config(
         "app.main:app",

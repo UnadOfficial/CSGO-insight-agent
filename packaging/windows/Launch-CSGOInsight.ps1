@@ -31,13 +31,19 @@ if ($env:CSGO_INSIGHT_HOST) {
   $t = $env:CSGO_INSIGHT_HOST.Trim()
   if ($t) { $hostOnly = $t }
 }
-$port = 8000
+$port = 19871
 if ($env:CSGO_INSIGHT_PORT) {
   $parsed = 0
   if ([int]::TryParse($env:CSGO_INSIGHT_PORT, [ref]$parsed) -and $parsed -ge 1 -and $parsed -le 65535) {
     $port = $parsed
   }
 }
+
+# Single source of truth: publish the resolved port so the uvicorn listener and the
+# GSI sink URL written into gamestate_integration_*.cfg cannot diverge. Without this
+# the backend listened on 19871 while the GSI sink defaulted to 8000, so CS:GO posted
+# its state to a dead port and recording aborted with "CS:GO 未在限定时间内进入游戏画面".
+$env:CSGO_INSIGHT_PORT = "$port"
 
 $openUrl = "http://$($hostOnly):$port/"
 

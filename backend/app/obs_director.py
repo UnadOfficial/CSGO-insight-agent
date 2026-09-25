@@ -51,6 +51,7 @@ from .env_utils import (
     SpecPlayerVerifyConfig,
     _candidate_steam_roots,
 )
+from .runtime_port import resolve_backend_port
 from .gsi_ready import (
     cleanup_stale_gsi_configs,
     gsi_config_path,
@@ -431,12 +432,11 @@ def _resolve_gsi_sink_url() -> str:
     explicit = os.environ.get("CSGO_INSIGHT_GSI_URL") or os.environ.get("CSGO_INSIGHT_BACKEND_GSI_URL")
     if explicit:
         return explicit.strip()
-    try:
-        port = int(os.environ.get("CSGO_INSIGHT_PORT", "8000") or "8000")
-    except ValueError:
-        port = 8000
-    # CSGO POSTs from the same machine; mirror CSGO_INSIGHT_PORT so a non-default
-    # uvicorn port still receives GSI (previously defaulted to :8000 only).
+    # CSGO POSTs from the same machine, so the sink must use the listener's port.
+    # This previously defaulted to :8000 while uvicorn defaulted to :19871, so a
+    # launcher that did not export CSGO_INSIGHT_PORT sent GSI to a dead port and
+    # recording aborted with RECORDING_GSI_NOT_READY despite a healthy game.
+    port = resolve_backend_port()
     return f"http://127.0.0.1:{port}/api/gsi/csgo"
 
 
@@ -489,6 +489,16 @@ _RECORDING_KEYBIND_RESET_LINES: tuple[str, ...] = (
     "unbind alt",
 )
 _RECORDING_VIDEO_EXTENSIONS = {".mkv", ".mp4", ".mov", ".flv", ".ts", ".m2ts", ".avi"}
+
+# CSGO 退出监视防抖：单次探测为负不足以判定游戏退出。``_is_managed_csgo_alive`` 在
+# Windows 上要经窗口枚举 + tasklist（必要时再起 PowerShell，单次可达 1~2s），而录制
+# 本身会 patch video.txt 触发分辨率切换，切换期间游戏窗口会销毁重建；Steam 也可能
+# 短暂重新挂接进程。这些窗口期内探测会合法地返回"未运行"。若一次漏检就判定退出，
+# 健康录制会被误杀（表现：录制中途提示"CS:GO 被手动关闭"）。因此要求漏检同时满足
+# 次数与时长两个条件。可用 CSGO_INSIGHT_CSGO_EXIT_MISS_THRESHOLD /
+# CSGO_INSIGHT_CSGO_EXIT_MISS_GRACE_SEC 覆盖。
+_CSGO_EXIT_MISS_THRESHOLD = 6
+_CSGO_EXIT_MISS_GRACE_SEC = 3.0
 
 
 # 用户配置磁盘备份 / ``recording_state.json`` 见 ``csgo_config_backup`` 模块；
@@ -2113,11 +2123,37 @@ class OBSDirector:
         return process_alive or is_csgo_running()
 
     async def _monitor_csgo_exit(self, poll_interval: float = 0.5) -> None:
-        """Signal the recording abort path when a running managed CSGO disappears."""
+        """Signal the recording abort path when a running managed CSGO disappears.
+
+        A single negative probe is not proof of exit. Window discovery runs
+        through ``EnumWindows`` + ``tasklist``, and the recorder itself patches
+        ``video.txt`` for the target resolution — which tears down and recreates
+        the game window. Require a sustained streak (both a miss count and a
+        wall-clock grace period) before treating the game as gone.
+        """
         seen_alive = False
         stop_event = self._csgo_exit_monitor_stop
         if stop_event is None:
             return
+
+        miss_threshold = max(
+            1,
+            int(
+                self._env_float(
+                    "CSGO_INSIGHT_CSGO_EXIT_MISS_THRESHOLD",
+                    str(_CSGO_EXIT_MISS_THRESHOLD),
+                )
+            ),
+        )
+        grace_sec = max(
+            0.0,
+            self._env_float(
+                "CSGO_INSIGHT_CSGO_EXIT_MISS_GRACE_SEC",
+                str(_CSGO_EXIT_MISS_GRACE_SEC),
+            ),
+        )
+        miss_streak = 0
+        first_miss_at: Optional[float] = None
 
         try:
             while not self._csgo_shutdown_expected and not stop_event.is_set():
@@ -2129,15 +2165,38 @@ class OBSDirector:
                 alive = await asyncio.to_thread(self._is_managed_csgo_alive)
                 if alive:
                     seen_alive = True
+                    miss_streak = 0
+                    first_miss_at = None
                 elif seen_alive and not self._csgo_shutdown_expected:
-                    self._csgo_exited_unexpectedly = True
-                    logger.error(
-                        "[RecordingV3] managed CSGO exited before Insight cleanup; "
-                        "stopping OBS and restoring player/POV files"
+                    now = time.monotonic()
+                    if first_miss_at is None:
+                        first_miss_at = now
+                    miss_streak += 1
+                    missing_for = now - first_miss_at
+                    if miss_streak >= miss_threshold and missing_for >= grace_sec:
+                        self._csgo_exited_unexpectedly = True
+                        logger.error(
+                            "[RecordingV3] managed CSGO exited before Insight cleanup "
+                            "(confirmed by %d consecutive missed probes over %.1fs); "
+                            "stopping OBS and restoring player/POV files",
+                            miss_streak,
+                            missing_for,
+                        )
+                        if self._abort_event is not None:
+                            self._abort_event.set()
+                        return
+                    logger.warning(
+                        "[RecordingV3] managed CSGO probe missed (%d/%d, %.1fs); "
+                        "waiting for confirmation before aborting",
+                        miss_streak,
+                        miss_threshold,
+                        missing_for,
                     )
-                    if self._abort_event is not None:
-                        self._abort_event.set()
-                    return
+                else:
+                    # Either the game has not been observed alive yet, or Insight
+                    # owns the shutdown: nothing to confirm.
+                    miss_streak = 0
+                    first_miss_at = None
 
                 try:
                     await asyncio.wait_for(stop_event.wait(), timeout=max(0.05, poll_interval))
