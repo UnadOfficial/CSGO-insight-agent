@@ -159,8 +159,7 @@ fn run(cli: Cli) -> Result<()> {
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent)
-        .with_context(|| format!("failed to create {}", parent.display()))?;
+    fs::create_dir_all(parent).with_context(|| format!("failed to create {}", parent.display()))?;
     let partial = partial_path(&cli.output);
     if partial.exists() {
         bail!("partial output already exists: {}", partial.display());
@@ -207,9 +206,7 @@ fn run(cli: Cli) -> Result<()> {
     );
     println!(
         "packet_entities_messages={} replacements={} stripped_serialized_bytes={}",
-        report.packet_entities_messages,
-        report.replacements,
-        report.stripped_serialized_bytes
+        report.packet_entities_messages, report.replacements, report.stripped_serialized_bytes
     );
     println!("rebased_demo_ticks={:?}", report.rebased_demo_ticks);
     println!("rebased_server_ticks={:?}", report.rebased_server_ticks);

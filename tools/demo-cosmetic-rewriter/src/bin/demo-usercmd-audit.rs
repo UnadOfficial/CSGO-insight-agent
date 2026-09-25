@@ -322,7 +322,11 @@ fn run(cli: Cli) -> Result<()> {
     };
     drop(state);
 
-    if let Some(parent) = cli.output.parent().filter(|path| !path.as_os_str().is_empty()) {
+    if let Some(parent) = cli
+        .output
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+    {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }

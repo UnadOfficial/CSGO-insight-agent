@@ -115,8 +115,7 @@ fn run(cli: Cli) -> Result<()> {
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent)
-        .with_context(|| format!("failed to create {}", parent.display()))?;
+    fs::create_dir_all(parent).with_context(|| format!("failed to create {}", parent.display()))?;
     let partial = partial_path(&cli.output);
     if partial.exists() {
         bail!("partial output already exists: {}", partial.display());
@@ -164,7 +163,10 @@ fn run(cli: Cli) -> Result<()> {
     println!("player_slot={}", cli.player_slot);
     println!("is_hltv={}", cli.is_hltv);
     println!("max_clients={:?}", cli.max_clients);
-    println!("replacements={} ticks={:?}", report.replacements, report.ticks);
+    println!(
+        "replacements={} ticks={:?}",
+        report.replacements, report.ticks
+    );
     println!(
         "header_offsets=file_info:{} spawn_groups:{} eof:{}",
         layout.actual_file_info_offset, layout.actual_spawn_groups_offset, layout.file_len
@@ -207,4 +209,3 @@ mod tests {
         );
     }
 }
-

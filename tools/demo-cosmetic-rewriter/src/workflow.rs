@@ -180,7 +180,10 @@ pub fn verify_demo_pair(options: VerifyOptions) -> Result<VerifyOutcome> {
     })
 }
 
-pub(crate) fn ensure_same_demo_metadata(original: &DemoLayout, rewritten: &DemoLayout) -> Result<()> {
+pub(crate) fn ensure_same_demo_metadata(
+    original: &DemoLayout,
+    rewritten: &DemoLayout,
+) -> Result<()> {
     if original.metadata.patch_version != rewritten.metadata.patch_version
         || original.metadata.build_num != rewritten.metadata.build_num
         || original.metadata.map_name != rewritten.metadata.map_name

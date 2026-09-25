@@ -251,7 +251,8 @@ impl SnapshotAudit {
         {
             self.focus_samples.push(sample.clone());
         }
-        if base_seen_in_epoch == Some(false) && self.missing_base_samples.len() < ISSUE_SAMPLE_LIMIT {
+        if base_seen_in_epoch == Some(false) && self.missing_base_samples.len() < ISSUE_SAMPLE_LIMIT
+        {
             self.missing_base_samples.push(sample);
         }
 
@@ -397,10 +398,7 @@ fn run(cli: Cli) -> Result<()> {
     );
     let started = Instant::now();
     let mut writer = DemoWriter::from_reader(input, NullSeekWriter::default())?;
-    let state = writer.add_rewriter(SnapshotAudit::new(
-        cli.focus_server_tick,
-        cli.focus_radius,
-    ));
+    let state = writer.add_rewriter(SnapshotAudit::new(cli.focus_server_tick, cli.focus_radius));
     writer.run()?;
     drop(writer);
 
@@ -434,7 +432,11 @@ fn run(cli: Cli) -> Result<()> {
     };
     drop(state);
 
-    if let Some(parent) = cli.output.parent().filter(|path| !path.as_os_str().is_empty()) {
+    if let Some(parent) = cli
+        .output
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+    {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }

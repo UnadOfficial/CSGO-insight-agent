@@ -140,11 +140,7 @@ impl NetMessageAudit {
         }
     }
 
-    fn record_wrapped_user_message(
-        &mut self,
-        tick: u32,
-        message: CSvcMsgUserMessage,
-    ) {
+    fn record_wrapped_user_message(&mut self, tick: u32, message: CSvcMsgUserMessage) {
         let msg_type = message.msg_type.unwrap_or_default();
         let data = message.msg_data.as_deref().unwrap_or_default();
         let name = describe_user_message_type(msg_type);
@@ -177,16 +173,12 @@ impl NetMessageAudit {
             }
         } else if msg_type == ECstrike15UserMessages::CsUmStopSpectatorMode as i32 {
             match CCsUsrMsgStopSpectatorMode::decode(data) {
-                Ok(message) => self
-                    .stop_spectator_samples
-                    .push(StopSpectatorSample {
-                        tick,
-                        dummy: message.dummy,
-                        wrapped,
-                    }),
-                Err(error) => {
-                    self.record_failure(tick, msg_type, "CsUmStopSpectatorMode", error)
-                }
+                Ok(message) => self.stop_spectator_samples.push(StopSpectatorSample {
+                    tick,
+                    dummy: message.dummy,
+                    wrapped,
+                }),
+                Err(error) => self.record_failure(tick, msg_type, "CsUmStopSpectatorMode", error),
             }
         } else if msg_type == ECstrike15UserMessages::CsUmKillCam as i32 {
             match CCsUsrMsgKillCam::decode(data) {
@@ -212,10 +204,11 @@ impl DemoRewriter for NetMessageAudit {
         payload: &[u8],
     ) -> Result<MessageRewrite, source2_demo::error::ParserError> {
         self.report_progress(tick);
-        self.outer_types
-            .entry(msg_type as i32)
-            .or_default()
-            .record(format!("{msg_type:?}"), tick, payload.len());
+        self.outer_types.entry(msg_type as i32).or_default().record(
+            format!("{msg_type:?}"),
+            tick,
+            payload.len(),
+        );
         Ok(MessageRewrite::Keep)
     }
 
@@ -227,10 +220,11 @@ impl DemoRewriter for NetMessageAudit {
         payload: &[u8],
     ) -> Result<MessageRewrite, source2_demo::error::ParserError> {
         self.report_progress(tick);
-        self.packet_types
-            .entry(msg_type)
-            .or_default()
-            .record(describe_packet_message_type(msg_type), tick, payload.len());
+        self.packet_types.entry(msg_type).or_default().record(
+            describe_packet_message_type(msg_type),
+            tick,
+            payload.len(),
+        );
 
         if msg_type == SvcMessages::SvcUserMessage as i32 {
             match CSvcMsgUserMessage::decode(payload) {
@@ -378,7 +372,11 @@ fn run(cli: Cli) -> Result<()> {
     };
     drop(state);
 
-    if let Some(parent) = cli.output.parent().filter(|path| !path.as_os_str().is_empty()) {
+    if let Some(parent) = cli
+        .output
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+    {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }
@@ -443,4 +441,3 @@ fn hex_prefix(bytes: &[u8]) -> String {
         .collect::<Vec<_>>()
         .join("")
 }
-

@@ -130,8 +130,7 @@ fn run(cli: Cli) -> Result<()> {
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent)
-        .with_context(|| format!("failed to create {}", parent.display()))?;
+    fs::create_dir_all(parent).with_context(|| format!("failed to create {}", parent.display()))?;
     let partial = partial_path(&cli.output);
     if partial.exists() {
         bail!("partial output already exists: {}", partial.display());
@@ -204,10 +203,7 @@ fn run(cli: Cli) -> Result<()> {
         "dropped_messages={} dropped_commands={} dropped_payload_bytes={}",
         report.dropped_messages, report.dropped_commands, report.dropped_payload_bytes
     );
-    println!(
-        "dropped_by_player_slot={:?}",
-        report.dropped_by_player_slot
-    );
+    println!("dropped_by_player_slot={:?}", report.dropped_by_player_slot);
     println!(
         "drop_ticks={:?}..{:?} retained_packet_entities={}",
         report.first_drop_tick, report.last_drop_tick, report.retained_packet_entities

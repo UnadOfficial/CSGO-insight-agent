@@ -6,8 +6,7 @@ use sha2::{Digest, Sha256};
 use source2_demo::prelude::*;
 use source2_demo::proto::{CSvcMsgPacketEntities, CSvcMsgServerInfo};
 use source2_demo::writer::{
-    materialize_full_packet_entities, DemoRewriter, DemoWriter, MessageRewrite,
-    RewriteInterests,
+    materialize_full_packet_entities, DemoRewriter, DemoWriter, MessageRewrite, RewriteInterests,
 };
 use std::collections::BTreeSet;
 use std::fs::{self, File};
@@ -161,8 +160,7 @@ fn run(cli: Cli) -> Result<()> {
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent)
-        .with_context(|| format!("failed to create {}", parent.display()))?;
+    fs::create_dir_all(parent).with_context(|| format!("failed to create {}", parent.display()))?;
     let partial = partial_path(&cli.output);
     if partial.exists() {
         bail!("partial output already exists: {}", partial.display());

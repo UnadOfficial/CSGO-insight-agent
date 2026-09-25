@@ -91,8 +91,7 @@ impl ControllerHandleProbe {
     }
 
     fn is_target(&self, entity: &Entity) -> bool {
-        entity.class().name() == self.target_class
-            && entity.index() == self.controller_index
+        entity.class().name() == self.target_class && entity.index() == self.controller_index
     }
 
     fn record(&mut self, ctx: &Context, entity: &Entity, current: Option<&FieldValue>) {
@@ -195,9 +194,7 @@ fn run(cli: Cli) -> Result<()> {
     if cli.local_controller_index == 0 {
         bail!("entity index 0 is reserved for the synthetic baseline guard");
     }
-    if HANDLE_FIELDS.contains(&cli.field.as_str())
-        && (cli.value == 0 || cli.value == u32::MAX)
-    {
+    if HANDLE_FIELDS.contains(&cli.field.as_str()) && (cli.value == 0 || cli.value == u32::MAX) {
         bail!("target handle must be a nonzero, non-invalid Source 2 handle");
     }
     let desired = desired_value(&cli.field, cli.value)?;

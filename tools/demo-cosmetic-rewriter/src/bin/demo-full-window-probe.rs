@@ -6,8 +6,7 @@ use sha2::{Digest, Sha256};
 use source2_demo::prelude::*;
 use source2_demo::proto::{CSvcMsgPacketEntities, CSvcMsgServerInfo};
 use source2_demo::writer::{
-    materialize_full_packet_entities, DemoRewriter, DemoWriter, MessageRewrite,
-    RewriteInterests,
+    materialize_full_packet_entities, DemoRewriter, DemoWriter, MessageRewrite, RewriteInterests,
 };
 use std::collections::BTreeSet;
 use std::fs::{self, File};
@@ -158,8 +157,7 @@ fn run(cli: Cli) -> Result<()> {
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent)
-        .with_context(|| format!("failed to create {}", parent.display()))?;
+    fs::create_dir_all(parent).with_context(|| format!("failed to create {}", parent.display()))?;
     let partial = partial_path(&cli.output);
     if partial.exists() {
         bail!("partial output already exists: {}", partial.display());
@@ -239,10 +237,16 @@ fn validate_report(cli: &Cli, report: &ProbeReport) -> Result<()> {
         bail!("no svc_ServerInfo message was found");
     }
     if report.player_slots != BTreeSet::from([cli.expected_player_slot]) {
-        bail!("unexpected ServerInfo player_slot values: {:?}", report.player_slots);
+        bail!(
+            "unexpected ServerInfo player_slot values: {:?}",
+            report.player_slots
+        );
     }
     if report.is_hltv_values != BTreeSet::from([cli.expected_is_hltv]) {
-        bail!("unexpected ServerInfo is_hltv values: {:?}", report.is_hltv_values);
+        bail!(
+            "unexpected ServerInfo is_hltv values: {:?}",
+            report.is_hltv_values
+        );
     }
     if report.materialized_snapshots != cli.window_ticks as usize {
         bail!(

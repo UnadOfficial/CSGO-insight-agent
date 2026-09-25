@@ -40,8 +40,11 @@ const REQUESTED_FIELDS: &[&str] = &[
 
 const NAME_FIELDS: &[&str] = &["m_iszPlayerName", "m_sSanitizedPlayerName"];
 const PAWN_HANDLE_FIELDS: &[&str] = &["m_hPawn", "m_hPlayerPawn", "m_hObserverPawn"];
-const CONTROLLER_HANDLE_FIELDS: &[&str] =
-    &["m_hController", "m_hDefaultController", "m_hOriginalController"];
+const CONTROLLER_HANDLE_FIELDS: &[&str] = &[
+    "m_hController",
+    "m_hDefaultController",
+    "m_hOriginalController",
+];
 
 #[derive(Debug, ClapParser)]
 #[command(name = "demo-hud-audit")]
@@ -366,7 +369,11 @@ impl EntityAuditBuilder {
             latest_is_local_player_controller: self.latest_is_local_player_controller,
             latest_is_hltv: self.latest_is_hltv,
             state_transitions: self.state_transitions.clone(),
-            delta_field_timelines: self.timelines.values().map(FieldTimelineBuilder::finish).collect(),
+            delta_field_timelines: self
+                .timelines
+                .values()
+                .map(FieldTimelineBuilder::finish)
+                .collect(),
         }
     }
 }
@@ -463,8 +470,7 @@ impl HudAuditRewriter {
             let Some(requested) = requested_field_for_actual(&field.name) else {
                 continue;
             };
-            let resolved =
-                availability
+            let resolved = availability
                 .entry(requested.to_owned())
                 .or_default()
                 .resolved_paths
@@ -476,8 +482,7 @@ impl HudAuditRewriter {
                 });
             resolved.field_type = field.field_type.clone();
             if resolved.decoded_type_seen.is_none() {
-                resolved.decoded_type_seen =
-                    field.value.map(|value| value.type_name().to_owned());
+                resolved.decoded_type_seen = field.value.map(|value| value.type_name().to_owned());
             }
         }
     }
@@ -618,11 +623,7 @@ impl HudAuditRewriter {
                             exact_path_in_serializer: availability.exact_path_in_serializer,
                             serializer_available: availability.exact_path_in_serializer
                                 || !availability.resolved_paths.is_empty(),
-                            resolved_paths: availability
-                                .resolved_paths
-                                .values()
-                                .cloned()
-                                .collect(),
+                            resolved_paths: availability.resolved_paths.values().cloned().collect(),
                         })
                         .collect(),
                 })
@@ -659,16 +660,13 @@ impl DemoRewriter for HudAuditRewriter {
                 max_clients: message.max_clients(),
                 max_classes: message.max_classes(),
             };
-            if self
-                .server_info
-                .last()
-                .is_none_or(|previous| {
-                    previous.player_slot != snapshot.player_slot
-                        || previous.is_hltv != snapshot.is_hltv
-                        || previous.max_clients != snapshot.max_clients
-                        || previous.max_classes != snapshot.max_classes
-                })
-            {
+            // `Option::is_none_or` needs Rust 1.82; this crate declares 1.79.
+            if self.server_info.last().map_or(true, |previous| {
+                previous.player_slot != snapshot.player_slot
+                    || previous.is_hltv != snapshot.is_hltv
+                    || previous.max_clients != snapshot.max_clients
+                    || previous.max_classes != snapshot.max_classes
+            }) {
                 self.server_info.push(snapshot);
             }
         }
@@ -720,10 +718,7 @@ impl DemoRewriter for HudAuditRewriter {
             return Vec::new();
         }
         let class_name = entity.class().name().to_owned();
-        if self
-            .fully_scanned_schema_classes
-            .insert(class_name)
-        {
+        if self.fully_scanned_schema_classes.insert(class_name) {
             let fields = entity.fields();
             self.scan_schema(entity, &fields);
         }
@@ -799,7 +794,11 @@ fn run(cli: Cli) -> Result<()> {
     let report = state
         .borrow()
         .build_report(&cli.input, metadata.len(), sha256, &cli.target_name);
-    if let Some(parent) = cli.output.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+    if let Some(parent) = cli
+        .output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }
@@ -896,9 +895,7 @@ fn valid_handle(value: u64) -> Option<u32> {
 }
 
 fn derived_player_slot(entity_index: u32) -> Option<u32> {
-    (1..=64)
-        .contains(&entity_index)
-        .then_some(entity_index - 1)
+    (1..=64).contains(&entity_index).then_some(entity_index - 1)
 }
 
 fn event_name(event: EntityEvents) -> &'static str {
@@ -932,12 +929,12 @@ fn latest_field(entity: &EntityAudit, requested: &str) -> Option<FieldDatum> {
         .map(|occurrence| occurrence.value.clone())
         .or_else(|| {
             entity
-        .state_transitions
-        .iter()
-        .rev()
-        .flat_map(|snapshot| snapshot.fields.iter())
-        .find(|(actual, _)| requested_field_for_actual(actual) == Some(requested))
-        .map(|(_, value)| value.clone())
+                .state_transitions
+                .iter()
+                .rev()
+                .flat_map(|snapshot| snapshot.fields.iter())
+                .find(|(actual, _)| requested_field_for_actual(actual) == Some(requested))
+                .map(|(_, value)| value.clone())
         })
 }
 
